@@ -6,8 +6,33 @@ Everything below runs under `MOCK_LLM` with **zero API keys and zero network cal
 once the SentenceTransformers model is cached. Part 1 is complete; Parts 2 to 4 are not
 yet built.
 
+## Setup
+
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
 python run_part1.py     # every Part 1 task, in order, exits non-zero on any failure
+```
+
+Two dependencies, both free and local: `sentence-transformers` for embeddings and
+`chromadb` for the vector index. The embedding model downloads once on first run and is
+cached; after that nothing here touches the network.
+
+Repository layout:
+
+```
+dataset.py              Task 1  seeded generator, validation, snapshot, SQLite
+knowledge_base/         Task 2  18 policy documents
+chunking.py             Task 3  both strategies, and the parameter measurement
+index_kb.py             Task 3  embeds and indexes into two ChromaDB collections
+queries.py                      evaluation queries and ground-truth labels
+rag.py                  Task 4  retrieval, grounded generation, threshold calibration
+evaluate_retrieval.py   Task 5  Precision@3 and Recall@3 for both collections
+run_part1.py                    runs all of the above in order
+docs/dataset-design.md          the twenty dataset decisions and their measurements
+reference/                      the capstone problem statement
 ```
 
 ## Part 1 status
@@ -32,7 +57,7 @@ record sits an application with an event history, and `status` and `days_since_c
 are both read off that history rather than drawn independently. That is what makes it
 impossible for a loan to be `Disbursed`, 25 days old, and queued for urgent attention at
 the same time. The full reasoning and the measurements behind every constant are in
-[`../../docs/capstone-dataset-design.md`](../../docs/capstone-dataset-design.md).
+[`docs/dataset-design.md`](docs/dataset-design.md).
 
 ### Category and status weights
 
