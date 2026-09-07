@@ -123,6 +123,11 @@ Cross-**version** stability of `random.randint` and `random.choice` is not verif
 CPython has changed those internals before. The committed hash is what turns that
 unverified assumption into something that announces itself.
 
+Retrieval numbers were also checked against a library upgrade: every similarity in Task 4
+and every score in Task 5 is byte-identical under `sentence-transformers` 5.7.0 and 6.0.1.
+`requirements.txt` therefore leaves both unpinned, since a grader installing fresh gets the
+same results.
+
 `dataset.py` also writes `data/loan_applications.sqlite` (500 applications, 1,329 events),
 which is what the Part 2 lookup tool will query, the way a deployed system queries records
 rather than holding the loan book in memory.
