@@ -17,7 +17,7 @@ DATASET_SNAPSHOT = DATA_DIR / "loan_applications.json"
 
 # --- Task 1, dataset generation -------------------------------------------
 
-SEED = 0  # replaced in Task 2 by the seed the fraud-band search selects
+SEED = 1  # first seed in 1..50 whose draw meets every structural invariant
 RECORD_COUNT = 100
 RECORD_ID_PREFIX = "LN-"
 RECORD_ID_START = 1001
