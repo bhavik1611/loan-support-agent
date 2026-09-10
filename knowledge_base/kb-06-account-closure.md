@@ -1,0 +1,19 @@
+---
+doc_id: kb-06-account-closure
+title: Account-closure process
+topic: account_closure
+required: true
+---
+
+A Meridian Bank customer requests account closure either in branch or in writing.
+Meridian Bank requires the account balance to be nil, or Meridian Bank pays out the remaining balance by demand draft or transfer.
+Meridian Bank requires the customer to surrender any unused cheque leaves and the debit card before closing the account.
+Meridian Bank levies a closure charge of 500 rupees on an account less than 12 months old, and Meridian Bank waives this closure charge on an account 12 months or older.
+Meridian Bank processes an account closure within 7 working days of the request.
+Meridian Bank requires the customer to cancel every standing instruction and mandate on the account before closure.
+A linked loan or a lien on a Meridian Bank account blocks closure until the loan is repaid or the lien is released.
+Meridian Bank issues a written closure confirmation once the account is closed.
+Meridian Bank routes a dormant account through the same closure process, after first reactivating the dormant account.
+Meridian Bank does not require the customer to state a reason for closing the account.
+Meridian Bank stops charging any further fees on the account from the date closure is confirmed.
+Meridian Bank retains closure records for regulatory reference after the account is closed.

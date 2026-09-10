@@ -1,0 +1,20 @@
+---
+doc_id: kb-07-interest-rate-slabs
+title: Interest-rate slabs
+topic: interest_rate_slabs
+required: true
+---
+
+Meridian Bank prices every loan product off an internal benchmark, the Meridian Reference Rate, plus a spread.
+The Home Loan at Meridian Bank carries an interest rate between 8.40 and 9.85 percent per annum.
+The Auto Loan at Meridian Bank carries an interest rate between 9.10 and 11.50 percent per annum.
+The Education Loan at Meridian Bank carries an interest rate between 9.50 and 12.25 percent per annum.
+The Personal Loan at Meridian Bank carries an interest rate between 10.75 and 18.00 percent per annum.
+The Business Loan at Meridian Bank carries an interest rate between 11.00 and 16.50 percent per annum.
+Meridian Bank narrows the spread over the Meridian Reference Rate as an applicant's credit score rises, with the narrowest spread applied at a score of 750 and above.
+A score between 700 and 749 attracts a spread 25 basis points wider than the narrowest spread, and a score between 650 and 699 attracts a spread 75 basis points wider still.
+A secured product such as the Home Loan or the Auto Loan prices below an unsecured product such as the Personal Loan.
+A floating interest rate at Meridian Bank resets quarterly, on the first of January, April, July and October.
+A fixed interest rate at Meridian Bank does not reset for the agreed tenure.
+The revolving balance on the Meridian Rewards Card attracts interest at 3.5 percent per month, which works out to 42 percent per annum.
+An interest rate quoted to a borrower at sanction holds for 30 days from the date of sanction.

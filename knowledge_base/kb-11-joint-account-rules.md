@@ -1,0 +1,19 @@
+---
+doc_id: kb-11-joint-account-rules
+title: Joint-account rules
+topic: joint_account_rules
+required: true
+---
+
+Meridian Bank allows at most 4 joint holders on a single account.
+A joint account at Meridian Bank can operate under one of three mandates, either or survivor, former or survivor, or jointly.
+Every joint holder completes KYC with Meridian Bank independently, regardless of the operating mandate chosen.
+Meridian Bank sends the account statements to the first holder, and the first holder owns the tax reporting for the joint account.
+Meridian Bank changes the operating mandate on a joint account only with the written consent of every joint holder.
+On the death of a holder under an either-or-survivor mandate, the joint account passes to the surviving holder.
+On the death of a holder under a former-or-survivor mandate, the joint account likewise passes to the surviving holder.
+On the death of a holder under a jointly operated mandate, Meridian Bank requires succession documents before releasing the funds.
+Meridian Bank does not permit removing a single joint holder from an existing account.
+To remove a joint holder, Meridian Bank requires the existing joint account to be closed and a new account opened with the remaining holders.
+A minor can be a joint holder on a Meridian Bank account only together with a guardian.
+The guardian operates the joint account on behalf of the minor until the minor reaches the age of majority.

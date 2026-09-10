@@ -1,0 +1,19 @@
+---
+doc_id: kb-02-emi-calculation
+title: EMI calculation rules
+topic: emi_calculation
+required: true
+---
+
+EMI stands for equated monthly instalment, and the equated monthly instalment on a Meridian Bank loan stays level for the entire repayment tenure.
+Meridian Bank calculates the equated monthly instalment using the formula EMI = P * r * (1 + r)^n / ((1 + r)^n - 1).
+In this formula, P is the principal amount borrowed, r is the monthly interest rate, and n is the tenure expressed in months.
+Meridian Bank derives the monthly interest rate by dividing the annual interest rate by twelve and then by one hundred.
+For a worked example, a Meridian Bank loan with a principal of 10 lakh rupees at 9.5 percent per annum over a tenure of 60 months carries a monthly rate of 0.0079167.
+That worked example produces an equated monthly instalment of about 21,000 rupees.
+In the early instalments of a Meridian Bank loan, most of the equated monthly instalment repays interest rather than principal.
+In the later instalments of the same Meridian Bank loan, most of the equated monthly instalment repays principal rather than interest.
+A longer tenure lowers the equated monthly instalment on a Meridian Bank loan but raises the total interest paid over the life of the loan.
+A shorter tenure raises the equated monthly instalment but lowers the total interest paid over the life of the loan.
+When a floating interest rate resets on a Meridian Bank loan, the reset changes the remaining tenure rather than the equated monthly instalment by default.
+A borrower who prefers a level tenure instead can separately request that Meridian Bank adjust the equated monthly instalment at the reset.
