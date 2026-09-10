@@ -73,7 +73,7 @@ loan-support-agent/
     loan_applications.json    Committed snapshot, guarded by a hash test.
   transcripts/                Committed graded evidence.
   tests/                      Invariant tests, one per acceptance criterion.
-  docs/spec.md                This document.
+  docs/specs/                This design specification.
   reference/problem-statement.md
   chroma/                     Generated vector store, gitignored.
 ```
