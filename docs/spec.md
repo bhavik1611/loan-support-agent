@@ -120,15 +120,16 @@ Sampled log-uniformly inside a per-category band, then rounded to the nearest 10
 
 | Category | Band (INR) | Source |
 |---|---|---|
-| Personal Loan | 50,000 to 40,00,000 | Verified: published Indian personal-loan ranges for 2026 |
-| Auto Loan | 1,00,000 to 25,00,000 | **Unverified.** Knowledge, not evidence. |
-| Education Loan | 1,00,000 to 50,00,000 | **Unverified.** Knowledge, not evidence. |
-| Business Loan | 2,00,000 to 75,00,000 | **Unverified.** Knowledge, not evidence. |
-| Home Loan | 10,00,000 to 1,50,00,000 | **Unverified.** Knowledge, not evidence. |
+| Personal Loan | 50,000 to 40,00,000 | Verified. Published Indian personal-loan ranges for 2026 quote 50,000 to 40 lakh, extending to 50 lakh for premium profiles. |
+| Auto Loan | 1,00,000 to 25,00,000 | Verified. SBI states a 1 lakh minimum with no cap; HDFC states a 25 lakh maximum for a new car. The band takes the tighter of the two ends. |
+| Education Loan | 1,00,000 to 50,00,000 | Verified. HDFC lends up to 50 lakh unsecured for premier institutes; SBI's domestic tiers top out at 40 lakh. Foreign-study schemes reach 3 crore and are deliberately excluded as atypical. |
+| Business Loan | 1,00,000 to 50,00,000 | Verified. Published MSME ranges run 50,000 to 50 lakh and above. Lowered from an earlier unverified 2 lakh to 75 lakh to match the sourced range. |
+| Home Loan | 10,00,000 to 1,50,00,000 | **Modelling choice, not a lender limit.** SBI quotes a 50,000 minimum and a 50 crore maximum, which is too wide to sample from usefully. This band brackets the typical retail case and is narrower than reality on purpose. |
 
 Log-uniform rather than uniform because a real loan book is dominated by smaller tickets, and Part 2 Task 6 asks for an escalation threshold justified as a percentile of this data.
 A uniform draw makes every percentile arbitrary.
-The four unverified bands are flagged here and in `README.md`; verifying them against published lender limits is a task, not an assumption.
+Four of these bands were unverified when this document was first written and have since been checked against published SBI and HDFC limits.
+The Home Loan band remains a deliberate narrowing rather than a sourced limit, and `README.md` says so.
 
 **Days since created.**
 `int(rng.triangular(0, 30, 8))`, clamped to 0 to 30.
@@ -360,8 +361,9 @@ Each item names the V1 module it replaces and what makes the swap cheap.
 
 These are recorded rather than resolved, and each is a task.
 
-1. Four of the five loan-amount bands in section 5.2 are unverified knowledge, not evidence.
-   Verify against published lender limits before `README.md` claims they are realistic.
+1. ~~Four of the five loan-amount bands are unverified.~~ Closed 2026-09-10.
+   Auto, Education and Business are now sourced to published SBI and HDFC limits, and Business was lowered from 75 lakh to 50 lakh to match.
+   Home stays a deliberate narrowing of a 50,000-to-50-crore lender range, recorded as a modelling choice rather than evidence.
 2. The chunk-count model behind D-05 and D-14 assumes 134 characters per sentence.
    Recompute it against the real documents once written, and re-tune the chunk parameters if it is materially off.
 3. The seed is not yet chosen.
