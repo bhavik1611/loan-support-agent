@@ -1,6 +1,6 @@
 # Part 1 - Dataset and RAG Core - Implementation Plan
 
-Status: draft
+Status: implemented
 
 > Steps use checkbox (`- [ ]`) syntax for tracking.
 

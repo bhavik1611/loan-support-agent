@@ -364,8 +364,18 @@ These are recorded rather than resolved, and each is a task.
 1. ~~Four of the five loan-amount bands are unverified.~~ Closed 2026-09-10.
    Auto, Education and Business are now sourced to published SBI and HDFC limits, and Business was lowered from 75 lakh to 50 lakh to match.
    Home stays a deliberate narrowing of a 50,000-to-50-crore lender range, recorded as a modelling choice rather than evidence.
-2. The chunk-count model behind D-05 and D-14 assumes 134 characters per sentence.
-   Recompute it against the real documents once written, and re-tune the chunk parameters if it is materially off.
-3. The seed is not yet chosen.
-   It is selected by generating and checking the fraud band, never by editing records.
-4. Which collection Part 2 consumes depends on Task 5's measured numbers and cannot be decided in this document.
+2. ~~The chunk-count model behind D-05 and D-14 assumes 134 characters per sentence.~~ Closed 2026-09-11.
+   Measured across the 18 written documents: 26,656 body characters over 215 sentences, 124 characters per sentence.
+   That is 7.5 percent below the assumption, every document yields 4 to 6 fixed chunks and 11 to 13 sentence chunks, and the parameters stand unchanged at 400/80.
+3. ~~The seed is not yet chosen.~~ Closed 2026-09-11.
+   Seed 1, the first in a scan from 1 that met every structural invariant: 16.0 percent fraud rate, smallest category 11 records, all five statuses present.
+   No record was hand-edited. Seed 1 passing on the first try reflects the weights placing the expected rate at 17.9 percent near the middle of the band, not luck.
+4. ~~Which collection Part 2 consumes depends on Task 5's measured numbers.~~ Closed 2026-09-11.
+   `kb_sentences`. Precision@3 0.8750 against 0.7917 and Recall@3 0.6528 against 0.5972, won while carrying the higher mean |R| of 1.33 against 1.25, so the asymmetry documented in section 9.2 runs against the winner rather than for it.
+
+A fifth item opened during implementation and is recorded here rather than fixed.
+
+5. The support rule in D-07 has a false-refusal mode on broad questions that span documents.
+   "What documents are needed for KYC?" scores 0.5124 top-1, far above T, but its top three sentence chunks land on three different parents, so no two agree and the system refuses.
+   None of the 12 labelled evaluation queries is affected, and `tests/test_generate.py` pins the behaviour so it cannot regress unnoticed.
+   The two-signal fallback in section 13 is the V2 upgrade that removes it.

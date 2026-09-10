@@ -59,7 +59,13 @@ def _cited_documents(text: str, hits: list[Hit]) -> tuple[str, ...]:
 def answer(
     query: str, strategy: str = config.STRATEGY_SENTENCES, k: int | None = None
 ) -> GroundedAnswer:
-    """Retrieve, decide, and either generate from the context or refuse."""
+    """Retrieve, decide, and either generate from the context or refuse.
+
+    The default strategy is the one Task 5 measured as better, not a guess:
+    kb_sentences scored Precision@3 0.8750 against 0.7917 and Recall@3 0.6528
+    against 0.5972, while carrying the higher mean |R|, so the margin is not
+    the denominator flattering it. Part 2 consumes this collection.
+    """
     if config.SIMILARITY_THRESHOLD is None:
         raise RuntimeError(
             "config.SIMILARITY_THRESHOLD is unset. Run the Task 11 calibration and "
