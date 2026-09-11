@@ -66,7 +66,51 @@ def generate_applications(seed: int = None, count: int = None) -> list[dict]:
     return records
 
 
-LOAN_APPLICATIONS: list[dict] = generate_applications()
+PROJECTED_FIELDS = (
+    "record_id",
+    "category",
+    "status",
+    "loan_amount_inr",
+    "days_since_created",
+    "flagged_for_fraud_review",
+)
+
+
+def enrich_applications(records: list[dict]) -> list[dict]:
+    """Add the columns the relational store carries, on their own stream.
+
+    This runs after the six-field draw above, never inside it. That ordering is
+    the entire reason data/loan_applications.json does not move when the
+    database lands: generate_applications() still consumes exactly the draws it
+    always did from Random(SEED), and enrichment draws from a different stream.
+
+    customer_id is deliberately not set here. The customer generator owns that
+    assignment, because the loans-per-customer mix is a property of the
+    customer population rather than of any one application.
+    """
+    rng = random.Random(config.stream("application_terms"))
+    enriched = []
+    for record in records:
+        category = record["category"]
+        low_rate, high_rate = config.RATE_BANDS[category]
+        enriched.append(
+            {
+                **record,
+                "product_code": config.PRODUCT_CODES[category],
+                "tenure_months": rng.choice(config.TENURE_CHOICES[category]),
+                "interest_rate_pct": round(rng.uniform(low_rate, high_rate), 2),
+            }
+        )
+    return enriched
+
+
+RICH_APPLICATIONS: list[dict] = enrich_applications(generate_applications())
+
+# The brief's six fields, in the brief's order. This is what the committed
+# snapshot holds and what Part 2's get_application returns.
+LOAN_APPLICATIONS: list[dict] = [
+    {field: row[field] for field in PROJECTED_FIELDS} for row in RICH_APPLICATIONS
+]
 
 _BY_ID = {record["record_id"]: record for record in LOAN_APPLICATIONS}
 

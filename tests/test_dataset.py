@@ -76,3 +76,65 @@ def test_generation_is_deterministic_across_calls():
 def test_lookup_returns_the_record_and_none_for_a_miss():
     assert dataset.get_application("LN-1001")["record_id"] == "LN-1001"
     assert dataset.get_application("LN-9999") is None
+
+
+# --- the relational store must not move a single existing byte ------------
+
+
+def test_the_projection_is_byte_identical_to_the_committed_snapshot():
+    """The whole promise of the database work: adding it moved no record."""
+    on_disk = config.DATASET_SNAPSHOT.read_bytes()
+    assert (
+        hashlib.sha256(dataset.snapshot_bytes()).hexdigest()
+        == hashlib.sha256(on_disk).hexdigest()
+    )
+
+
+def test_the_projection_keeps_exactly_the_six_fields_in_order():
+    assert dataset.PROJECTED_FIELDS == (
+        "record_id",
+        "category",
+        "status",
+        "loan_amount_inr",
+        "days_since_created",
+        "flagged_for_fraud_review",
+    )
+    for record in dataset.LOAN_APPLICATIONS:
+        assert tuple(record) == dataset.PROJECTED_FIELDS
+
+
+def test_the_rich_row_is_a_superset_of_the_projection():
+    assert len(dataset.RICH_APPLICATIONS) == len(dataset.LOAN_APPLICATIONS)
+    for rich, projected in zip(dataset.RICH_APPLICATIONS, dataset.LOAN_APPLICATIONS):
+        for field in dataset.PROJECTED_FIELDS:
+            assert rich[field] == projected[field]
+        assert rich["product_code"]
+        assert rich["tenure_months"] > 0
+        assert rich["interest_rate_pct"] > 0
+
+
+def test_enrichment_does_not_disturb_the_six_field_draw():
+    """The enricher must not consume from the stream that draws the six."""
+    before = dataset.generate_applications()
+    dataset.enrich_applications(dataset.generate_applications())
+    after = dataset.generate_applications()
+    assert before == after
+
+
+def test_generate_applications_still_returns_only_the_six_fields():
+    """Stream 0's loop is untouched; enrichment happens strictly afterwards."""
+    for record in dataset.generate_applications():
+        assert tuple(record) == dataset.PROJECTED_FIELDS
+
+
+def test_tenure_and_rate_sit_inside_the_knowledge_base_bands():
+    for row in dataset.RICH_APPLICATIONS:
+        low, high = config.RATE_BANDS[row["category"]]
+        assert low <= row["interest_rate_pct"] <= high, row["record_id"]
+        assert row["tenure_months"] in config.TENURE_CHOICES[row["category"]]
+        assert row["product_code"] == config.PRODUCT_CODES[row["category"]]
+
+
+def test_enrichment_is_deterministic():
+    base = dataset.generate_applications()
+    assert dataset.enrich_applications(base) == dataset.enrich_applications(base)
