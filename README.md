@@ -143,7 +143,7 @@ Stopping there also left three knowledge-base documents - EMI calculation, prepa
 
 **Nothing that existed before this landed moved.**
 Each table draws from its own stream, `random.Random(SEED + offset)`, and `loan_applications` keeps offset 0, which is literally the original `Random(SEED)`.
-So `data/loan_applications.json` is byte-identical to its pre-database state, and `tests/test_dataset.py::test_the_projection_is_byte_identical_to_the_committed_snapshot` proves it on every run.
+So `data/loan_applications.json` is byte-identical to its pre-database state, and `tests/test_database.py::test_the_committed_snapshot_did_not_move` proves it on every run.
 A second test asserts the enricher cannot draw from stream 0 at all, because that is the failure mode that would silently rewrite every `record_id` the transcripts quote.
 
 **The database is generated, not committed.**
