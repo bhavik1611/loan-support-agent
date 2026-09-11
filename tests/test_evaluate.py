@@ -1,7 +1,6 @@
 """The metric arithmetic must be right, and both collections must be scored."""
 
 import config
-from eval.queries import EvalQuery
 from rag import evaluate
 
 

@@ -2,7 +2,6 @@
 
 import pytest
 
-import config
 from rag import kb
 
 DOCS = kb.load_documents()

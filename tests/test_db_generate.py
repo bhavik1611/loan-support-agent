@@ -257,7 +257,6 @@ def test_repayments_use_kb02s_emi_formula():
     ]
     assert 1 <= len(rows) <= config.SCHEDULE_MONTHS
 
-    r = disbursed["interest_rate_pct"] / 12.0 / 100.0
     expected_emi = round(
         generate._emi(
             disbursed["loan_amount_inr"], disbursed["interest_rate_pct"], disbursed["tenure_months"]

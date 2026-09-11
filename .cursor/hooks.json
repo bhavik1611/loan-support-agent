@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "hooks": {
+    "postToolUse": [
+      {
+        "matcher": "Read|Grep|Glob|Search|Shell",
+        "command": "node \"/Users/bhavik.sanghvi/.no-mistakes/worktrees/bf355617018a/01M27XN59RN51W8Q6DVSPRXN0Q/.cursor/hooks/graft-hooks.cjs\" cursor-post-tool"
+      }
+    ],
+    "afterMCPExecution": [
+      {
+        "command": "node \"/Users/bhavik.sanghvi/.no-mistakes/worktrees/bf355617018a/01M27XN59RN51W8Q6DVSPRXN0Q/.cursor/hooks/graft-hooks.cjs\" cursor-mcp"
+      }
+    ],
+    "sessionEnd": [
+      {
+        "command": "node \"/Users/bhavik.sanghvi/.no-mistakes/worktrees/bf355617018a/01M27XN59RN51W8Q6DVSPRXN0Q/.cursor/hooks/graft-hooks.cjs\" cursor-session-end"
+      }
+    ]
+  }
+}
