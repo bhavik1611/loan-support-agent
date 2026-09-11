@@ -1,2 +1,20 @@
-sentence-transformers
+# Part 1 - dataset and RAG core
 chromadb
+sentence-transformers
+pyyaml
+
+# Part 2 - LangGraph agent, structured output
+langgraph
+jsonschema
+
+# Part 3 - FastAPI deployment
+fastapi
+uvicorn[standard]
+pydantic
+
+# Part 4 - MCP and resilience
+fastmcp
+langgraph-checkpoint-sqlite
+
+# Tooling
+pytest

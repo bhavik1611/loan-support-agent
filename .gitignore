@@ -1,6 +1,19 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
 venv/
+
+# Local vector index and generated stores
 chroma/
-data/*.sqlite
+*.sqlite
+*.sqlite3
+
+# Runtime artefacts
+logs/
+*.jsonl
+.env
+
+# OS / editor
+.DS_Store
+.ipynb_checkpoints/
