@@ -77,6 +77,84 @@ FRAUD_RATE_MAX = 0.30
 MIN_RECORDS_PER_CATEGORY = 3
 MIN_RECORDS_PER_STATUS = 1
 
+# --- Task 1b, the relational store ----------------------------------------
+
+DB_PATH = DATA_DIR / "meridian_bank.db"
+DB_MANIFEST = DATA_DIR / "database-manifest.md"
+
+# One seeded sub-stream per table. loan_applications keeps offset 0, which is
+# literally the existing random.Random(SEED), so every record generated before
+# the database existed is byte-identical afterwards. A table added later takes
+# the next free offset and disturbs nothing. Spec D-18.
+STREAM_OFFSETS = {
+    "loan_applications": 0,
+    "customers": 1,
+    "loan_products": 2,
+    "application_terms": 3,
+    "application_events": 4,
+    "repayments": 5,
+    "support_tickets": 6,
+    "kyc_documents": 7,
+}
+
+PRODUCT_CODES = {
+    "Personal Loan": "PL",
+    "Home Loan": "HL",
+    "Auto Loan": "AL",
+    "Education Loan": "EL",
+    "Business Loan": "BL",
+}
+
+SECURED_CATEGORIES = {"Home Loan", "Auto Loan"}
+
+# Read straight out of knowledge_base/kb-07-interest-rate-slabs.md. If a rate
+# here disagrees with that document, the document wins and this is the bug.
+RATE_BANDS = {
+    "Home Loan": (8.40, 9.85),
+    "Auto Loan": (9.10, 11.50),
+    "Education Loan": (9.50, 12.25),
+    "Personal Loan": (10.75, 18.00),
+    "Business Loan": (11.00, 16.50),
+}
+
+# Personal is stated in kb-13 (12 to 60 months) and Home in kb-14 (30 years).
+# The other three are NOT stated anywhere in the knowledge base, so they are
+# declared modelling choices rather than presented as sourced facts, the same
+# way the Home Loan amount band is. README.md says so.
+TENURE_CHOICES = {
+    "Personal Loan": (12, 24, 36, 48, 60),
+    "Home Loan": (120, 180, 240, 300, 360),
+    "Auto Loan": (12, 24, 36, 48, 60, 72, 84),
+    "Education Loan": (36, 60, 84, 120, 180),
+    "Business Loan": (12, 24, 36, 48, 60, 84),
+}
+MAX_TENURE_MONTHS = {c: max(t) for c, t in TENURE_CHOICES.items()}
+
+# kb-01: "Meridian Bank requires a minimum credit score of 700 for any loan
+# product." kb-10 gives the 300 to 900 range.
+CREDIT_SCORE_MIN = 300
+CREDIT_SCORE_MAX = 900
+CREDIT_SCORE_LOAN_FLOOR = 700
+
+# (loans held, how many customers hold that many). Sums to 100 loans over 66
+# customers: most retail customers hold one, a minority two, a few more.
+LOANS_PER_CUSTOMER_MIX = [(1, 42), (2, 16), (3, 6), (4, 2)]
+CUSTOMER_COUNT = sum(count for _, count in LOANS_PER_CUSTOMER_MIX)
+
+TICKET_COUNT = 40
+SCHEDULE_MONTHS = 12  # first year of the amortisation schedule per disbursed loan
+
+
+def stream(table: str) -> int:
+    """The seed for one table's own random stream."""
+    try:
+        return SEED + STREAM_OFFSETS[table]
+    except KeyError:
+        raise ValueError(
+            f"unknown table {table!r}, expected one of {sorted(STREAM_OFFSETS)}"
+        ) from None
+
+
 # --- Task 3, chunking and indexing ----------------------------------------
 
 CHUNK_SIZE = 400

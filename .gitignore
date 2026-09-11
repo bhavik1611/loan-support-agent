@@ -20,3 +20,6 @@ logs/
 
 # Local code-index cache - regenerable, not committed.
 /graft/
+
+# Generated relational store. Rebuild with: .venv/bin/python -m db.build
+data/meridian_bank.db
