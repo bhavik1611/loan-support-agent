@@ -40,7 +40,8 @@ PERMITTED_CHANNELS = {"Helpline", "Net Banking", "Mobile App", "Branch"}
 # The Income Tax Department's structure: three series letters, the holder-type
 # code, the surname initial, a 0001-9999 serial, then the check letter.
 PAN_RE = re.compile(r"^[A-Z]{3}[PCHFATG][A-Z][0-9]{4}[A-Z]$")
-AADHAAR_RE = re.compile(r"^\d{12}$")
+# UIDAI issues no Aadhaar number beginning 0 or 1.
+AADHAAR_RE = re.compile(r"^[2-9]\d{11}$")
 ACCOUNT_NUMBER_RE = re.compile(r"^\d{11,16}$")
 
 LEGAL_TRANSITIONS = {
@@ -144,6 +145,55 @@ def test_customers_pan_encodes_holder_type_surname_and_check_letter():
 def test_customers_pan_values_are_unique():
     rows = generate.generate_customers()
     assert len({row["pan"] for row in rows}) == len(rows)
+
+
+def test_verhoeff_matches_the_published_worked_examples():
+    """External ground truth, so the tables cannot be quietly wrong.
+
+    Verhoeff's own published examples: the check digit for 236 is 3 and for
+    12345 is 1, and a complete valid number checksums to 0.
+    """
+    assert generate._aadhaar_check_digit("236") == "3"
+    assert generate._aadhaar_check_digit("12345") == "1"
+    assert generate._verhoeff_checksum("2363") == 0
+    assert generate._verhoeff_checksum("123451") == 0
+    assert generate._verhoeff_checksum("2362") != 0
+
+
+def test_customers_aadhaar_carries_a_valid_verhoeff_check_digit():
+    for row in generate.generate_customers():
+        assert generate._verhoeff_checksum(row["aadhaar"]) == 0, row["aadhaar"]
+
+
+def test_aadhaar_check_digit_catches_the_errors_it_exists_for():
+    """The guarantee, not the implementation: every single-digit error and
+    every adjacent transposition of two different digits must be rejected.
+    """
+    for row in generate.generate_customers()[:10]:
+        aadhaar = row["aadhaar"]
+
+        for position, digit in enumerate(aadhaar):
+            for wrong in "0123456789":
+                if wrong == digit:
+                    continue
+                corrupted = aadhaar[:position] + wrong + aadhaar[position + 1 :]
+                assert generate._verhoeff_checksum(corrupted) != 0, corrupted
+
+        for position in range(len(aadhaar) - 1):
+            if aadhaar[position] == aadhaar[position + 1]:
+                continue
+            swapped = (
+                aadhaar[:position]
+                + aadhaar[position + 1]
+                + aadhaar[position]
+                + aadhaar[position + 2 :]
+            )
+            assert generate._verhoeff_checksum(swapped) != 0, swapped
+
+
+def test_customers_aadhaar_values_are_unique():
+    rows = generate.generate_customers()
+    assert len({row["aadhaar"] for row in rows}) == len(rows)
 
 
 def test_every_customer_credit_score_is_at_least_the_loan_floor():

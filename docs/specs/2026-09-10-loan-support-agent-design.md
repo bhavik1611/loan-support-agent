@@ -58,6 +58,7 @@ Decisions marked "overrode recommendation" were taken by Bhavik against the reco
 | D-22 | PII in the grader's check script | Always masked, no flag | Printing fabricated PAN and Aadhaar in the clear is harmless and lost anyway, because masking costs nothing and shows the discipline before Part 2 formally implements it. No flag is offered: one behaviour, chosen. |
 | D-23 | How this lands in the documents | Amend this spec, keep the Part 1 plan marked implemented, write a new dated plan | Reopening the Part 1 plan lost because its `implemented` status and self-review are accurate for the work it actually covered. A second spec lost because two specs describing one dataset is precisely the drift the one-spec rule prevents. |
 | D-24 | How a fabricated PAN is built | The Income Tax Department's structure, `AAAAA9999A`: three random series letters, holder type `P`, the surname initial, a 0001-9999 serial, then a check letter derived from the first nine characters | Ten independent random characters lost because the PAN could then contradict the name beside it, and Part 2's masking demo is more convincing on data that is wrong only in being fabricated. Reproducing the real check-character formula lost because the department does not publish it; the derivation here is a documented stand-in, deterministic and recomputable, and `tests/test_db_generate.py` recomputes it rather than calling the generator's helper. |
+| D-25 | How a fabricated Aadhaar is built | Twelve digits, the first drawn from 2-9, the twelfth a Verhoeff check digit over the other eleven | Twelve independent random digits lost because the number would fail any real validator, which is the wrong thing to demonstrate in a masking exercise. Unlike PAN's check character (D-24), Verhoeff is the published algorithm UIDAI actually uses, so the check digit here is real rather than a stand-in and the tests pin Verhoeff's own worked examples. Storing the 4-4-4 display grouping lost because the grouping is presentation, and a stored separator would break the masking Part 2 Task 10 applies to the raw value. |
 
 ## 4. Repository layout
 
@@ -190,7 +191,7 @@ A table added later takes the next free offset and disturbs nothing.
 | Table | Rows | Purpose | Knowledge-base document it must not contradict |
 |---|---|---|---|
 | `loan_products` | 5 | The catalogue every amount, rate and tenure is drawn inside. Seeded from `config.CATEGORY_BANDS`, not duplicated from it. | `kb-01`, `kb-07` |
-| `customers` | about 66 | Identity, contact, employment, income, credit score, KYC status, residency. Carries fabricated PAN, Aadhaar and account numbers; the PAN follows the real structure (D-24). | `kb-10`, `kb-12` |
+| `customers` | about 66 | Identity, contact, employment, income, credit score, KYC status, residency. Carries fabricated PAN, Aadhaar and account numbers; the PAN and the Aadhaar follow the real structures (D-24, D-25). | `kb-10`, `kb-12` |
 | `loan_applications` | 100 | The six brief fields plus `customer_id`, `product_code`, `tenure_months`, `interest_rate_pct`. | `kb-01` |
 | `application_events` | 2 to 5 per application | The status audit trail that makes `days_since_created` derived rather than asserted. | `kb-06` |
 | `repayments` | instalments for disbursed loans | The EMI schedule, with the principal and interest split. | `kb-02`, `kb-08`, `kb-17` |
@@ -459,7 +460,7 @@ A fifth item opened during implementation and is recorded here rather than fixed
    The two-signal fallback in section 13 is the V2 upgrade that removes it.
 
 6. ~~The relational store in section 5.4 is specified but not built.~~ Closed 2026-09-11.
-   Built: 1,084 rows over seven tables, `loan_products` 5, `customers` 66, `loan_applications` 100, `application_events` 393, `repayments` 276, `support_tickets` 40, `kyc_documents` 204.
+   Built: 1,076 rows over seven tables, `loan_products` 5, `customers` 66, `loan_applications` 100, `application_events` 393, `repayments` 276, `support_tickets` 40, `kyc_documents` 196.
    `data/loan_applications.json` is byte-identical to its pre-database state and a test asserts it on every run.
    The knowledge-base agreement tests found a real drift on their first run - the generator had written "Voter ID Card" and "NREGA Job Card" where `kb-04` says "a voter identity card" and "a job card issued under NREGA" - which is what those tests exist for.
    Largest EMI deviation from `kb-02`'s formula across all 276 instalments: 0.0047 rupees.

@@ -36,8 +36,8 @@ That is what makes `data/loan_applications.json` byte-identical to its pre-datab
 | `application_events` | 393 |
 | `repayments` | 276 |
 | `support_tickets` | 40 |
-| `kyc_documents` | 204 |
-| **total** | **1084** |
+| `kyc_documents` | 196 |
+| **total** | **1076** |
 
 ## Content hash
 
@@ -45,7 +45,7 @@ SHA-256 over a canonically ordered dump of every row, not over the file bytes,
 because a SQLite file can differ byte for byte while holding identical data.
 
 ```
-727861e8d87069e35273134675d8b6f363f689f9584e483c88b6c54e05a04e8c
+c3e4636ae5c1fc6d4592faa95cc64e1f8025df22365db9ba6cfe452fd3fabbbe
 ```
 
 ## Schema

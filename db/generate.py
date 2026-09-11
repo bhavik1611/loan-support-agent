@@ -137,11 +137,68 @@ def _unique_pan(rng: random.Random, last_name: str, seen: set[str]) -> str:
             return pan
 
 
+# UIDAI's Aadhaar rules: exactly 12 digits, never starting 0 or 1, with the
+# twelfth digit a Verhoeff checksum over the first eleven. The 4-4-4 grouping
+# is a display convention only; the stored value is the twelve raw digits.
+AADHAAR_FIRST_DIGITS = (2, 9)
+
+# Verhoeff's dihedral-group tables, the published algorithm UIDAI uses. d is
+# the D5 multiplication table, p the permutation applied by position, inv the
+# inverse used to pick the check digit.
+VERHOEFF_D = (
+    (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+    (1, 2, 3, 4, 0, 6, 7, 8, 9, 5),
+    (2, 3, 4, 0, 1, 7, 8, 9, 5, 6),
+    (3, 4, 0, 1, 2, 8, 9, 5, 6, 7),
+    (4, 0, 1, 2, 3, 9, 5, 6, 7, 8),
+    (5, 9, 8, 7, 6, 0, 4, 3, 2, 1),
+    (6, 5, 9, 8, 7, 1, 0, 4, 3, 2),
+    (7, 6, 5, 9, 8, 2, 1, 0, 4, 3),
+    (8, 7, 6, 5, 9, 3, 2, 1, 0, 4),
+    (9, 8, 7, 6, 5, 4, 3, 2, 1, 0),
+)
+VERHOEFF_P = (
+    (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+    (1, 5, 7, 6, 2, 8, 3, 0, 9, 4),
+    (5, 8, 0, 3, 7, 9, 6, 1, 4, 2),
+    (8, 9, 1, 6, 0, 4, 3, 5, 2, 7),
+    (9, 4, 5, 3, 1, 2, 6, 8, 7, 0),
+    (4, 2, 8, 6, 5, 7, 3, 9, 0, 1),
+    (2, 7, 9, 3, 8, 0, 6, 4, 1, 5),
+    (7, 0, 4, 6, 9, 1, 3, 2, 5, 8),
+)
+VERHOEFF_INV = (0, 4, 3, 2, 1, 5, 6, 7, 8, 9)
+
+
+def _verhoeff_checksum(digits: str) -> int:
+    """Verhoeff's checksum over a digit string, 0 when the string is valid.
+
+    Run over a complete number it returns 0; run over a payload awaiting its
+    check digit, VERHOEFF_INV of it is the digit that makes the whole valid.
+    """
+    checksum = 0
+    for position, digit in enumerate(reversed(digits)):
+        checksum = VERHOEFF_D[checksum][VERHOEFF_P[position % 8][int(digit)]]
+    return checksum
+
+
+def _aadhaar_check_digit(first_eleven: str) -> str:
+    """The twelfth digit, the one that catches a mistyped or swapped digit."""
+    return str(VERHOEFF_INV[_verhoeff_checksum(first_eleven + "0")])
+
+
 def _unique_aadhaar(rng: random.Random, seen: set[str]) -> str:
+    """A structurally valid fabricated Aadhaar number.
+
+    Eleven digits are drawn, the first from 2-9 because UIDAI issues no number
+    beginning 0 or 1, and the twelfth is computed, so every value here passes
+    a real Verhoeff check rather than merely looking like twelve digits.
+    """
     while True:
-        first = str(rng.randint(2, 9))
-        rest = "".join(str(rng.randint(0, 9)) for _ in range(11))
-        aadhaar = first + rest
+        first = str(rng.randint(*AADHAAR_FIRST_DIGITS))
+        rest = "".join(str(rng.randint(0, 9)) for _ in range(10))
+        first_eleven = first + rest
+        aadhaar = first_eleven + _aadhaar_check_digit(first_eleven)
         if aadhaar not in seen:
             seen.add(aadhaar)
             return aadhaar
