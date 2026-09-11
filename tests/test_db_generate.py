@@ -3,6 +3,7 @@ the schema, not against invented vocabulary.
 """
 
 import re
+import string
 
 import config
 import dataset
@@ -36,7 +37,9 @@ PERMITTED_DOC_TYPES = KB04_IDENTITY_DOC_TYPES | KB04_ADDRESS_DOC_TYPES | KB12_NR
 # 24-hour helpline, net banking, the mobile app, or any branch."
 PERMITTED_CHANNELS = {"Helpline", "Net Banking", "Mobile App", "Branch"}
 
-PAN_RE = re.compile(r"^[A-Z]{5}[0-9]{4}[A-Z]$")
+# The Income Tax Department's structure: three series letters, the holder-type
+# code, the surname initial, a 0001-9999 serial, then the check letter.
+PAN_RE = re.compile(r"^[A-Z]{3}[PCHFATG][A-Z][0-9]{4}[A-Z]$")
 AADHAAR_RE = re.compile(r"^\d{12}$")
 ACCOUNT_NUMBER_RE = re.compile(r"^\d{11,16}$")
 
@@ -114,6 +117,33 @@ def test_customers_pan_aadhaar_account_formats():
         assert PAN_RE.match(row["pan"]), row["pan"]
         assert AADHAAR_RE.match(row["aadhaar"]), row["aadhaar"]
         assert ACCOUNT_NUMBER_RE.match(row["account_number"]), row["account_number"]
+
+
+def test_customers_pan_encodes_holder_type_surname_and_check_letter():
+    """The four positions the PAN structure fixes, recomputed here.
+
+    The check letter is recalculated from the first nine characters rather
+    than by calling the generator's helper, so a change to that helper has to
+    be made in both places deliberately.
+    """
+    for row in generate.generate_customers():
+        pan = row["pan"]
+        surname = row["full_name"].split()[-1]
+
+        assert pan[3] == "P", pan                       # individual
+        assert pan[4] == surname[0].upper(), (pan, surname)
+        assert 1 <= int(pan[5:9]) <= 9999, pan
+
+        total = sum(
+            position * (ord(char) - 64 if char.isalpha() else int(char))
+            for position, char in enumerate(pan[:9], start=1)
+        )
+        assert pan[9] == string.ascii_uppercase[total % 26], pan
+
+
+def test_customers_pan_values_are_unique():
+    rows = generate.generate_customers()
+    assert len({row["pan"] for row in rows}) == len(rows)
 
 
 def test_every_customer_credit_score_is_at_least_the_loan_floor():

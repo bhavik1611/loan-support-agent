@@ -28,7 +28,7 @@ uv venv --python 3.12 .venv
 VIRTUAL_ENV=.venv uv pip install -r requirements.txt
 
 .venv/bin/python scripts/run_part1.py      # runs every Part 1 task, rewrites transcripts/
-.venv/bin/python -m pytest                  # 151 tests
+.venv/bin/python -m pytest                  # 153 tests
 ```
 
 The embedding weights for `all-MiniLM-L6-v2` download once on first use, into `~/.cache/huggingface` outside the repository.
@@ -138,8 +138,8 @@ Stopping there also left three knowledge-base documents - EMI calculation, prepa
 | `application_events` | 393 | The status audit trail behind `days_since_created`. |
 | `repayments` | 276 | The first 12 instalments of each disbursed loan's schedule. |
 | `support_tickets` | 40 | Channel, category, status, linked application. |
-| `kyc_documents` | 195 | Identity and address proofs with verification state. |
-| **total** | **1,075** | |
+| `kyc_documents` | 204 | Identity and address proofs with verification state. |
+| **total** | **1,084** | |
 
 **Nothing that existed before this landed moved.**
 Each table draws from its own stream, `random.Random(SEED + offset)`, and `loan_applications` keeps offset 0, which is literally the original `Random(SEED)`.
@@ -171,6 +171,8 @@ Both are honest limits of a 30-day window, not oversights.
 
 **PII.**
 `customers` carries fabricated PAN, Aadhaar and account numbers in the fixed formats Part 2 Task 10 will mask.
+The PAN follows the Income Tax Department's structure, `AAAAA9999A`: three series letters, the holder-type code `P` for an individual, the surname initial, a 0001-9999 serial and a check letter derived from the first nine characters.
+The department does not publish the real check-character formula, so that last letter is a documented stand-in, not a claim to be verifiable against anything.
 They are masked in every line the check script prints, with no flag to unmask them.
 They are never returned by `db/query.py::customer_context`, which yields only `customer_id`, `full_name`, `credit_score` and `open_loan_count` - a contract a test enforces, because the brief puts masking on the input side and serving PII here would need an output masker the brief never asked for.
 
@@ -354,7 +356,7 @@ Retrieving a wider candidate set and then deduplicating down to 3 parents would 
 
 ## Tests
 
-151 tests, all passing offline.
+153 tests, all passing offline.
 The six that restate an acceptance criterion directly:
 
 | # | Test | Criterion it restates |
@@ -395,7 +397,7 @@ scripts/run_part1.py        Runs every Part 1 task and writes the transcripts.
 scripts/check_database.py   The grader's one-command database check.
 data/                       Committed snapshot and database manifest, both hash-tested.
 transcripts/                Committed graded evidence.
-tests/                      151 tests, one per acceptance criterion plus unit coverage.
+tests/                      153 tests, one per acceptance criterion plus unit coverage.
 docs/                       The design spec and the implementation plans.
 reference/                  The problem statement.
 chroma/                     Generated vector store, gitignored.

@@ -97,12 +97,41 @@ KYC_STATUS_WEIGHTS = [0.75, 0.15, 0.10]
 IS_NRI_PROBABILITY = 0.08
 
 
-def _unique_pan(rng: random.Random, seen: set[str]) -> str:
+# The Income Tax Department's PAN structure, AAAAA9999A: three alphabetic
+# series characters, a holder-type code, the surname initial, a four-digit
+# serial and a check letter. Every customer here is an individual, so the
+# holder-type code is always P.
+PAN_HOLDER_TYPE = "P"
+
+
+def _pan_check_letter(first_nine: str) -> str:
+    """The tenth character, derived from the other nine.
+
+    The real check character comes from a formula the Income Tax Department
+    does not publish, so this is a fabricated stand-in: letters score A=1 to
+    Z=26, digits score face value, each is weighted by its position, and the
+    total modulo 26 picks the letter. Deterministic, and recomputable by
+    anyone holding the first nine characters.
+    """
+    total = sum(
+        position * (ord(char) - 64 if char.isalpha() else int(char))
+        for position, char in enumerate(first_nine, start=1)
+    )
+    return string.ascii_uppercase[total % 26]
+
+
+def _unique_pan(rng: random.Random, last_name: str, seen: set[str]) -> str:
+    """A structurally valid fabricated PAN for one individual.
+
+    Only the three series characters and the four-digit serial are drawn; the
+    holder type is fixed and the surname initial and check letter are derived,
+    so a PAN cannot contradict the name it sits beside.
+    """
     while True:
-        letters = "".join(rng.choice(string.ascii_uppercase) for _ in range(5))
-        digits = "".join(str(rng.randint(0, 9)) for _ in range(4))
-        trailer = rng.choice(string.ascii_uppercase)
-        pan = f"{letters}{digits}{trailer}"
+        series = "".join(rng.choice(string.ascii_uppercase) for _ in range(3))
+        serial = rng.randint(1, 9999)
+        first_nine = f"{series}{PAN_HOLDER_TYPE}{last_name[0].upper()}{serial:04d}"
+        pan = first_nine + _pan_check_letter(first_nine)
         if pan not in seen:
             seen.add(pan)
             return pan
@@ -166,7 +195,7 @@ def generate_customers() -> list[dict]:
                 "full_name": f"{first_name} {last_name}",
                 "city": city,
                 "state": state,
-                "pan": _unique_pan(rng, seen_pan),
+                "pan": _unique_pan(rng, last_name, seen_pan),
                 "aadhaar": _unique_aadhaar(rng, seen_aadhaar),
                 "account_number": _unique_account_number(rng, seen_account),
                 "email": f"{first_name.lower()}.{last_name.lower()}{i}@example.com",
