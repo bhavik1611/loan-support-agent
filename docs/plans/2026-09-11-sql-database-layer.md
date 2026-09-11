@@ -1,6 +1,6 @@
 # Relational Store Implementation Plan
 
-Status: draft
+Status: implemented
 
 > Steps use checkbox (`- [ ]`) syntax for tracking.
 

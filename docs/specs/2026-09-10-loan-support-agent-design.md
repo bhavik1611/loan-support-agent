@@ -456,3 +456,9 @@ A fifth item opened during implementation and is recorded here rather than fixed
    "What documents are needed for KYC?" scores 0.5124 top-1, far above T, but its top three sentence chunks land on three different parents, so no two agree and the system refuses.
    None of the 12 labelled evaluation queries is affected, and `tests/test_generate.py` pins the behaviour so it cannot regress unnoticed.
    The two-signal fallback in section 13 is the V2 upgrade that removes it.
+
+6. ~~The relational store in section 5.4 is specified but not built.~~ Closed 2026-09-11.
+   Built: 1,075 rows over seven tables, `loan_products` 5, `customers` 66, `loan_applications` 100, `application_events` 393, `repayments` 276, `support_tickets` 40, `kyc_documents` 195.
+   `data/loan_applications.json` is byte-identical to its pre-database state and a test asserts it on every run.
+   The knowledge-base agreement tests found a real drift on their first run - the generator had written "Voter ID Card" and "NREGA Job Card" where `kb-04` says "a voter identity card" and "a job card issued under NREGA" - which is what those tests exist for.
+   Largest EMI deviation from `kb-02`'s formula across all 276 instalments: 0.0047 rupees.
