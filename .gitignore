@@ -23,3 +23,11 @@ logs/
 
 # Generated relational store. Rebuild with: .venv/bin/python -m db.build
 data/meridian_bank.db
+
+# Local editor and tooling config. Regenerable per machine, so it is not part
+# of the repository.
+.claude/
+.cursor/
+.ignore
+.mcp.json
+.lavish/

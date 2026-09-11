@@ -43,7 +43,7 @@ def test_each_table_has_its_own_distinct_stream():
     offsets = config.STREAM_OFFSETS
     assert len(set(offsets.values())) == len(offsets)
     for table in schema.TABLE_ORDER:
-        assert table in offsets or table == "loan_products"
+        assert table in offsets, table
     assert config.stream("loan_applications") == config.SEED
 
 

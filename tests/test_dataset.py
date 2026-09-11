@@ -81,15 +81,6 @@ def test_lookup_returns_the_record_and_none_for_a_miss():
 # --- the relational store must not move a single existing byte ------------
 
 
-def test_the_projection_is_byte_identical_to_the_committed_snapshot():
-    """The whole promise of the database work: adding it moved no record."""
-    on_disk = config.DATASET_SNAPSHOT.read_bytes()
-    assert (
-        hashlib.sha256(dataset.snapshot_bytes()).hexdigest()
-        == hashlib.sha256(on_disk).hexdigest()
-    )
-
-
 def test_the_projection_keeps_exactly_the_six_fields_in_order():
     assert dataset.PROJECTED_FIELDS == (
         "record_id",

@@ -27,6 +27,20 @@ def _kb_text(stem: str) -> str:
     return (config.KB_DIR / f"{stem}.md").read_text(encoding="utf-8").lower()
 
 
+RATE_SENTENCE = re.compile(
+    r"the (?P<category>[a-z ]+?) at meridian bank carries an interest rate "
+    r"between (?P<low>\d+\.\d\d) and (?P<high>\d+\.\d\d) percent per annum"
+)
+
+
+def _kb07_rate_bands() -> dict[str, tuple[float, float]]:
+    """The bands kb-07 actually quotes, keyed by the product they belong to."""
+    return {
+        m["category"]: (float(m["low"]), float(m["high"]))
+        for m in RATE_SENTENCE.finditer(_kb_text("kb-07-interest-rate-slabs"))
+    }
+
+
 # --- test 7 ---------------------------------------------------------------
 
 
@@ -146,12 +160,15 @@ def test_every_ticket_channel_appears_in_kb05(db_conn):
 
 
 def test_every_rate_band_matches_kb07(db_conn):
-    text = _kb_text("kb-07-interest-rate-slabs")
+    """A bare substring search would pass on any document mentioning "9.85"
+    anywhere, so parse kb-07's own sentence and bind both bounds to the
+    category they are quoted for."""
+    bands = _kb07_rate_bands()
+    assert bands, "kb-07 no longer states its rate bands in the parsed form"
     for row in db_conn.execute("SELECT category, min_rate_pct, max_rate_pct FROM loan_products"):
-        low = f"{row['min_rate_pct']:.2f}".rstrip("0").rstrip(".")
-        high = f"{row['max_rate_pct']:.2f}".rstrip("0").rstrip(".")
-        assert low in text, (row["category"], low)
-        assert high in text, (row["category"], high)
+        quoted = bands.get(row["category"].lower())
+        assert quoted is not None, (row["category"], sorted(bands))
+        assert quoted == (row["min_rate_pct"], row["max_rate_pct"]), (row["category"], quoted)
 
 
 def test_no_loan_holder_is_below_the_kb01_credit_score_floor(db_conn):
