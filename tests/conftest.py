@@ -15,3 +15,26 @@ def built_index():
 
     counts = index.build_index(rebuild=True)
     return counts
+
+
+@pytest.fixture(scope="session")
+def built_db(tmp_path_factory):
+    """A freshly built relational store.
+
+    Built into a temp directory so the suite never depends on a developer
+    having run `python -m db.build` first.
+    """
+    from db import build
+
+    path = tmp_path_factory.mktemp("db") / "meridian_bank.db"
+    build.build_database(path)
+    return path
+
+
+@pytest.fixture(scope="session")
+def db_conn(built_db):
+    from db import schema
+
+    conn = schema.connect(built_db)
+    yield conn
+    conn.close()
