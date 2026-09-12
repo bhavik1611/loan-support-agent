@@ -1820,7 +1820,7 @@ A record id is decisive; everything else is scored against three exemplar centro
   - `agent.intents.RouteDecision` frozen dataclass: `route: str`, `record_id: str | None`, `scores: dict[str, float]`, `reason: str`
   - `eval.routing.LABELLED_PROBES: list[tuple[str, str]]`, `VAGUE_PROBES: list[str]`, `KNOWN_UNCAUGHT: tuple[str, ...]`, `measure_routing() -> dict`
 
-- [ ] **Step 1: Write the probe set**
+- [x] **Step 1: Write the probe set**
 
 Create `eval/routing.py`:
 
@@ -1911,7 +1911,7 @@ def measure_routing() -> dict:
     }
 ```
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create `tests/test_router.py`:
 
@@ -2013,12 +2013,12 @@ def test_no_real_repository_query_is_swallowed_by_the_vague_centroid(built_index
 
 `EvalQuery` is a frozen dataclass with fields `query_id`, `text` and `gold_doc_ids`, so `.text` is correct. Do not change `eval/queries.py` to suit this test.
 
-- [ ] **Step 3: Run the tests to verify they fail**
+- [x] **Step 3: Run the tests to verify they fail**
 
 Run: `.venv/bin/python -m pytest tests/test_router.py -q`
 Expected: FAIL, `ImportError: cannot import name 'intents' from 'agent'`.
 
-- [ ] **Step 4: Write the router**
+- [x] **Step 4: Write the router**
 
 Create `agent/intents.py`:
 
@@ -2178,7 +2178,7 @@ def classify(query: str, entities: dict, clarify_used: bool = False) -> RouteDec
     return RouteDecision(winner, None, scores, "nearest intent centroid")
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_router.py -q`
 Expected: PASS, 14 tests.
@@ -2187,12 +2187,12 @@ If a labelled probe misroutes, add an exemplar that carries the language it turn
 Never delete a probe to make the test pass.
 If `test_no_real_repository_query_is_swallowed_by_the_vague_centroid` fails, the `vague` exemplars are too broad; narrow them.
 
-- [ ] **Step 6: Run the full suite**
+- [x] **Step 6: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
 Expected: PASS. Task 8 adds 14 tests, so the suite is now **baseline + 93**.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add agent/intents.py eval/routing.py tests/test_router.py
