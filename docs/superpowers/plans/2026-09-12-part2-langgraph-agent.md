@@ -1162,7 +1162,7 @@ Validated twice on purpose: only re-validating the serialised dict proves the ex
 
 Note the filename: `tests/test_schema.py` already exists and covers the SQLite schema, so this one is `tests/test_response_schema.py`.
 
-- [ ] **Step 1: Add the constant to `config.py`**
+- [x] **Step 1: Add the constant to `config.py`**
 
 Append to the Part 2 section:
 
@@ -1174,7 +1174,7 @@ Append to the Part 2 section:
 RESPONSE_SCHEMA_PATH = REPO_ROOT / "agent" / "response.schema.json"
 ```
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create `tests/test_response_schema.py`:
 
@@ -1326,12 +1326,12 @@ def test_trace_id_changes_with_thread_turn_and_query():
     assert schema.trace_id("thread-a", 1, "other") != base
 ```
 
-- [ ] **Step 3: Run the tests to verify they fail**
+- [x] **Step 3: Run the tests to verify they fail**
 
 Run: `.venv/bin/python -m pytest tests/test_response_schema.py -q`
 Expected: FAIL, `ImportError: cannot import name 'schema' from 'agent'`.
 
-- [ ] **Step 4: Write the module**
+- [x] **Step 4: Write the module**
 
 Create `agent/schema.py`:
 
@@ -1459,12 +1459,12 @@ def validate_response(response: AgentResponse) -> dict:
     return payload
 ```
 
-- [ ] **Step 5: Export the schema file**
+- [x] **Step 5: Export the schema file**
 
 Run: `.venv/bin/python -c "from agent import schema; print(schema.export_schema())"`
 Expected: prints the path to `agent/response.schema.json`.
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [x] **Step 6: Run the tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_response_schema.py -q`
 Expected: PASS, 13 tests.
@@ -1472,12 +1472,12 @@ Expected: PASS, 13 tests.
 `test_the_committed_schema_file_is_current` compares the file against `model_json_schema()`.
 If it fails after a later model change, re-run Step 5 and commit the regenerated file; never hand-edit the JSON.
 
-- [ ] **Step 7: Run the full suite**
+- [x] **Step 7: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
 Expected: PASS. Task 6 adds 13 tests, so the suite is now **baseline + 69**.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add agent/schema.py agent/response.schema.json config.py tests/test_response_schema.py
