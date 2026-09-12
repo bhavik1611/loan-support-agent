@@ -40,6 +40,7 @@ OUT_OF_SCOPE_PROBES: list[str] = [
 
 @dataclass(frozen=True)
 class ProbeResult:
+    """The result of a probe against one collection."""
     probe: str
     in_scope: bool
     strategy: str

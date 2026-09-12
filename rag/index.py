@@ -97,13 +97,13 @@ def get_client():
 
 
 def collection_name(strategy: str) -> str:
-    try:
-        return config.COLLECTION_FOR_STRATEGY[strategy]
-    except KeyError:
+    """Get the collection name for the given strategy."""
+    if strategy not in config.COLLECTION_FOR_STRATEGY:
         raise ValueError(
             f"unknown strategy {strategy!r}, expected one of "
-            f"{sorted(config.COLLECTION_FOR_STRATEGY)}"
-        ) from None
+            f"{sorted(config.COLLECTION_FOR_STRATEGY.keys())}"
+        )
+    return config.COLLECTION_FOR_STRATEGY[strategy]
 
 
 def get_collection(strategy: str):

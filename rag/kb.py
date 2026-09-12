@@ -25,6 +25,7 @@ _CATALOGUE_FIELDS = {"title": str, "topic": str, "required": bool}
 
 @dataclass(frozen=True)
 class Document:
+    """A document in the knowledge base."""
     doc_id: str
     title: str
     topic: str
@@ -34,6 +35,7 @@ class Document:
 
 
 def _load_catalogue(kb_dir: Path) -> dict[str, dict]:
+    """Load the catalogue from the knowledge base directory."""
     path = kb_dir / CATALOGUE_NAME
     if not path.exists():
         raise ValueError(f"{path} is missing; the catalogue is not optional")

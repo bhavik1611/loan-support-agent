@@ -113,8 +113,8 @@ Tasks 6 to 10. Approved 2026-09-12 off the review artifact of that date.
 | D-41 | How the lookup route speaks | A fixed non-LLM template over the record's own fields, tagged `source: "record"` in the envelope | Sending the record through `llm.generate` lost because that is generation with no retrieval behind it, so the groundedness guardrail has nothing to check and the output would sit in the same envelope as a grounded answer while meaning something different. Returning the structured block with no sentence lost because a support agent reads the sentence. |
 | D-42 | How much customer context is spoken aloud | Name and open-loan count in the answer text; credit score only in the structured block, never in prose | Saying the credit score in the answer text lost because a support agent reading a score aloud to a member is a different act from seeing it on screen, and the envelope already carries it for any caller that needs it. Omitting it entirely lost because D-21 put it in `customer_context` deliberately and Part 3 consumes that block. |
 | D-43 | How far past the brief Part 2 goes | Nine nodes, two conditional edges and four route outcomes, against the brief's floor of four nodes and one conditional edge | A brief-tight graph of four nodes lost because the conditional edge would then be a binary with nothing to demonstrate beyond itself. A supervisor delegating to specialist sub-agents lost because under `MOCK_LLM` a supervisor is template matching delegating to template matching, and the brief names multi-agent orchestration in its preamble without requiring it in any Part 2 task. Section 18 lists what this deliberately does not build. |
-| D-44 | How intent is routed | A record-id regex decides outright; otherwise the query is embedded with the model already loaded and scored against intent exemplar centroids | A scored keyword table lost because it is a second vocabulary to keep in sync with the knowledge base, and it is brittle under paraphrase. A `MOCK_LLM` classifier node lost because under mock the classifier is template matching anyway, so it adds a layer without adding signal. The margin that decides whether the router may commit is measured, not preset, for the reason the brief gives in Task 4. |
-| D-45 | What happens when the router cannot commit | A `clarify` node returning one specific question, capped at one per thread | Defaulting to the RAG route lost because the router would silently guess and the groundedness fallback would absorb the mistake, which hides it. Treating low margin as the `both` route lost because it wastes a lookup on queries carrying no record id and blurs what `both` means. Uncapped clarification lost because two ambiguous turns in a row would loop. |
+| D-44 | How intent is routed | A record-id regex decides outright; otherwise the query is embedded with the model already loaded and scored against **three** exemplar centroids, `policy`, `lookup` and `vague`, and the highest wins | A scored keyword table lost because it is a second vocabulary to keep in sync with the knowledge base, and it is brittle under paraphrase. A `MOCK_LLM` classifier node lost because under mock the classifier is template matching anyway, so it adds a layer without adding signal. **Two centroids plus a calibrated margin lost on measurement**, and this is the decision's whole history: with only `policy` and `lookup`, the margin is a measure of which way a query leans, not of how confident the router is, so a vague query still leans one way by chance. Measured over 12 labelled and 5 ambiguous probes, the minimum labelled margin was 0.0009 against a maximum ambiguous margin of 0.2069, a gap of **minus 0.2060**. An absolute floor on the top score failed the same way. Adding a third `vague` centroid, which models the thing being detected instead of inferring it, routes 12 of 12 labelled probes correctly and catches 4 of the 5 ambiguous ones. |
+| D-45 | What happens when the router cannot commit | The `vague` centroid winning **is** the signal; the route is `clarify`, capped at one per thread | Defaulting to the RAG route lost because the router would silently guess and the groundedness fallback would absorb the mistake, which hides it. Treating the case as the `both` route lost because it wastes a lookup on queries carrying no record id and blurs what `both` means. Uncapped clarification lost because two ambiguous turns in a row would loop. A calibrated margin lost with D-44, and its removal is a simplification rather than a loss: there is now no router constant to preset, so nothing here needs the calibration discipline the brief imposes on the similarity threshold. |
 
 ## 4. Repository layout
 
@@ -145,7 +145,7 @@ loan-support-agent/
   eval/
     queries.py                12 evaluation queries with graded gold labels.
     calibration.py            In-scope and out-of-scope probe queries for threshold calibration.
-    routing.py                Part 2. Labelled probe queries for the ROUTE_MARGIN calibration.
+    routing.py                Part 2. Labelled and vague probe queries for the router.
   scripts/
     run_part1.py              Runs every Part 1 task and writes the transcripts.
     run_part2.py              Runs every Part 2 task and writes the transcripts.
@@ -545,15 +545,16 @@ A refusal is a response, so it carries a trace id, validates against the same sc
 
 ### 11.3 The router
 
-Three stages, cheapest first, per D-44 and D-45.
+Two stages, cheapest first, per D-44 and D-45.
 
-1. A record id in the query, `\bLN-\d{4}\b`, is decisive. With policy language alongside it, the route is `both`; alone, `lookup`.
-2. Otherwise the query is embedded with `rag/index.py::embed` and scored against intent exemplar centroids. The embeddings are already unit-normalised, so cosine is a dot product and no new dependency appears.
-3. If the best intent's margin over the second is below `config.ROUTE_MARGIN`, the route is `clarify`.
+1. A record id in the query, `\bLN-\d{4}\b`, is decisive. With policy language alongside it, the route is `both`; alone, `lookup`. An elliptical query resolves its id from the entity slot of section 12.
+2. Otherwise the query is embedded with `rag/index.py::embed` and scored against three exemplar centroids, `policy`, `lookup` and `vague`. The highest wins. The embeddings are already unit-normalised, so cosine is a dot product and no new dependency appears.
 
-`ROUTE_MARGIN` is measured, not chosen.
-`eval/routing.py` holds labelled probe queries, `scripts/run_part2.py` measures the in-scope and ambiguous margins, and `transcripts/part2-routing.txt` records them, exactly as `SIMILARITY_THRESHOLD` 0.2818 was derived in section 8.2.
-The value cannot be written here because it does not exist until the code runs; section 18 carries it as an open item.
+`vague` winning is what routes to `clarify`.
+There is no third stage and no router constant, which is the point of D-44: the design that had one was measured and did not work.
+
+The exemplar sets are the only tunable, and `eval/routing.py` is what measures them.
+`scripts/run_part2.py` writes the full table to `transcripts/part2-routing.txt`: every probe, its three scores, the winner, and whether the winner matched the label.
 
 ### 11.4 State
 
@@ -700,13 +701,13 @@ Part 2 continues the numbering.
 | 22 | A PAN, an Aadhaar and a 14-digit account number are each masked, and no raw value appears anywhere in the emitted state | "PII masking demonstrated firing on the fixed-format fields" |
 | 23 | Each of the four injection rules fires on its own probe and yields `route = refused` with the rule named | "prompt-injection detection demonstrated firing" |
 | 24 | An out-of-scope query yields the groundedness refusal rather than an answer | "an output-side groundedness check that refuses" |
-| 25 | The measured in-scope routing margin exceeds the measured ambiguous margin | D-44's calibration discipline, and the brief's ban on an untested preset |
+| 25 | Every labelled probe routes to its label, and every vague probe routes to `clarify` except the one named in 18.2 | D-44 and D-45, the router decides rather than guesses |
 | 26 | The same thread and turn yields the same `trace_id` twice | D-38, and the determinism ground rule in section 2 |
 | 27 | The `both` route writes `policy` and `lookup` from different nodes, and no key twice | Section 11.2, the claim that the fan-out cannot reorder |
 
 Precision@3 and Recall@3 are deliberately not pinned.
 They move legitimately when chunk parameters are tuned, and a test that fights tuning is a test that gets deleted.
-The measured `ROUTE_MARGIN` is pinned only by test 25, which asserts the separation rather than the value, for the same reason.
+The router's exemplar sets are pinned only by test 25, which asserts that the labelled probes route to their labels and the vague probes are caught, rather than pinning any score. Tuning an exemplar is legitimate; a test that pinned a cosine value would fight it.
 
 ## 17. Evidence
 
@@ -722,7 +723,7 @@ Per D-12.
 `scripts/run_part2.py` runs every Part 2 task in order and writes:
 
 - `transcripts/part2-escalation.txt` - the formula, the full score distribution, the threshold's percentile, and the escalated set
-- `transcripts/part2-routing.txt` - the `ROUTE_MARGIN` calibration, then both tool routes firing on different queries
+- `transcripts/part2-routing.txt` - every probe with its three intent scores and its winner, then both tool routes firing on different queries
 - `transcripts/part2-graph.txt` - the node list, the edge list, and one run per route end to end
 - `transcripts/part2-memory.txt` - the two-turn thread with state carried
 - `transcripts/part2-memory-fresh.txt` - the separate fresh thread with state absent
@@ -767,9 +768,11 @@ A fifth item opened during implementation and is recorded here rather than fixed
 
 Recorded here rather than resolved, at Bhavik's instruction on the review artifact of 2026-09-12, so that implementation acts on them deliberately.
 
-1. `config.ROUTE_MARGIN` is not chosen.
-   It is measured at implementation time over `eval/routing.py`, written to `transcripts/part2-routing.txt`, and pinned only by test 25, which asserts the separation rather than the value.
-   Writing a number here would be the untested preset the brief bans in Task 4, and the same objection applies to a router.
+1. **Carried risk.** A fluent but genuinely ambiguous query routes rather than clarifying.
+   Measured: "Tell me about the loan." scores `policy` 0.566, `lookup` 0.408, `vague` 0.262, so it routes to `policy` even though a human could not say which the asker meant.
+   The other four ambiguous probes are caught, and all 12 labelled probes plus all 24 real queries already in the repository route correctly.
+   Decision: leave it, and record it. The query is answerable as a policy question, so the failure mode is a narrow answer rather than a wrong one, and widening the `vague` exemplars far enough to catch it starts swallowing real questions.
+   Test 25 asserts the labelled set routes correctly and the vague set is caught, naming this one probe as the known exception, so it cannot silently grow to two.
 
 2. **Carried risk.** The known false refusal of item 5 in 18.1 gets louder in Part 2.
    "What documents are needed for KYC?" scores 0.5124 top-1, far above `T`, but its top three sentence chunks land on three different parents, so the support rule refuses.

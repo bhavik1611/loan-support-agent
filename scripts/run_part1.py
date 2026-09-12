@@ -48,7 +48,7 @@ def dataset_transcript() -> str:
     return buffer.getvalue()
 
 
-def knowledge_base_transcript() -> str:
+def knowledge_base_transcript(documents: list[kb.Document]) -> str:
     """Describe the knowledge base: what is in it, how long it is, how it embeds.
 
     Task 2 produces no computed result the way the other tasks do - the
@@ -57,7 +57,6 @@ def knowledge_base_transcript() -> str:
     the embedder's sequence limit is truncated silently, which would corrupt
     every similarity in Tasks 4 and 5 with nothing reporting it.
     """
-    documents = kb.load_documents()
     tokenizer = index.get_embedder().tokenizer
     limit = index.get_embedder().max_seq_length
 
@@ -174,10 +173,9 @@ def knowledge_base_transcript() -> str:
     return "\n".join(lines) + "\n"
 
 
-def indexing_summary() -> tuple[str, dict]:
+def indexing_summary(documents: list[kb.Document]) -> tuple[str, dict]:
     """Generate the indexing summary."""
     counts = index.build_index(rebuild=True)
-    documents = kb.load_documents()
     lines = [
         "Task 3 - chunking and indexing",
         "",
@@ -297,11 +295,13 @@ def main() -> None:
     print("Task 1: dataset")
     write("part1-dataset.txt", dataset_transcript())
 
+    documents = kb.load_documents()
+
     print("Task 2: knowledge base")
-    write("part1-knowledge-base.txt", knowledge_base_transcript())
+    write("part1-knowledge-base.txt", knowledge_base_transcript(documents))
 
     print("Task 3: chunking and indexing")
-    index_body, counts = indexing_summary()
+    index_body, counts = indexing_summary(documents)
 
     print("Task 4: threshold calibration")
     summary = calibration.calibrate()
