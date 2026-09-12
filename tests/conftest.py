@@ -13,7 +13,7 @@ os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 def pinned_to_mock(monkeypatch):
     """Every test runs under MOCK_LLM, whatever the environment says.
 
-    config.py loads .env at import (D-63), so without this a developer who sets
+    config.py loads .env at import (D-64), so without this a developer who sets
     LLM_PROVIDER=groq in .env turns the whole offline suite into network calls
     and the offline claim in CLAUDE.md quietly becomes false. Pinning here is
     what makes `HF_HUB_OFFLINE=1 pytest` a proof rather than a habit.

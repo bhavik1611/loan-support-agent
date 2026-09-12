@@ -26,9 +26,9 @@ def retrieve(
     """The top k chunks for a query, highest cosine similarity first.
 
     `product` narrows the search to the documents catalogue.json tags with that
-    product, per D-53. The narrowing is conditional on purpose: 9 of the 12
+    product, per D-53. The narrowing is conditional on purpose: 10 of the 12
     in-scope calibration probes name no product at all, so an unconditional
-    filter would search an empty subset for three quarters of real questions.
+    filter would search an empty subset for most real questions.
     With no product the query is issued exactly as it was before the gate
     existed, with no `where` clause at all.
 
@@ -73,7 +73,13 @@ def _retrieve(query, strategy, k, product, line):
                 similarity=round(1.0 - float(distance), 4),
             )
         )
-    ranked = sorted(hits, key=lambda h: h.similarity, reverse=True)
+    # An explicit total order. Similarity is rounded to 4 dp on the way in, so
+    # sorting on it alone manufactures ties the raw distances never had, and a
+    # stable sort then silently inherits whatever order ChromaDB returned.
+    # (doc_id, chunk_index) identifies a chunk uniquely, so this key can never
+    # tie and the rank order is the same bytes on every machine and every
+    # ChromaDB version.
+    ranked = sorted(hits, key=lambda h: (-h.similarity, h.doc_id, h.chunk_index))
     line["hits"] = len(ranked)
     line["top1_similarity"] = ranked[0].similarity if ranked else None
     line["doc_ids"] = sorted({h.doc_id for h in ranked})

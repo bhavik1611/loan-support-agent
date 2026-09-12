@@ -1,21 +1,21 @@
 # Part 1 - Dataset and RAG Core - Implementation Plan
 
-Status: approved
+Status: implemented
 
 > Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Amended 2026-09-12.**
 Tasks 1 to 16 are **implemented** and their checkboxes are historical.
-Tasks 17 to 20 are **approved and not implemented**.
+Tasks 17 to 20 are **implemented**, as of 2026-09-12, together with a branch-review fix round that corrected the gate's vocabulary and its tie-break.
 They exist because a review of the threshold calibration found that the threshold is not the mechanism that can decide scope, and the fix reaches the catalogue, the retrieval layer and the evaluation.
 The twelve decisions behind them are D-46 to D-57 in the spec's decision log, and every alternative they beat is recorded there.
 
 **Goal:** Build the brief-compliant Part 1 of the loan-support-agent capstone - a seeded loan-application dataset, an 18-document knowledge base, two chunking strategies indexed into two ChromaDB collections, empirically calibrated grounded generation, and a document-level Precision@3/Recall@3 comparison - all deterministic and offline under `MOCK_LLM`.
 
-**Architecture:** `dataset.py`, `config.py` and `llm.py` sit at the repository root; `rag/` holds the retrieval pipeline as five small single-responsibility modules; `eval/` holds hand-authored queries and calibration probes committed before any retrieval runs; `scripts/run_part1.py` executes every task in order and writes the four graded transcripts that `README.md` links.
+**Architecture:** `dataset.py`, `config.py` and `llm.py` sit at the repository root; `rag/` holds the retrieval pipeline as seven small single-responsibility modules; `eval/` holds hand-authored queries and calibration probes committed before any retrieval runs; `scripts/run_part1.py` executes every task in order and writes the seven graded transcripts that `README.md` links.
 Nothing outside `config.py` knows a filesystem path, and nothing outside `llm.py` knows which language-model provider is active.
 
-**Tech Stack:** Python 3.12.13 managed with `uv`, ChromaDB (persistent client, cosine space), `sentence-transformers` with `all-MiniLM-L6-v2`, PyYAML for front matter, pytest.
+**Tech Stack:** Python 3.12.13 managed with `uv`, ChromaDB (persistent client, cosine space), `sentence-transformers` with `all-MiniLM-L6-v2`, pytest.
 
 **Spec:** [`docs/superpowers/specs/2026-09-10-loan-support-agent-design.md`](../specs/2026-09-10-loan-support-agent-design.md)
 

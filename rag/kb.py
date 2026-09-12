@@ -15,6 +15,19 @@ list naming what Meridian Bank sells, and a per-document `products` tag naming
 which of them that document covers. The gate in rag/scope.py and the optional
 filter in rag/retrieve.py both read it from here, so the catalogue stays the
 single authority and nothing duplicates the list (D-52).
+
+The third top-level key, `licensed_pairs`, is the corpus licence the gate needs
+when a query names a Meridian product and an adjacent one in the same sentence.
+It says which of those pairings the documents actually cover, and it lives here
+rather than in rag/scope.py for the same reason the tags do: the corpus is the
+authority, and a special case written into the gate would not be.
+
+Each entry names the document and quotes the sentence that licenses the pair,
+plus `corpus_phrase`, which is the wording the document uses where the gate's
+vocabulary uses another. kb-18 line 10 says an NRE or NRO account "can be opened
+as a savings account or as a term deposit"; customers write "fixed deposit". The
+two spellings are one instrument, and recording both is what lets a test hold
+the licence against the corpus instead of against somebody's memory.
 """
 
 import json
@@ -28,8 +41,33 @@ DOCUMENT_SUFFIX = ".txt"
 
 PRODUCTS_KEY = "products"
 DOCUMENTS_KEY = "documents"
+LICENCES_KEY = "licensed_pairs"
 
 _CATALOGUE_FIELDS = {"title": str, "topic": str, "required": bool, "products": list}
+_LICENCE_FIELDS = {
+    "product": str,
+    "adjacent": str,
+    "corpus_phrase": str,
+    "document": str,
+    "sentence": str,
+}
+
+
+@dataclass(frozen=True)
+class LicensedPair:
+    """One product pairing the corpus covers, and the sentence that says so.
+
+    `product` is a catalogue product, `adjacent` is the phrase from
+    rag/scope.KNOWN_ADJACENT it is licensed against, and `corpus_phrase` is how
+    the document words that instrument. `document` and `sentence` are the
+    receipt: tests/test_scope.py reads the body and fails if the sentence is not
+    in it or does not name both terms, so the licence cannot outlive the prose.
+    """
+    product: str
+    adjacent: str
+    corpus_phrase: str
+    document: str
+    sentence: str
 
 
 @dataclass(frozen=True)
@@ -44,8 +82,8 @@ class Document:
     path: Path
 
 
-def _load_catalogue(kb_dir: Path) -> tuple[list[str], dict[str, dict]]:
-    """The product list and the document entries, both parsed strictly."""
+def _load_catalogue(kb_dir: Path) -> tuple[list[str], dict[str, dict], list[LicensedPair]]:
+    """The product list, the document entries and the licences, parsed strictly."""
     path = kb_dir / CATALOGUE_NAME
     if not path.exists():
         raise ValueError(f"{path} is missing; the catalogue is not optional")
@@ -56,7 +94,7 @@ def _load_catalogue(kb_dir: Path) -> tuple[list[str], dict[str, dict]]:
             f"{CATALOGUE_NAME}: expected an object with {PRODUCTS_KEY!r} and "
             f"{DOCUMENTS_KEY!r} keys"
         )
-    for key in (PRODUCTS_KEY, DOCUMENTS_KEY):
+    for key in (PRODUCTS_KEY, DOCUMENTS_KEY, LICENCES_KEY):
         if key not in catalogue:
             raise ValueError(f"{CATALOGUE_NAME}: missing the top-level {key!r} key")
 
@@ -106,14 +144,62 @@ def _load_catalogue(kb_dir: Path) -> tuple[list[str], dict[str, dict]]:
                 f"{CATALOGUE_NAME}: {doc_id}.{PRODUCTS_KEY} names {stray}, which is not in "
                 f"the top-level {PRODUCTS_KEY} list"
             )
-    return products, entries
+
+    raw_licences = catalogue[LICENCES_KEY]
+    if not isinstance(raw_licences, list):
+        raise ValueError(f"{CATALOGUE_NAME}: {LICENCES_KEY} must be a list")
+    licences = []
+    for position, entry in enumerate(raw_licences):
+        where = f"{CATALOGUE_NAME}: {LICENCES_KEY}[{position}]"
+        if not isinstance(entry, dict):
+            raise ValueError(f"{where} is not an object")
+        for field, expected in _LICENCE_FIELDS.items():
+            if field not in entry:
+                raise ValueError(f"{where} is missing {field}")
+            if not isinstance(entry[field], expected):
+                raise ValueError(
+                    f"{where}.{field} must be {expected.__name__}, "
+                    f"got {type(entry[field]).__name__}"
+                )
+        unknown = set(entry) - set(_LICENCE_FIELDS)
+        if unknown:
+            raise ValueError(f"{where} has unknown fields {sorted(unknown)}")
+        # A licence naming a product the bank does not sell, or a document that
+        # does not exist, would widen the gate on the strength of nothing.
+        if entry["product"] not in known:
+            raise ValueError(
+                f"{where}.product names {entry['product']!r}, which is not in the "
+                f"top-level {PRODUCTS_KEY} list"
+            )
+        if entry["document"] not in entries:
+            raise ValueError(
+                f"{where}.document names {entry['document']!r}, which is not a "
+                f"catalogued document"
+            )
+        licences.append(LicensedPair(**entry))
+    pairs = [(licence.product, licence.adjacent) for licence in licences]
+    if len(set(pairs)) != len(pairs):
+        raise ValueError(f"{CATALOGUE_NAME}: {LICENCES_KEY} licenses a pair twice")
+    return products, entries, licences
 
 
 def catalogue_products(kb_dir: Path | None = None) -> list[str]:
     """What Meridian Bank sells, in catalogue order. The authority for D-47."""
     kb_dir = config.KB_DIR if kb_dir is None else Path(kb_dir)
-    products, _ = _load_catalogue(kb_dir)
+    products, _, _ = _load_catalogue(kb_dir)
     return list(products)
+
+
+def licensed_pairs(kb_dir: Path | None = None) -> list[LicensedPair]:
+    """The product pairings the corpus covers, in catalogue order.
+
+    rag/scope.py turns these into the one exception to its refusal rule: an
+    adjacent product phrase refuses even when the query also names something
+    Meridian sells, unless some document covers that specific pairing.
+    """
+    kb_dir = config.KB_DIR if kb_dir is None else Path(kb_dir)
+    _, _, licences = _load_catalogue(kb_dir)
+    return list(licences)
 
 
 def documents_for_product(product: str, kb_dir: Path | None = None) -> list[str]:
@@ -124,7 +210,7 @@ def documents_for_product(product: str, kb_dir: Path | None = None) -> list[str]
     neither collection is rebuilt for it.
     """
     kb_dir = config.KB_DIR if kb_dir is None else Path(kb_dir)
-    products, entries = _load_catalogue(kb_dir)
+    products, entries, _ = _load_catalogue(kb_dir)
     if product not in products:
         raise ValueError(
             f"{product!r} is not in {CATALOGUE_NAME}'s {PRODUCTS_KEY} list; "
@@ -144,7 +230,7 @@ def load_documents(kb_dir: Path | None = None) -> list[Document]:
     doc_id that citations can name but retrieval can never return.
     """
     kb_dir = config.KB_DIR if kb_dir is None else Path(kb_dir)
-    _, entries = _load_catalogue(kb_dir)
+    _, entries, _ = _load_catalogue(kb_dir)
 
     bodies = {path.stem: path for path in sorted(kb_dir.glob(f"*{DOCUMENT_SUFFIX}"))}
     if not bodies:

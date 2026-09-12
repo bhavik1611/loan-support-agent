@@ -278,6 +278,29 @@ AADHAAR_DIGITS = 12
 # which is where committed evidence lives under D-12.
 CONVERSATION_DIR = DATA_DIR / "conversations"
 
+# A closed grammatical class, not a curated list: the determiners,
+# possessives and quantifiers that in English overwhelmingly introduce a noun
+# phrase. An earlier clause is a candidate antecedent for "it"/"them"/"those"
+# only if it contains one of these, because that is what carries "a noun
+# phrase starts here" - a word count or a hand-picked set of interjections
+# ("thanks", "sorry", "ok", ...) does not, and a first attempt at exactly that
+# ("thanks"/"sorry" and friends) scored 13/14 on its own probe set and could
+# only ever be as complete as the list of openers someone had thought to add
+# to it (see agent/memory.py::needs_resolution for the measured comparison).
+# This class is fixed by English grammar rather than fitted to any probe set,
+# and its own stated residue - a bare plural or mass noun with no determiner,
+# e.g. "Loans affect credit scores, do they not?" - is a named, checkable
+# weakness rather than an open-ended one.
+NOUN_PHRASE_MARKERS = frozenset(
+    {
+        "a", "an", "the",
+        "my", "your", "our", "his", "her", "their",
+        "this", "that", "these", "those",
+        "one", "two", "three", "four", "five",
+        "some", "several", "many", "few", "both", "all", "any", "each", "every", "no",
+    }
+)
+
 # --- Part 2 Task 9, the response envelope (D-36, D-38) --------------------
 
 # Committed, because it is what Part 3's FastAPI layer and the grader read.
@@ -287,7 +310,7 @@ RESPONSE_SCHEMA_PATH = REPO_ROOT / "agent" / "response.schema.json"
 # --- Environment ----------------------------------------------------------
 
 # .env is read once, at import, and never overrides a variable the real
-# environment already set (D-63). The precedence matters: a grader who exports
+# environment already set (D-64). The precedence matters: a grader who exports
 # LLM_PROVIDER=mock for a run must not have it silently replaced by a developer
 # .env sitting in the checkout.
 def _load_dotenv() -> None:
@@ -318,7 +341,7 @@ GROQ_API_KEY_VAR = "GROQ_API_KEY"
 GROQ_BASE_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # Verified against the live models endpoint on 2026-09-12 rather than recalled:
-# the Llama 3.3 70B id this would otherwise have pinned is not hosted (D-60).
+# the Llama 3.3 70B id this would otherwise have pinned is not hosted (D-61).
 # groq/compound is excluded deliberately; it carries server-side web search and
 # could answer from outside the retrieved context.
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
@@ -326,13 +349,13 @@ GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
 # gpt-oss is a reasoning model and bills reasoning against the same budget: on
 # the measured call 71 of 118 completion tokens were reasoning. Too small a
 # budget returns empty content, which llm.py raises on rather than letting
-# rag/generate.py read it as a refusal (D-61).
+# rag/generate.py read it as a refusal (D-62).
 GROQ_MAX_TOKENS = 1200
 GROQ_TIMEOUT_SECONDS = 60
 
 # Groq's edge returns 403 for the stdlib default "Python-urllib/3.12" and 200
 # for any explicit agent. Measured on 2026-09-12 with the same body from the
-# same process, changing only this header (D-64).
+# same process, changing only this header (D-65).
 GROQ_USER_AGENT = "loan-support-agent/1.0"
 
 # --- Observability, spec section 21 ---------------------------------------
@@ -344,5 +367,5 @@ LOG_FILE = LOG_DIR / "agent.jsonl"
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "WARNING")
 
 # Durations are rounded to this many decimal places before they are logged, so
-# clock noise never becomes the reason two runs look different (D-69).
+# clock noise never becomes the reason two runs look different (D-70).
 LOG_DURATION_PLACES = 1

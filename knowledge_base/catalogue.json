@@ -12,6 +12,22 @@
     "NRE account",
     "NRO account"
   ],
+  "licensed_pairs": [
+    {
+      "product": "NRE account",
+      "adjacent": "fixed deposit",
+      "corpus_phrase": "term deposit",
+      "document": "kb-18-nre-vs-nro-operation",
+      "sentence": "Both the NRE account and the NRO account at Meridian Bank can be opened as a savings account or as a term deposit."
+    },
+    {
+      "product": "NRO account",
+      "adjacent": "fixed deposit",
+      "corpus_phrase": "term deposit",
+      "document": "kb-18-nre-vs-nro-operation",
+      "sentence": "Both the NRE account and the NRO account at Meridian Bank can be opened as a savings account or as a term deposit."
+    }
+  ],
   "documents": {
     "kb-01-loan-eligibility": {
       "title": "Loan eligibility criteria by loan type",
@@ -190,7 +206,11 @@
         "Education Loan",
         "Home Loan",
         "Meridian Rewards Card",
+        "NRE account",
+        "NRO account",
         "Personal Loan",
+        "joint account",
+        "salary account",
         "savings account"
       ]
     },

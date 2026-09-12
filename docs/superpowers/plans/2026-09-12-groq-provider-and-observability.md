@@ -3,7 +3,7 @@
 Status: approved
 
 Approved 2026-09-12 off three grilling rounds, closed on the artifact of that date.
-Implements D-58 to D-70 and sections 20 and 21 of [`../specs/2026-09-10-loan-support-agent-design.md`](../specs/2026-09-10-loan-support-agent-design.md), which is the authority; where this plan and the spec disagree, the spec wins.
+Implements D-59 to D-71 and sections 20 and 21 of [`../specs/2026-09-10-loan-support-agent-design.md`](../specs/2026-09-10-loan-support-agent-design.md), which is the authority; where this plan and the spec disagree, the spec wins.
 
 Section numbers below cite the spec as it stands after the 2026-09-12 amendment that added sections 20 and 21.
 
@@ -82,7 +82,7 @@ No new boundary is invented to hold a log line, and no function changes signatur
 ### Task 7 - `scripts/run_groq_demo.py`
 
 The only end-to-end Groq entry point.
-Runs a handful of queries, stamps provider and model in its header per D-65, writes to a gitignored directory, and refuses politely when no key is set.
+Runs a handful of queries, stamps provider and model in its header per D-66, writes to a gitignored directory, and refuses politely when no key is set.
 
 **Done when** it runs against a live key and its output is not tracked by git.
 
@@ -115,5 +115,5 @@ One live demo run against the key, reported with its real output.
 
 ## What this plan does not do
 
-No metrics endpoint, no exporter, no retry layer: the first two wait for Part 3's server per D-68, and retries are Part 4's resilience task per D-61.
+No metrics endpoint, no exporter, no retry layer: the first two wait for Part 3's server per D-69, and retries are Part 4's resilience task per D-62.
 No change to `transcripts/`, the README number blocks, `data/`, the seed, or any threshold.

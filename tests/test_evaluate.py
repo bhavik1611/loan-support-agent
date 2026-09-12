@@ -157,12 +157,48 @@ def test_the_decision_report_covers_every_golden_item_on_both_collections(built_
 
 
 def test_the_decision_report_prints_the_before_figure_beside_the_after(built_index):
-    """The near-domain false-answer rate is the evidence the gate worked."""
+    """The near-domain false-answer rate is the evidence the gate worked.
+
+    The two literals this used to assert, 14 of 30, were carried over from a
+    retired 15-item near-domain tier. Today's tier is 12 items and 24 readings,
+    so the printed comparison had a different numerator population and a
+    different denominator on either side of the word "before", and the test
+    locked that in. Both halves are now computed on the run, so what is left to
+    assert is the property that makes the comparison honest: the same
+    denominator on both sides, over the same items.
+    """
     report = evaluate.format_decision_report()
     assert "before the product gate" in report
     assert "after the product gate" in report
-    assert f"{evaluate.NEAR_DOMAIN_BEFORE_ANSWERED} of " \
-           f"{evaluate.NEAR_DOMAIN_BEFORE_READINGS} readings" in report
+
+    rows = []
+    ungated = []
+    for strategy in sorted(config.COLLECTION_FOR_STRATEGY):
+        rows += evaluate.decisions(strategy)
+        ungated += evaluate._ungated_decisions(strategy)
+    after_answered, after_readings = evaluate.near_domain_false_answers(rows)
+    before_answered, before_readings = evaluate.near_domain_false_answers(ungated)
+
+    assert before_readings == after_readings, "the two sides must share a denominator"
+    assert f"before the product gate : {before_answered} of {before_readings} " in report
+    assert f"after the product gate  : {after_answered} of {after_readings} " in report
+    # The gate exists to lower this number, so the before figure cannot be the
+    # smaller one. Neither figure is pinned, per D-56 and D-13.
+    assert before_answered >= after_answered
+
+
+def test_the_ungated_pass_really_bypasses_the_gate(built_index):
+    """The before figure would be worthless if it still ran the gate.
+
+    Every outside_boundary item refuses at the gate with the gate on, so a
+    bypass that did not bypass would print the same number twice and look like
+    a comparison.
+    """
+    rows = evaluate._ungated_decisions(config.STRATEGY_SENTENCES)
+    outside = [r for r in rows if r.kind == KIND_OUTSIDE_BOUNDARY]
+    assert outside
+    assert all(r.outcome != generate.OUTCOME_REFUSED_GATE for r in outside)
+    assert all(r.top1_similarity > 0.0 for r in outside), "a bypassed item retrieved"
 
 
 def test_the_decision_report_is_deterministic(built_index):

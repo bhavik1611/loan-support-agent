@@ -125,7 +125,7 @@ def _generate_mock(system: str, user: str) -> str:
 class ProviderError(RuntimeError):
     """The provider failed. Deliberately not a refusal.
 
-    Per D-61 nothing here degrades to the mock provider: output that claims one
+    Per D-62 nothing here degrades to the mock provider: output that claims one
     provenance and has another is the failure the ground rules exist to prevent.
     Retries and timeouts are Part 4's resilience task and wrap this.
     """
@@ -200,7 +200,7 @@ def _generate_groq(system: str, user: str) -> str:
         # budget set too low returns empty content with finish_reason "length".
         # rag/generate.py reads an empty string as "the context held nothing
         # usable", which would record a transport problem as a principled
-        # refusal. Both cases raise instead (D-61).
+        # refusal. Both cases raise instead (D-62).
         if choice.get("finish_reason") == "length":
             raise ProviderError(
                 f"Groq truncated the completion at {config.GROQ_MAX_TOKENS} tokens "

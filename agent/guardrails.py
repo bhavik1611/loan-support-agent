@@ -109,7 +109,7 @@ def detect_injection(text: str) -> str | None:
     for name, pattern in INJECTION_RULES:
         if pattern.search(text):
             # The rule name only. Logging the span it matched would write the
-            # injection payload itself into the log file (D-70).
+            # injection payload itself into the log file (D-71).
             obs.event("guardrails.injection", rule=name, outcome="refused")
             return name
     return None
@@ -140,7 +140,7 @@ def check_grounded(
     retrieved = set(retrieved_doc_ids)
     if any(doc_id not in retrieved for doc_id in citations):
         # Cannot fire under MOCK_LLM and can under Groq, which is the whole
-        # reason this rule was written ahead of a real provider (D-66).
+        # reason this rule was written ahead of a real provider (D-67).
         obs.event("guardrails.grounded", rule="phantom_citation", outcome="refused")
         return "phantom_citation"
     obs.event("guardrails.grounded", outcome="ok", citations=len(tuple(citations)))

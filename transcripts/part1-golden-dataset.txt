@@ -45,7 +45,7 @@ OB-04  outside_boundary   refused_gate        0.0000  SIP                  []
 OB-05  outside_boundary   refused_gate        0.0000  ELSS                 []
 OB-06  outside_boundary   refused_gate        0.0000  demat                []
 OB-07  outside_boundary   refused_gate        0.0000  stock market         []
-OB-08  outside_boundary   refused_gate        0.0000  insurance            []
+OB-08  outside_boundary   refused_gate        0.0000  insurance cover      []
 OB-09  outside_boundary   refused_gate        0.0000  gold                 []
 OB-10  outside_boundary   refused_gate        0.0000  cryptocurrency       []
 IU-01  inside_uncovered   answered            0.3327  -                    ['kb-15-card-late-payment-charges']
@@ -88,7 +88,7 @@ OB-04  outside_boundary   refused_gate        0.0000  SIP                  []
 OB-05  outside_boundary   refused_gate        0.0000  ELSS                 []
 OB-06  outside_boundary   refused_gate        0.0000  demat                []
 OB-07  outside_boundary   refused_gate        0.0000  stock market         []
-OB-08  outside_boundary   refused_gate        0.0000  insurance            []
+OB-08  outside_boundary   refused_gate        0.0000  insurance cover      []
 OB-09  outside_boundary   refused_gate        0.0000  gold                 []
 OB-10  outside_boundary   refused_gate        0.0000  cryptocurrency       []
 IU-01  inside_uncovered   refused_threshold   0.3931  -                    []
@@ -113,11 +113,18 @@ per-class summary
 
 The near-domain tier is outside_boundary plus inside_uncovered: the
 questions that sound like Meridian Bank business and are not. Each item
-is counted once per collection, which is the reading the before figure
-was taken on.
+is counted once per collection, so both figures below run over exactly
+the same readings.
 
-  before the product gate : 14 of 30 readings answered outright
+  before the product gate : 15 of 24 readings answered outright
   after the product gate  : 3 of 24 readings answered outright
+
+Both figures are computed on this run, over the same items, by the same
+function. The before figure runs every golden item through the same
+answer decision with rag/scope.py switched off: no refusal before
+retrieval and no D-53 product filter on the search. Nothing here is
+quoted from an earlier measurement, so the two sides cannot drift onto
+different populations.
 
 Still answered, named rather than hidden:
 

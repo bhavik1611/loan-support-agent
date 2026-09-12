@@ -1,4 +1,4 @@
-"""The only end-to-end Groq entry point. Spec section 20, D-67.
+"""The only end-to-end Groq entry point. Spec section 20, D-68.
 
 `scripts/run_part1.py` refuses to run under a real provider because it writes
 byte-guarded artefacts. This script exists so the real provider can still be
@@ -9,7 +9,7 @@ second ground rule is that the same input produces the same bytes.
     LLM_PROVIDER=groq .venv/bin/python scripts/run_groq_demo.py
 
 Provenance is stamped in the header rather than in the response envelope,
-per D-65: the provider is constant across a run, not a property of a turn.
+per D-66: the provider is constant across a run, not a property of a turn.
 """
 
 import os
@@ -78,7 +78,7 @@ def main() -> None:
         try:
             answer = generate.answer(query, strategy=config.STRATEGY_SENTENCES)
         except llm.ProviderError as exc:
-            # Deliberately not swallowed into a refusal (D-61).
+            # Deliberately not swallowed into a refusal (D-62).
             failures += 1
             print(f"    provider error: {exc}")
             lines += [f"- outcome: **provider error**", "", f"```\n{exc}\n```", ""]

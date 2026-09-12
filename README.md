@@ -28,7 +28,7 @@ uv venv --python 3.12 .venv
 VIRTUAL_ENV=.venv uv pip install -r requirements.txt
 
 .venv/bin/python scripts/run_part1.py      # runs every Part 1 task, rewrites transcripts/
-.venv/bin/python -m pytest                  # 212 Part 1 tests, 350 with Part 2's and the provider
+.venv/bin/python -m pytest                  # 222 Part 1 tests, 372 with Part 2's and the provider
 ```
 
 The embedding weights for `all-MiniLM-L6-v2` download once on first use, into `~/.cache/huggingface` outside the repository.
@@ -54,6 +54,8 @@ A key is read only when you opt in with `LLM_PROVIDER=groq`, which is described 
 | Seed | Records | Fraud flagged | Categories | Statuses |
 |---|---|---|---|---|
 | `1` | 100 | 16 (16.0%) | 5 | 5 |
+
+<!-- End of generated block. -->
 
 Full report: [`transcripts/part1-dataset.txt`](transcripts/part1-dataset.txt).
 
@@ -263,6 +265,8 @@ That oversamples the brief's floors of 3 and 2, because the gap between the two 
 | Gap between the clusters | 0.0393 |
 | **Chosen threshold T** | **0.3066** |
 
+<!-- End of generated block. -->
+
 `T` is the midpoint of the two observed clusters, pooled across both collections.
 One threshold rather than one per collection, because the answer decision has to be a single rule that Part 2 imports.
 
@@ -279,24 +283,32 @@ It decides **groundedness**, whether the knowledge base holds a passage that sup
 It cannot decide **topicality**, whether the question is about a product Meridian Bank sells, and the measurement behind that is blunt.
 
 Hold one sentence frame fixed and swap only the product noun.
-"What is the interest rate on a fixed deposit for 5 years" scores **0.6805** against the same sentence reading "car insurance policy", and **0.7605** against the same sentence reading "home loan".
+"What is the interest rate on a fixed deposit for 5 years?" scores **0.6805** against the same sentence reading "car insurance policy", and **0.7605** against the same sentence reading "home loan" - the question mark is part of all three probes, and dropping it reads 0.6266 and 0.6938 instead.
 The lowest genuine in-scope probe in the table above scores **0.3263** against the very document that answers it.
 An out-of-catalogue question can therefore sit more than twice as high as a real one, so no cut on this signal separates a deposit from a loan, and a larger probe set only measures the failure more precisely.
 Those two readings are recorded in decision D-46 of [the design spec](docs/superpowers/specs/2026-09-10-loan-support-agent-design.md); 0.3263 is the calibration transcript's own minimum.
 
 So topicality is decided first, by [`rag/scope.py`](rag/scope.py), before any vector search runs.
-It is deterministic string matching over two lists and nothing else: the product catalogue read out of [`knowledge_base/catalogue.json`](knowledge_base/catalogue.json), and ten `KNOWN_ADJACENT` phrases naming products Meridian does not sell.
-Longest phrase wins, and the catalogue wins an exact tie.
+It is deterministic string matching over two lists and nothing else: the product catalogue read out of [`knowledge_base/catalogue.json`](knowledge_base/catalogue.json), and thirteen `KNOWN_ADJACENT` phrases naming products Meridian does not sell.
+The longest phrase wins among equals, but **the catalogue wins outright whenever a query names both**, at any length.
+That rule is not cosmetic: `kb-18` states that an NRE or NRO account can be opened as a term deposit, so "Can I open a fixed deposit in my NRE account?" is an in-scope question that the longest-phrase rule alone refused.
 A query naming an adjacent product is refused by name before retrieval, which is why every `refused_gate` row in the decision table reports top-1 similarity 0.0000: no search ran.
 
 It works, on the evidence of [`transcripts/part1-golden-dataset.txt`](transcripts/part1-golden-dataset.txt).
-All 10 `outside_boundary` items refuse at the gate on both collections, all 12 `answerable` items still answer on both, and the near-domain false-answer rate over the `outside_boundary` and `inside_uncovered` tiers falls from **14 of 30 readings answered outright to 3 of 24**.
+All 10 `outside_boundary` items refuse at the gate on both collections, all 12 `answerable` items still answer on both, and the near-domain false-answer rate over the `outside_boundary` and `inside_uncovered` tiers falls from **15 of 24 readings answered outright to 3 of 24**.
+Both halves of that comparison are computed live over the same 12 items on every run, because an earlier version quoted a before figure measured on a retired 15-item tier and printed it beside a 24-reading after figure.
 
 **And the list is curated, which is its weakness, stated in the same breath as the success.**
 An adjacent product nobody thought to add still falls through to the threshold that D-46 just showed cannot catch it.
 That was the anticipated weakness and it remains real and unmeasured.
-The weakness that actually fired was the opposite shape: four of the original fourteen entries matched things they did not mean, so `shares` caught the verb in "my wife shares the account with me", `income tax` and `GST` caught topics the corpus discusses where it touches banking, and each refused a question the knowledge base answers.
-All four are removed, the admission rule is now written into `rag/scope.py` (the list names products and instruments, never topics), and `tests/test_scope.py` pins the four recovered questions.
+The weakness that actually fired was the opposite shape: entries matched things they did not mean.
+`shares` caught the verb in "my wife shares the account with me", `income tax` and `GST` and `tax return` caught topics the corpus discusses where it touches banking, and the bare noun `insurance` caught the industry rather than the cover, so "An insurance company debited my card twice" was refused although `kb-05` answers it.
+Each refused a question the knowledge base answers.
+
+Four entries are removed and one is narrowed to the phrases that name the product, and the admission rule is now written into `rag/scope.py`: the list names products and instruments, never topics and never industries.
+Six recovered questions are pinned in `tests/test_scope.py`, and the two findings from the branch review carry their own named tests.
+Deleting a phrase was the wrong instinct twice over, and that is the part worth reading: removing `insurance` outright makes "Does the bank sell term life insurance cover?" answer confidently out of the account-closure document, and removing `fixed deposit` makes "What is the interest rate on a fixed deposit for 5 years?" answer out of the loan interest-rate slabs.
+A gate entry can be wrong and load-bearing at once.
 The full account, including the one false answer removing `income tax` costs on the collection this repository does not ship, is item 8 of spec section 18.1.
 
 ### The answer decision
@@ -378,6 +390,8 @@ With one relevant document per query, Recall@3 could only take the values 0 and 
 | `kb_fixed_400_80` | 89 | 1.25 | 0.7917 | 0.5972 |
 | `kb_sentences` | 215 | 1.33 | 0.8750 | 0.6528 |
 
+<!-- End of generated block. -->
+
 Per-query arithmetic for both collections, as fractions: [`transcripts/part1-evaluation.txt`](transcripts/part1-evaluation.txt).
 
 Precision@3 and Recall@3 measure whether retrieval found the right document, and they are scored over the 12 `answerable` items because only those carry gold documents.
@@ -404,6 +418,23 @@ Sentence chunks are shorter and more numerous, 215 against 89, which lets the to
 Both mean `|R|` values sit near 1.3, so the top 3 chunks usually come from one parent, and a query with 3 gold documents can almost never score 3/3.
 Recall here is capped by retrieving 3 *chunks* rather than 3 *documents*, which is a property of the design and not of either chunker.
 Retrieving a wider candidate set and then deduplicating down to 3 parents would lift recall for both, and is listed as a V2 upgrade rather than smuggled into V1.
+
+## Part 2
+
+<!-- Generated by scripts/run_part2.py. Do not edit by hand. -->
+
+| Part 2 measurement | Value |
+|---|---|
+| Escalation threshold | 0.5 |
+| Percentile the threshold sits at | 80th |
+| Records escalated | 20 of 100 |
+| Escalated and fraud-flagged | 14 |
+| Escalated, unflagged but stale | 6 |
+| Fraud-flagged below the threshold | 2 |
+| Distinct escalation scores | 42 |
+| Labelled probes routed correctly | 12 of 12 |
+| Vague probes caught | 4 of 5 |
+| Graph nodes | 9 |
 
 ## The optional Groq provider
 
@@ -451,8 +482,8 @@ A metrics endpoint is deliberately not here: there is no server in this part to 
 
 ## Tests
 
-212 Part 1 tests, all passing offline.
-The repository suite reports 350 because Part 2 is being built alongside this branch and adds 127 of its own, and the provider and logging spine add 11; the split is by whether a test file imports `agent/`.
+222 Part 1 tests, all passing offline.
+The repository suite reports 372: Part 2 is being built alongside this branch and adds 139 of its own, and the Groq provider and the logging spine add 11.
 The ten that restate an acceptance criterion directly:
 
 | # | Test | Criterion it restates |
@@ -497,7 +528,7 @@ scripts/run_part1.py        Runs every Part 1 task and writes the transcripts.
 scripts/check_database.py   The grader's one-command database check.
 data/                       Committed snapshot and database manifest, both hash-tested.
 transcripts/                Committed graded evidence.
-tests/                      212 Part 1 tests, one per acceptance criterion plus unit coverage.
+tests/                      222 Part 1 tests, one per acceptance criterion plus unit coverage.
 docs/                       The design spec and the implementation plans.
 reference/                  The problem statement.
 chroma/                     Generated vector store, gitignored.

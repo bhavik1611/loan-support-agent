@@ -4,7 +4,8 @@ Status: approved design for Parts 1 and 2, declared interfaces for Parts 3 and 4
 Written 2026-09-10 after two grilling rounds.
 Amended 2026-09-12 after three more, adding the time axis in D-26 to D-31.
 Amended again 2026-09-12, adding Part 2 in sections 10 to 14 and D-33 to D-45, approved off the review artifact of that date.
-Amended again 2026-09-12, adding the Groq provider and observability in sections 20 and 21 and D-58 to D-70, approved off three grilling rounds of that date.
+Amended again 2026-09-12, adding the Groq provider and observability in sections 20 and 21 and D-59 to D-71, approved off three grilling rounds of that date.
+Those entries were written as D-58 to D-70 on a branch and renumbered on merge, because D-58 was taken by the scope-gate decision that landed first.
 Sections 20 and 21 are appended rather than inserted, so no existing section number moves and the dated plans keep their citations.
 Authority: `reference/problem-statement.md` is the brief; where this document and the brief disagree, the brief wins and this document is wrong.
 Section numbering changed in that amendment so the parts read in order; the two dated plans under `docs/superpowers/plans/` cite the numbering as it stood when they were written, and are left alone because a dated plan is a record.
@@ -120,34 +121,35 @@ Tasks 6 to 10. Approved 2026-09-12 off the review artifact of that date.
 | D-45 | What happens when the router cannot commit | The `vague` centroid winning **is** the signal; the route is `clarify`, capped at one per thread | Defaulting to the RAG route lost because the router would silently guess and the groundedness fallback would absorb the mistake, which hides it. Treating the case as the `both` route lost because it wastes a lookup on queries carrying no record id and blurs what `both` means. Uncapped clarification lost because two ambiguous turns in a row would loop. A calibrated margin lost with D-44, and its removal is a simplification rather than a loss: there is now no router constant to preset, so nothing here needs the calibration discipline the brief imposes on the similarity threshold. |
 | D-46 | What the similarity threshold decides | Groundedness only: whether the knowledge base holds a passage that supports an answer. Topicality is not its job | Topicality lost on measurement. Holding one sentence frame fixed and swapping only the product noun, "fixed deposit" against "car insurance policy" scores **0.6805**, while the lowest genuine in-scope probe scores 0.3263 against the document that actually answers it. The embedding encodes the question's shape, not the product, so no cut on that signal can separate a deposit from a loan, and a larger probe set only measures the failure more precisely. |
 | D-47 | Meridian Bank's product boundary | Loans, cards, accounts, KYC and credit score. Deposits, investments, insurance and tax sit outside it | Leaving the boundary undeclared lost because "What is the interest rate on a fixed deposit for 5 years" then has no defensible label, and at 0.5694 it is the single worst near-domain reading. Widening it to everything a retail bank sells lost because that converts a scope question into a coverage gap and demands documents Part 1 does not need. |
-| D-48 | How out-of-scope probes are tiered | Two tiers. A **far** tier derives `T`; a **near-domain** tier is measured and reported and fits nothing | One pooled tier lost on measurement: 18 of 30 near-domain readings sit above the in-scope minimum, so the clusters do not narrow, they invert, and no threshold separates them. Keeping only the far tier lost because the system's real failure mode would then never be measured. |
+| D-48 | How out-of-scope probes are tiered | Two tiers. A **far** tier derives `T`; a **near-domain** tier is measured and reported and fits nothing | One pooled tier lost on measurement: 18 of 30 near-domain readings sat above the in-scope minimum when that tier held 15 items, so the clusters do not narrow, they invert, and no threshold separates them. Keeping only the far tier lost because the system's real failure mode would then never be measured. |
 | D-49 | The threshold estimator, and the far tier's size | Min-max midpoint kept. The far tier grows from 5 probes to 17 | A percentile midpoint lost because a grader cannot redo it by eye from the printed table, and across 24 and 34 points it is not measurably more robust, only less legible. A maximum-margin sweep lost as machinery disproportionate to a 34-point sample. Keeping 5 probes lost because the sample was genuinely thin. The price is recorded rather than hidden: one probe, "Which vaccine schedule applies to a newborn in the first year?" at 0.2870, moves `T` on its own, and that sensitivity is item 7 in section 18.1. |
 | D-50 | How near-domain probes are labelled | Two labels, `outside_boundary` and `inside_uncovered` | A single label lost because "How do I transfer money to an account in another country" sits inside the boundary of D-47 with no document covering it. Scoring that as a correct out-of-scope refusal counts a coverage gap as a scope win, which flatters the system. A third ambiguous class lost because it is a judgement call per probe with no rule to settle it. |
 | D-51 | What decides scope | A product-catalogue gate that runs **before** retrieval. The threshold is demoted to a floor against gibberish | Deciding scope with similarity lost to D-46's measurement. Deciding it with an embedding router against product-name centroids lost to the same measurement, since the product nouns do not separate. Deciding it with an LLM reader over the retrieved passages is what a production system does in 2026 and is forbidden by the `MOCK_LLM` ground rule in section 2. Growing the corpus lost because coverage is not the cause: a 500-document knowledge base has the identical fixed-deposit problem. |
-| D-52 | Where the catalogue lives, and how the gate recognises a product | `knowledge_base/catalogue.json` gains a `products` list and per-document product tags. The gate holds that catalogue plus an explicit **known-adjacent** list of products Meridian does not sell | A positive catalogue alone lost on measurement: "Suggest me a good SIP" names no Meridian product, so a membership test sees nothing and falls through to the search that answers it wrongly. It fails on 13 of the 15 near-domain probes. A new `kb-19` scope document lost because a 19th document changes chunk counts and moves every measured number in Part 1, and `catalogue.json` is already the sidecar authority `rag/kb.py` parses strictly. The weakness is named rather than engineered around: the adjacent list does not generalise to an unseen product. |
-| D-53 | Whether retrieval filters by product | Conditionally, and only when the query names one | Filtering always lost on measurement: 9 of the 12 in-scope probes name no product at all and would be filtered to an empty subset. Dropping the filter lost narrowly, and the claim that carried it was corrected mid-review: the filter reaches 3 of 12 in-scope probes, not most of them. Where it does apply it is the difference between "which product is this about" and "what is this vaguely like", at the cost of one branch in `rag/retrieve.py` and no change to the index at all. **A product field on each chunk lost on measurement**, and this is the decision's whole history: ChromaDB 1.5.9 has no substring operator for metadata, and a `$contains` clause against a delimited string returns an empty result rather than raising, so every product-named query would have retrieved nothing and the failure would have been silent. The filter is instead a `doc_id` `$in` clause built from the catalogue's own product tags, which uses a supported operator, needs no reindex, and keeps `catalogue.json` the single authority. |
+| D-52 | Where the catalogue lives, and how the gate recognises a product | `knowledge_base/catalogue.json` gains a `products` list and per-document product tags. The gate holds that catalogue plus an explicit **known-adjacent** list of products Meridian does not sell | A positive catalogue alone lost on measurement: "Suggest me a good SIP" names no Meridian product, so a membership test sees nothing and falls through to the search that answers it wrongly. It fails on the near-domain tier, 10 of the 12 items as that tier stands after the branch review of 2026-09-12. A new `kb-19` scope document lost because a 19th document changes chunk counts and moves every measured number in Part 1, and `catalogue.json` is already the sidecar authority `rag/kb.py` parses strictly. The weakness is named rather than engineered around: the adjacent list does not generalise to an unseen product. |
+| D-53 | Whether retrieval filters by product | Conditionally, and only when the query names one | Filtering always lost on measurement: most in-scope questions name no product at all and would be filtered to an empty subset. Re-measured on 2026-09-12 with both populations named, because an earlier figure of 3 of 12 did not say which: 2 of the 12 `IN_SCOPE_PROBES` in `eval/calibration.py` name a catalogue product, and 5 of the 12 `answerable` golden items do. Dropping the filter lost narrowly, and the claim that carried it was corrected mid-review: the filter reaches a minority of in-scope questions, not most of them. Where it does apply it is the difference between "which product is this about" and "what is this vaguely like", at the cost of one branch in `rag/retrieve.py` and no change to the index at all. **A product field on each chunk lost on measurement**, and this is the decision's whole history: ChromaDB 1.5.9 has no substring operator for metadata, and a `$contains` clause against a delimited string returns an empty result rather than raising, so every product-named query would have retrieved nothing and the failure would have been silent. The filter is instead a `doc_id` `$in` clause built from the catalogue's own product tags, which uses a supported operator, needs no reindex, and keeps `catalogue.json` the single authority. |
 | D-54 | Which part owns the fix | Split. The catalogue, the product metadata and the gate are Part 1 `rag/`; the refusal wording is Part 2 `agent/` | Part 2 owning all of it lost because only `rag/` can filter the search. Part 1 owning all of it lost because only `agent/` composes a sentence a support agent reads. This revises the first answer given in review, which assigned the whole fix to Part 2 before the root cause in D-46 had been measured. |
 | D-55 | What the golden dataset contains | `EVAL_QUERIES` and the near-domain tier absorbed into one four-class set in `eval/queries.py`. The calibration probes stay out | A separate `eval/golden.py` lost because two files would then describe one corpus and the single dataset asked for would not exist as one object. Absorbing the calibration probes too lost outright: `T` would be fit and scored on the same strings, and `tests/test_queries.py::test_probes_do_not_reuse_the_evaluation_query_strings` exists to prevent exactly that. A committed JSON file with a SHA-256 test lost narrowly: that pattern guards **generated** data against regeneration drift, and a hand-authored set changes only when someone edits it, which git already records. |
 | D-56 | Which evaluation numbers a test may pin | Only `outside_boundary` and `far_out_of_scope` refusals. `answerable` and `inside_uncovered` are reported and never asserted | An aggregate decision-accuracy number lost because it blends a robust signal with a fragile one, so a legitimate retune breaks it. Pinning nothing lost because the gate could then stop working silently. This is D-13 applied to a second family of numbers: Precision@3 and Recall@3 move when chunk parameters are tuned, and so does `inside_uncovered`. |
 | D-57 | How the two number-moving changes land | Two changes, two regenerations, threshold first | One combined regeneration lost because two independent causes move Part 1's numbers, and conflating them destroys the only property the transcripts exist for, which is that a grader can trace a number to a cause. Landing the gate first lost because `T` would then be calibrated against a retrieval layer about to change again. |
+| D-58 | What decides a query naming both a catalogue product and an adjacent one | The adjacent phrase wins, and the query is refused, **unless `catalogue.json` licenses that specific pairing** with the document sentence that licenses it | Longest phrase wins lost on measurement: "Can I open a fixed deposit in my NRE account?" was refused although `kb-18` says an NRE account can be opened as a term deposit. The catalogue winning unconditionally lost on measurement too, and it is the one that shipped for a day: "Is my joint account covered by life insurance?" was then **answered at 0.5615 citing `kb-11`**, which is survivorship rules and says nothing about insurance. Both rules decide by a property unrelated to whether the corpus covers the pair, which is the only thing that matters. The licence carries the quoting sentence and a test that reads the document body and fails if the sentence or either term is missing, so it cannot drift from the corpus the way a bare tag could. |
 
 ### 3.6 The real provider and observability
 
 | # | Decision | Chosen | Rejected, and why |
 |---|---|---|---|
-| D-58 | Whether the Part 3 triad judge follows `LLM_PROVIDER` | One switch. `llm.generate` stays the only seam and the judge follows it, so a real generator is graded by a real judge and a mock generator by the mock one | A judge pinned to mock lost because a keyword template scoring real prose measures nothing, and section 18.3 already says nothing under `MOCK_LLM` can judge output. A separate `JUDGE_PROVIDER` lost because it is four combinations, three of them mixed, and a flag whose only job is to keep two designs alive. |
-| D-59 | What a real provider is allowed to reach | Only the answer sentence. The scope gate, the router, retrieval, the lookup template and the guardrails are deterministic under every provider | Letting a real model route or judge scope lost twice over: D-44 and D-51 rejected it on measurement rather than on the mock rule, and making it conditional on a key means tests 24a, 25 and 27 would cover code the grader never runs. The property this buys is that setting the key changes exactly one variable. |
-| D-60 | Which model, and what is sent | `openai/gpt-oss-120b`, the existing prompt unchanged, `temperature` 0 and the seed pinned | A Groq-tuned second prompt lost because it makes mock versus Groq a two-variable comparison and leaves two prompts to keep in sync. The model id was **verified against the live models endpoint, not recalled**: the Llama 3.3 70B id this decision would otherwise have pinned is not hosted. `groq/compound` is excluded by name, because it carries server-side web search and could answer from outside the retrieved context, which silently voids the grounding guarantee. |
-| D-61 | What happens when the provider fails | Hard fail. A missing `GROQ_API_KEY` raises naming the variable, API errors propagate, and a truncated completion raises rather than returning empty | A silent fallback to mock lost because it produces output that claims one provenance and has another, which is the failure the whole of section 2 exists to prevent. A stamped fallback lost because it buys honesty with a change to a committed schema, on an error path. Retries and timeouts stay Part 4's resilience task and wrap this rather than duplicating it. |
-| D-62 | How citations survive a real model | `SYSTEM_PROMPT` mandates a closing `Sources: [doc-id]` line. `_cited_documents` keeps its single exact contract | Widening the parser lost because chasing citation styles never ends and it weakens the one thing that can be checked. **Measured, not assumed**: `openai/gpt-oss-120b` cited as `【kb-07-interest-rate-slabs】` and `_cited_documents` returned `()` for a correct, fully grounded answer. The fix is free under mock, because `_generate_mock` accepts `system` and never reads it, so no graded byte moves. |
-| D-63 | Who reads `.env`, and what keeps it out of the suite | `python-dotenv` in `config.py` without overriding a real environment variable, plus an autouse fixture in `tests/conftest.py` forcing `LLM_PROVIDER=mock` | Trusting the operator lost on arithmetic: `tests/conftest.py` pins three offline variables and never pinned this one, so a single line in `.env` would turn 339 offline tests into 339 network calls and make the offline proof in CLAUDE.md false. Not loading `.env` at all lost because attaching the key there is what was asked for, and the guard is needed either way. |
-| D-64 | SDK or stdlib | Stdlib `urllib` against the OpenAI-compatible endpoint, with an explicit `User-Agent`. `python-dotenv` is the only new dependency | The `groq` SDK lost because its retry layer is Part 4's job by D-61 and its error taxonomy buys little once errors propagate. **The one gotcha it would have hidden is measured and fixed**: the same request body from the same process returns HTTP 403 under the default `Python-urllib/3.12` agent and HTTP 200 under any explicit one, so the header is set deliberately and carries a comment saying why. |
-| D-65 | Where provenance is recorded | At run level, by the demo script's header. The response envelope is untouched | A `provider` field in the envelope lost because `agent/response.schema.json` is committed with `additionalProperties: false`, Part 3 reads it and test 21 validates every response against it, all for a value that is constant across a whole process. Provenance is a property of the run, not of the turn. |
-| D-66 | What an ungrounded real answer produces | The existing refusal path, unchanged | A retry with a stricter prompt lost because it is the reflection loop section 18.3 declined, and it makes cost and latency per turn unbounded. Answering with a warning flag lost because a support agent would then knowingly emit unsupported statements about someone's loan, and it drags D-65's schema change along with it. |
-| D-67 | Whether a real run may write graded artefacts | No. `scripts/run_part1.py` and `run_part2.py` exit non-zero under a non-mock provider. `scripts/run_groq_demo.py` is the only end-to-end Groq entry point and writes to a gitignored directory | A second `transcripts/groq/` tree lost because two sets of numbers can disagree and the README blocks have exactly one generator. Committing a sample Groq run lost outright: non-reproducible bytes in a repository whose second ground rule is byte determinism, which nothing could ever verify again. Trusting the operator lost because one forgotten `.env` rewrites SHA-guarded and manifest-guarded output, and the diff looks like a legitimate retune. |
-| D-68 | How far observability reaches in V1 | One `obs.py`, with an instrumented call at every existing boundary now. Only the metrics endpoint waits, for Part 3's FastAPI | Building a registry and exporter ahead of the server lost because it is precisely the speculative layer D-02 and D-03 rejected, and Part 3 would rewrite it. Instrumenting the provider call alone lost because retrieval and the router are where decisions are actually made. **The starting point was measured**: zero of 60 modules imported `logging`, so this is greenfield, and section 19's claim that trace ids already existed in V1 log lines was false when written and is corrected by this amendment. |
-| D-69 | The shape of a log line | JSON lines to stderr and a gitignored `logs/`, keyed on the existing deterministic `trace_id`, level from `LOG_LEVEL`, stdlib `logging` only, durations at coarse resolution | Human-readable text lost because Part 3's structured logging would reparse it. Logs inside the graded transcripts lost because it breaks tests 1 and 12 and the reproducibility claim in one move. `trace_id` is reused rather than replaced because D-38 already made it deterministic and tested, so the join key needed no invention. |
-| D-70 | What a log line may never contain | Every logged query passes through `mask_pii`. The API key is never logged in any form. Prompts and retrieved context are logged as doc ids, counts and lengths, never as full text | Logging prompts in full lost because the brief puts PII masking on the input side and the query **is** the input side, so it would write PAN-shaped and Aadhaar-shaped strings to a file on disk. Observability is the usual way a PII rule is broken, because the rule is normally written for responses and not for diagnostics. Reproducing a prompt locally from the logged doc ids covers the debugging case. |
+| D-59 | Whether the Part 3 triad judge follows `LLM_PROVIDER` | One switch. `llm.generate` stays the only seam and the judge follows it, so a real generator is graded by a real judge and a mock generator by the mock one | A judge pinned to mock lost because a keyword template scoring real prose measures nothing, and section 18.3 already says nothing under `MOCK_LLM` can judge output. A separate `JUDGE_PROVIDER` lost because it is four combinations, three of them mixed, and a flag whose only job is to keep two designs alive. |
+| D-60 | What a real provider is allowed to reach | Only the answer sentence. The scope gate, the router, retrieval, the lookup template and the guardrails are deterministic under every provider | Letting a real model route or judge scope lost twice over: D-44 and D-51 rejected it on measurement rather than on the mock rule, and making it conditional on a key means tests 24a, 25 and 27 would cover code the grader never runs. The property this buys is that setting the key changes exactly one variable. |
+| D-61 | Which model, and what is sent | `openai/gpt-oss-120b`, the existing prompt unchanged, `temperature` 0 and the seed pinned | A Groq-tuned second prompt lost because it makes mock versus Groq a two-variable comparison and leaves two prompts to keep in sync. The model id was **verified against the live models endpoint, not recalled**: the Llama 3.3 70B id this decision would otherwise have pinned is not hosted. `groq/compound` is excluded by name, because it carries server-side web search and could answer from outside the retrieved context, which silently voids the grounding guarantee. |
+| D-62 | What happens when the provider fails | Hard fail. A missing `GROQ_API_KEY` raises naming the variable, API errors propagate, and a truncated completion raises rather than returning empty | A silent fallback to mock lost because it produces output that claims one provenance and has another, which is the failure the whole of section 2 exists to prevent. A stamped fallback lost because it buys honesty with a change to a committed schema, on an error path. Retries and timeouts stay Part 4's resilience task and wrap this rather than duplicating it. |
+| D-63 | How citations survive a real model | `SYSTEM_PROMPT` mandates a closing `Sources: [doc-id]` line. `_cited_documents` keeps its single exact contract | Widening the parser lost because chasing citation styles never ends and it weakens the one thing that can be checked. **Measured, not assumed**: `openai/gpt-oss-120b` cited as `【kb-07-interest-rate-slabs】` and `_cited_documents` returned `()` for a correct, fully grounded answer. The fix is free under mock, because `_generate_mock` accepts `system` and never reads it, so no graded byte moves. |
+| D-64 | Who reads `.env`, and what keeps it out of the suite | `python-dotenv` in `config.py` without overriding a real environment variable, plus an autouse fixture in `tests/conftest.py` forcing `LLM_PROVIDER=mock` | Trusting the operator lost on arithmetic: `tests/conftest.py` pins three offline variables and never pinned this one, so a single line in `.env` would turn 339 offline tests into 339 network calls and make the offline proof in CLAUDE.md false. Not loading `.env` at all lost because attaching the key there is what was asked for, and the guard is needed either way. |
+| D-65 | SDK or stdlib | Stdlib `urllib` against the OpenAI-compatible endpoint, with an explicit `User-Agent`. `python-dotenv` is the only new dependency | The `groq` SDK lost because its retry layer is Part 4's job by D-62 and its error taxonomy buys little once errors propagate. **The one gotcha it would have hidden is measured and fixed**: the same request body from the same process returns HTTP 403 under the default `Python-urllib/3.12` agent and HTTP 200 under any explicit one, so the header is set deliberately and carries a comment saying why. |
+| D-66 | Where provenance is recorded | At run level, by the demo script's header. The response envelope is untouched | A `provider` field in the envelope lost because `agent/response.schema.json` is committed with `additionalProperties: false`, Part 3 reads it and test 21 validates every response against it, all for a value that is constant across a whole process. Provenance is a property of the run, not of the turn. |
+| D-67 | What an ungrounded real answer produces | The existing refusal path, unchanged | A retry with a stricter prompt lost because it is the reflection loop section 18.3 declined, and it makes cost and latency per turn unbounded. Answering with a warning flag lost because a support agent would then knowingly emit unsupported statements about someone's loan, and it drags D-66's schema change along with it. |
+| D-68 | Whether a real run may write graded artefacts | No. `scripts/run_part1.py` and `run_part2.py` exit non-zero under a non-mock provider. `scripts/run_groq_demo.py` is the only end-to-end Groq entry point and writes to a gitignored directory | A second `transcripts/groq/` tree lost because two sets of numbers can disagree and the README blocks have exactly one generator. Committing a sample Groq run lost outright: non-reproducible bytes in a repository whose second ground rule is byte determinism, which nothing could ever verify again. Trusting the operator lost because one forgotten `.env` rewrites SHA-guarded and manifest-guarded output, and the diff looks like a legitimate retune. |
+| D-69 | How far observability reaches in V1 | One `obs.py`, with an instrumented call at every existing boundary now. Only the metrics endpoint waits, for Part 3's FastAPI | Building a registry and exporter ahead of the server lost because it is precisely the speculative layer D-02 and D-03 rejected, and Part 3 would rewrite it. Instrumenting the provider call alone lost because retrieval and the router are where decisions are actually made. **The starting point was measured**: zero of 60 modules imported `logging`, so this is greenfield, and section 19's claim that trace ids already existed in V1 log lines was false when written and is corrected by this amendment. |
+| D-70 | The shape of a log line | JSON lines to stderr and a gitignored `logs/`, keyed on the existing deterministic `trace_id`, level from `LOG_LEVEL`, stdlib `logging` only, durations at coarse resolution | Human-readable text lost because Part 3's structured logging would reparse it. Logs inside the graded transcripts lost because it breaks tests 1 and 12 and the reproducibility claim in one move. `trace_id` is reused rather than replaced because D-38 already made it deterministic and tested, so the join key needed no invention. |
+| D-71 | What a log line may never contain | Every logged query passes through `mask_pii`. The API key is never logged in any form. Prompts and retrieved context are logged as doc ids, counts and lengths, never as full text | Logging prompts in full lost because the brief puts PII masking on the input side and the query **is** the input side, so it would write PAN-shaped and Aadhaar-shaped strings to a file on disk. Observability is the usual way a PII rule is broken, because the rule is normally written for responses and not for diagnostics. Reproducing a prompt locally from the logged doc ids covers the debugging case. |
 
 ## 4. Repository layout
 
@@ -469,7 +471,9 @@ It exists because of D-46: similarity cannot decide whether a question is about 
 - a top-level `products` list, the authority on what Meridian Bank sells
 - a `products` tag on each document entry, naming the products that document covers
 
-`rag/scope.py` holds the gate and one additional list, `KNOWN_ADJACENT`, naming products Meridian does not sell that people nonetheless ask about: fixed deposits, mutual funds, SIPs, ELSS, demat accounts, insurance, gold, cryptocurrency, income tax and GST.
+`rag/scope.py` holds the gate and one additional list, `KNOWN_ADJACENT`, naming products Meridian does not sell that people nonetheless ask about.
+As of the branch review of 2026-09-12 it holds thirteen phrases: fixed deposit, recurring deposit, mutual fund, SIP, ELSS, demat, stock market, insurance policy, life insurance, insurance cover, term insurance, gold and cryptocurrency.
+The admission rule is that an entry names a product or an instrument, never a topic and never an industry, and section 18.1 item 8 records the five entries removed or narrowed for breaking it.
 The gate is case-folded phrase matching over both lists, longest match first, and it is entirely deterministic.
 
 Three outcomes, and only three:
@@ -489,7 +493,7 @@ The `products` list is read out of the documents, never invented.
 As written today they name five loan products, the Meridian Rewards Card, and the savings, salary, NRE, NRO and joint account types.
 "Current account" is deliberately absent because no document mentions one, and D-47's boundary is what the corpus says it is.
 
-Measured on the near-domain tier, the gate catches 13 of 15.
+Measured on the near-domain tier as it stands after the branch review, the gate catches 10 of 12.
 The two it misses are the two the labels of D-50 already anticipate, and they fall through to the threshold as `inside_uncovered`.
 
 **The weakness is stated, not solved.**
@@ -844,10 +848,10 @@ Part 2 continues the numbering.
 | 29 | Every `far_out_of_scope` golden item is refused | Section 9.4, and the brief's out-of-scope requirement |
 | 30 | No calibration probe string appears in the golden dataset, in either direction | D-55, the property that lets the dataset be called golden |
 | 31 | Every `products` tag in `catalogue.json` names a product in the top-level `products` list | D-52, the catalogue is the authority over the gate and cannot disagree with itself |
-| 32 | The mock provider's output is byte-identical before and after the `SYSTEM_PROMPT` change | D-62, the claim that tightening the prompt is free because `_generate_mock` never reads it |
-| 33 | `LLM_PROVIDER=groq` with no key raises naming the variable, offline, and the suite stays on mock whatever `.env` says | D-61 and D-63, the two halves of the failure contract |
-| 34 | `scripts/run_part1.py` exits non-zero under a non-mock provider and writes nothing | D-67, the graded artefacts have one authority |
-| 35 | A log line carries `trace_id`, is valid JSON, and contains no unmasked PAN or Aadhaar and no API key | D-69 and D-70 |
+| 32 | The mock provider's output is byte-identical before and after the `SYSTEM_PROMPT` change | D-63, the claim that tightening the prompt is free because `_generate_mock` never reads it |
+| 33 | `LLM_PROVIDER=groq` with no key raises naming the variable, offline, and the suite stays on mock whatever `.env` says | D-62 and D-64, the two halves of the failure contract |
+| 34 | `scripts/run_part1.py` exits non-zero under a non-mock provider and writes nothing | D-68, the graded artefacts have one authority |
+| 35 | A log line carries `trace_id`, is valid JSON, and contains no unmasked PAN or Aadhaar and no API key | D-70 and D-71 |
 
 Precision@3 and Recall@3 are deliberately not pinned.
 They move legitimately when chunk parameters are tuned, and a test that fights tuning is a test that gets deleted.
@@ -860,9 +864,12 @@ Per D-12.
 `scripts/run_part1.py` runs every Part 1 task in order and writes:
 
 - `transcripts/part1-dataset.txt` - the validation report
-- `transcripts/part1-calibration.txt` - all 17 measured similarities, the gap, the chosen `T`
+- `transcripts/part1-calibration.txt` - every measured similarity for all 29 probes against both collections, the gap, the chosen `T`
 - `transcripts/part1-generation.txt` - 5 or more in-scope queries answered, plus the out-of-scope fallback
 - `transcripts/part1-evaluation.txt` - per-query arithmetic for both collections and the averages
+- `transcripts/part1-knowledge-base.txt` - the parsed corpus and its chunk counts
+- `transcripts/part1-golden-dataset.txt` - the decision table of section 9.4 over all 29 items
+- `transcripts/part1-readme-numbers.md` - every figure `README.md` quotes, so none is typed by hand
 
 `scripts/run_part2.py` runs every Part 2 task in order and writes:
 
@@ -913,6 +920,12 @@ Four further items opened during implementation and review, and are recorded her
    "for a loan" pulls `kb-13` in beside `kb-10`, the top three land on three different parents, and the support rule declines at 0.7015, more than twice `T`.
    Drop those two words and two of three chunks share `kb-10`, so it answers at the lower similarity of 0.6477.
 
+   A fifth was found by the branch review and is the sharpest, because it was introduced by a fix and caught by nobody's test.
+   The rule that resolves a query naming both a catalogue product and an adjacent one was changed on 2026-09-12 to let the catalogue win unconditionally, which repaired one false refusal and created two false answers: "Is my joint account covered by life insurance?" answered at 0.5615 out of `kb-11`, and a home-loan-against-cryptocurrency query answered likewise.
+   **No golden item names both a catalogue product and an adjacent phrase**, so the 29-item dataset could not fail on it and the fix round's own check passed.
+   D-58 records the corpus-licensed rule that replaced it, and the shape is covered by tests in `tests/test_scope.py` rather than by dataset items, because adding items would move tier counts that other tests assert.
+   The gap is named here rather than closed: a curated dataset cannot catch a defect in a rule about the interaction of two vocabularies, because the items that would catch it are exactly the items nobody thought to write.
+
    A fourth instance was created deliberately and is worth keeping for that reason.
    Fix round 1 retagged `kb-09` so that "What minimum balance must I keep in my NRE account?" would stop being answered without the document holding the figures.
    It now reads 0.543 across `kb-09`, `kb-12` and `kb-18`, three distinct parents, and is refused.
@@ -926,15 +939,15 @@ Four further items opened during implementation and review, and are recorded her
 6. **The embedding does not carry product identity, and this is the root cause behind D-46 and D-51.**
    Holding one sentence frame fixed and swapping only the product noun, "What is the interest rate on a fixed deposit for 5 years" and the same sentence with "car insurance policy" score 0.6805 against each other, and with "home loan" 0.7605.
    For comparison, the lowest genuine in-scope probe scores 0.3263 against the document that answers it, so two unrelated products in one frame sit twice as close as a real question sits to its own answer.
-   The consequence is not a tuning problem: before the gate, 20 of 30 near-domain readings cleared `T` and 14 of 30 were answered outright.
-   The gate of section 8.5 removes 13 of the 15; the residue is item 8.
+   The consequence is not a tuning problem: before the gate, 15 of the 24 near-domain readings were answered outright, computed over the same 12 items and two collections as the after-figure.
+   The gate of section 8.5 removes 10 of the 12 near-domain items as that tier stands today; the residue is item 8.
 
    The product filter of D-53 has one measured effect on in-scope retrieval, found in Task 20's regeneration and worth recording because an earlier review claim about it was overstated and withdrawn.
    EQ-03, "What minimum balance must I keep in my savings account?", names a catalogue product, so the filter applies.
    On `kb_fixed_400_80` its rank-3 parent moves from `kb-10-credit-score-impact` at 0.4115 to `kb-09-minimum-balance` at 0.3847, because `kb-10` is tagged with the six loan products and the `savings account` filter excludes it.
    That is the filter working as designed and the answer improving: a credit-score document has nothing to say about a minimum balance.
    On `kb_sentences` nothing moves, because all three of EQ-03's chunks already came from `kb-09`.
-   One of twelve `answerable` items is affected, which is consistent with the measurement that only 3 of 12 in-scope probes name a product at all, and it is the reason the filter is conditional.
+   One of twelve `answerable` items is affected. Re-measured 2026-09-12: 5 of the 12 `answerable` items name a catalogue product and only 2 of the 12 calibration in-scope probes do, so the filter reaches a minority of in-scope questions either way, and that is the reason it is conditional.
 
 7. **`T` is set by exactly two readings, and one probe can move it.**
    Min-max midpoint is legible, which is why D-49 kept it, and it means the minimum in-scope value and the maximum out-of-scope value decide the threshold alone.
@@ -957,7 +970,8 @@ Four further items opened during implementation and review, and are recorded her
    Neither layer fails by being badly tuned, and in both cases the fix was to stop asking that signal to decide something it does not encode.
 
    All four are removed, and the rule they violated is now stated in `rag/scope.py`: the list names products and instruments Meridian does not sell, never topics.
-   The four surviving-question tests are pinned in `tests/test_scope.py` as an extension of criterion 28, because criterion 28 guards only the 12 `answerable` items, none of which names a tax topic, which is exactly how all four defects passed it.
+   Six surviving questions are pinned in `tests/test_scope.py::CORPUS_QUESTIONS_THE_GATE_MUST_NOT_REFUSE` as an extension of criterion 28, because criterion 28 guards only the 12 `answerable` items, none of which names a tax topic, which is exactly how these defects passed it.
+   The two later findings, the `insurance` industry noun and the `fixed deposit` tie-break, carry their own named tests rather than joining that list, because each needs its own reasoning recorded beside it.
 
    Removing `income tax` has a measured price, recorded rather than hidden.
    "How much income tax will I owe on my salary this year?" now falls through to retrieval and is **answered** under `kb_fixed_400_80` at 0.3200 from `kb-13`, with two chunks agreeing.
@@ -1058,7 +1072,7 @@ Each line is a thing the brief's preamble mentions or a reviewer might expect, a
 | Tool calling through a real language model | `llm.py` raises for any provider but mock, by design. The deterministic router of section 11.3 is the stand-in. |
 | Streaming or async nodes | Part 3 territory, and streaming needs a real model, so it follows the `llm.py` swap in section 19. |
 
-### 18.3 A pattern across both parts
+### 18.4 A pattern across both parts
 
 Five mechanisms in this repository decide something on a measured signal.
 Four of them were found, on 2026-09-12, to be deciding on a signal that does not carry the property they were asked to decide, and every one of the four was correct on its own calibration set.
@@ -1096,6 +1110,24 @@ Every candidate probe for a refusal test is fragile somewhere, so the question i
 An instrument whose weak half is its refusal fails silently, by asserting that a wrong answer is right.
 An instrument whose weak half is a precondition the test checks first fails loudly and names its own cause.
 
+A fifth instance arrived on 2026-09-12 and is the first one caught **during** a fix rather than after it, which is attributable to a probe set existing at all.
+Building the `ELLIPSIS_CUES` replacement, the Part 2 session scored four candidate rules against a labelled set of 14 elliptical and 12 self-contained queries, and each round's probe set caught the previous round's rule.
+
+| rule | elliptical, of 14 | self-contained, of 12 |
+|---|---|---|
+| a bare cue word, the original defect | 14 | 0 |
+| a clause break, any word counts | 8 | 12 |
+| a clause break plus a curated filler list | 13 | 12 |
+| a clause break plus noun-phrase markers | 14 | 9 |
+
+**The lower-scoring rule shipped, deliberately, and the reason is the generalisable part.**
+The filler list scores 25 of 26 against the marker rule's 23, but its 12 of 12 is coincidental, since any word that is not filler satisfies it, and its residue is an *open* list of conversational openers with no way to know when it is complete.
+The marker rule asks a different question: not "is this filler", which needs a list of everything filler can be, but "could this be an antecedent", which has a grammatical answer, because an antecedent for "it" or "them" must be a noun phrase and English noun phrases are introduced by a closed class of determiners, possessives and quantifiers.
+
+The tie-break was taken out of sample, on five openers in neither probe set, because comparing in-sample scores between a fitted rule and a principled one measures the fitting rather than the rule.
+The marker rule's weakness is stated rather than minimised: a bare plural or mass noun takes no determiner, so "Loans affect credit scores, do they not?" reads as elliptical, and three such probes are pinned in a tuple with a test asserting the miss list equals exactly that tuple so it cannot silently grow.
+**A named grammatical class a reader can predict beat a higher score resting on an open list of words nobody thought of**, and that is the choice this section exists to recommend.
+
 ## 19. V2 roadmap
 
 None of this is built in V1.
@@ -1111,7 +1143,7 @@ Each item names the V1 module it replaces and what makes the swap cheap.
 | Learned threshold and calibration on held-out data | `config.py` and section 8.2 | `T` is a single named constant with a documented derivation. |
 | Two-signal fallback: support rule plus null-query margin | Section 8.3 | The rule is one function; this is the option that lost in D-07. |
 | Docker, CI, and a published image | New | Nothing in V1 assumes a local path outside `config.py`. |
-| OpenTelemetry tracing and a metrics endpoint | `obs.py` and Part 3's structured logging | Every line `obs.py` writes is already keyed on `trace_id`, so an exporter is a formatter swap. **This row previously claimed V1 already had log lines; it did not, and D-68 is the amendment that made the claim true.** |
+| OpenTelemetry tracing and a metrics endpoint | `obs.py` and Part 3's structured logging | Every line `obs.py` writes is already keyed on `trace_id`, so an exporter is a formatter swap. **This row previously claimed V1 already had log lines; it did not, and D-69 is the amendment that made the claim true.** |
 | Streaming responses over server-sent events | Part 3's FastAPI layer | Requires a real model, so it follows the `llm.py` swap. |
 
 ## 20. The real provider
@@ -1125,23 +1157,23 @@ Nothing in sections 1 to 19 changes shape because of it: `llm.generate` was alre
 That is unchanged.
 What changes is that `groq` is now a value it accepts instead of a value it refuses, and every other value still raises.
 
-`config.py` loads `.env` at import, without overriding a variable already present in the real environment, per D-63.
+`config.py` loads `.env` at import, without overriding a variable already present in the real environment, per D-64.
 The committed `.env.example` names `LLM_PROVIDER`, `GROQ_API_KEY`, `GROQ_MODEL` and `LOG_LEVEL` and carries no values.
 
 ### 20.2 The call
 
-Stdlib `urllib` against `https://api.groq.com/openai/v1/chat/completions`, per D-64.
+Stdlib `urllib` against `https://api.groq.com/openai/v1/chat/completions`, per D-65.
 
 - `model` from `config.GROQ_MODEL`, default `openai/gpt-oss-120b`
 - `temperature` 0 and `seed` pinned to `config.SEED`, which makes the call as reproducible as the provider allows and no more
 - `max_completion_tokens` from `config.GROQ_MAX_TOKENS`, sized for a reasoning model
 - an explicit `User-Agent`, because Groq's edge returns 403 for the stdlib default
 
-The prompt is the pair `rag.generate.build_prompt` already produces, unchanged, per D-60.
+The prompt is the pair `rag.generate.build_prompt` already produces, unchanged, per D-61.
 
 ### 20.3 What counts as failure
 
-Per D-61, all four of these raise rather than degrade:
+Per D-62, all four of these raise rather than degrade:
 
 | Condition | Why it is not a refusal |
 |---|---|
@@ -1156,14 +1188,14 @@ A budget set carelessly returns `content: ""` with `finish_reason: "length"`, wh
 
 ### 20.4 The citation contract
 
-`SYSTEM_PROMPT` gains one sentence requiring a closing `Sources: [doc-id]` line, per D-62.
+`SYSTEM_PROMPT` gains one sentence requiring a closing `Sources: [doc-id]` line, per D-63.
 `_cited_documents` is unchanged.
 
 This is free under `MOCK_LLM`: `_generate_mock` takes `system` and never reads it, so every graded transcript is byte-identical across the change, and test 32 exists to say so.
 
 ## 21. Observability
 
-Appended by the 2026-09-12 amendment, per D-68 to D-70.
+Appended by the 2026-09-12 amendment, per D-69 to D-71.
 Before it, no module in this repository imported `logging`.
 
 ### 21.1 `obs.py`
@@ -1190,10 +1222,10 @@ One call per existing boundary, and no new boundary invented to hold one:
 
 ### 21.3 The two rules that bound it
 
-**Determinism.** Logs go to stderr and to a gitignored `logs/`, never into `transcripts/` or the README blocks (D-69).
+**Determinism.** Logs go to stderr and to a gitignored `logs/`, never into `transcripts/` or the README blocks (D-70).
 Durations are recorded at coarse resolution so a noisy value never becomes the reason a diff looks different.
 
-**Redaction.** Every logged query passes through `guardrails.mask_pii`; the API key is never logged in any form; prompts and retrieved context are logged as doc ids, counts and lengths, never as text (D-70).
+**Redaction.** Every logged query passes through `guardrails.mask_pii`; the API key is never logged in any form; prompts and retrieved context are logged as doc ids, counts and lengths, never as text (D-71).
 Test 35 restates both.
 
 ### 21.4 What this deliberately does not build

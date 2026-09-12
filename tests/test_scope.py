@@ -126,20 +126,216 @@ def test_a_plural_matches_but_a_shorter_word_does_not():
     assert scope.classify("Which mutual funds do you offer?").product == "mutual fund"
     assert scope.classify("Do you offer fixed deposits?").product == "fixed deposit"
     assert scope.classify("Can I deposit a cheque today?").product == ""
+    # The guarantee itself, asserted rather than left to the phrase that needed
+    # it. "shares" was removed for colliding with the third-person verb, but the
+    # pattern it needed must survive its removal: an optional trailing "s" on a
+    # phrase already ending in "s" matches the shorter word too.
+    assert not scope._pattern("shares").search("my wife will share the account")
 
 
-def test_the_catalogue_wins_when_a_query_names_both():
-    """A Meridian product in the query outranks an adjacent one of equal length.
+# Every name in both lists, against the plural a customer would actually type.
+# The table is exhaustive by assertion below, so adding a phrase to either list
+# without deciding its plural fails here rather than at a customer.
+#
+# "golds", "ELSSs", "demats", "life insurances" and "term insurances" are forms
+# nobody writes; they are recorded as what the rule produces, and a form no
+# customer types matches no query, so they cost nothing. The ones that carry
+# the test are the deposits, the funds, the accounts, the cards and
+# "insurance policies", which is the one the "-s" rule got wrong.
+NATURAL_PLURALS = {
+    "fixed deposit": "fixed deposits",
+    "recurring deposit": "recurring deposits",
+    "mutual fund": "mutual funds",
+    "SIP": "SIPs",
+    "ELSS": "ELSSs",
+    "demat": "demats",
+    "stock market": "stock markets",
+    "insurance policy": "insurance policies",
+    "life insurance": "life insurances",
+    "insurance cover": "insurance covers",
+    "term insurance": "term insurances",
+    "gold": "golds",
+    "cryptocurrency": "cryptocurrencies",
+    "Personal Loan": "Personal Loans",
+    "Auto Loan": "Auto Loans",
+    "Education Loan": "Education Loans",
+    "Business Loan": "Business Loans",
+    "Home Loan": "Home Loans",
+    "Meridian Rewards Card": "Meridian Rewards Cards",
+    "savings account": "savings accounts",
+    "salary account": "salary accounts",
+    "joint account": "joint accounts",
+    "NRE account": "NRE accounts",
+    "NRO account": "NRO accounts",
+}
 
-    "insurance" and "Home Loan" are both nine characters, so this is the exact
-    tie the sort key decides rather than a length comparison, and the catalogue
-    has to win it: Meridian sells the loan, whatever else the sentence mentions.
+
+def test_every_name_in_both_lists_matches_its_natural_plural():
+    """The "-y" to "-ies" hole, closed and held over all 24 names.
+
+    `_pattern` built `\\b(?:insurance policy|insurance policys)\\b`, so the
+    plainest form of the product question walked through the gate: "What
+    insurance policies does Meridian offer?" was answered on kb_sentences at
+    0.4838 out of kb-13 and kb-01, with an answer about the fixed-obligation-
+    to-income ratio for a Personal Loan. English writes "policies".
+
+    Two of the 24 names end in a consonant plus "y" and both are affected, and
+    "salary account" is the reason the rule reads the end of the phrase rather
+    than looking for a "y" anywhere in it.
     """
-    verdict = scope.classify("Is loan insurance mandatory on a home loan?")
-    assert verdict.product == "Home Loan"
-    assert verdict.in_catalogue
-    assert not verdict.known_adjacent
-    assert len("insurance") == len("Home Loan")
+    names = list(kb.catalogue_products()) + list(scope.KNOWN_ADJACENT)
+    assert sorted(NATURAL_PLURALS) == sorted(names), "the plural table has drifted"
+
+    for name, plural in NATURAL_PLURALS.items():
+        pattern = scope._pattern(name)
+        assert pattern.search(name.casefold()), name
+        assert pattern.search(plural.casefold()), f"{name!r} does not match {plural!r}"
+
+    assert scope._plural("insurance policy") == "insurance policies"
+    assert scope._plural("cryptocurrency") == "cryptocurrencies"
+    assert scope._plural("salary account") == "salary accounts"
+
+
+def test_the_plural_of_a_product_phrase_is_gated_like_the_singular():
+    """The measured failure, as a verdict rather than as a regex assertion."""
+    for refused in [
+        "What insurance policies does Meridian offer?",
+        "Does Meridian Bank sell insurance policies?",
+        "Do you accept cryptocurrencies as collateral?",
+    ]:
+        assert scope.classify(refused).known_adjacent, refused
+    assert scope.classify("What insurance policies does Meridian offer?").product == (
+        "insurance policy"
+    )
+
+
+def test_a_query_naming_both_sides_is_decided_by_the_corpus_not_by_the_phrases():
+    """The pairing rule, in both directions, with the licence doing the deciding.
+
+    Two earlier rules decided this shape by a property unrelated to whether the
+    documents cover the pair, and each was wrong on a different half.
+    Longest-match-first refused "Can I open a fixed deposit in my NRE account?"
+    because "fixed deposit" runs two characters longer than "NRE account".
+    Catalogue-wins-unconditionally answered "Is my joint account covered by life
+    insurance?" at 0.5615 out of kb-11-joint-account-rules, a survivorship
+    document with nothing to say about insurance.
+
+    kb-18 line 10 licenses the first pair and no document licenses the second,
+    so that is what the gate reads now.
+    """
+    licensed = scope.classify("Can I open a fixed deposit in my NRE account?")
+    assert licensed.product == "NRE account"
+    assert licensed.in_catalogue
+    assert not licensed.known_adjacent
+    # The adjacent phrase is the longer one, and the licence beats the lengths.
+    assert len("fixed deposit") > len("NRE account")
+    assert scope.classify("Can I open a fixed deposit in my NRO account?").in_catalogue
+
+    for unlicensed in [
+        "Is my joint account covered by life insurance?",
+        "Can I get a home loan against my cryptocurrency holdings?",
+        "Is my Meridian Rewards Card covered by an insurance policy?",
+        "Can I buy a mutual fund through my savings account?",
+        "Can I open a fixed deposit as a savings account?",
+    ]:
+        verdict = scope.classify(unlicensed)
+        assert verdict.known_adjacent, unlicensed
+        assert not verdict.in_catalogue, unlicensed
+
+    # Naming the licensed pair does not license the rest of the query: the
+    # unlicensed phrase is still standing, so the refusal names it.
+    both = scope.classify("Can I open a fixed deposit or buy gold in my NRE account?")
+    assert both.product == "gold"
+    assert both.known_adjacent
+
+
+def test_every_licensed_pair_is_a_sentence_the_corpus_actually_carries():
+    """The licence cannot drift from the corpus the way the tags could.
+
+    catalogue.json's `licensed_pairs` is the one thing that lets an adjacent
+    product phrase stand beside a Meridian product without refusing, so it is
+    the widest the gate ever opens. Each entry quotes the sentence that licenses
+    it, and this reads the document to check that the sentence is really there
+    and really names both terms. Delete the line from kb-18 and this fails.
+    """
+    bodies = {document.doc_id: document.body for document in kb.load_documents()}
+    catalogue = kb.catalogue_products()
+    pairs = kb.licensed_pairs()
+    assert pairs, "the licence is not empty today; kb-18 line 10 carries one pairing"
+
+    for pair in pairs:
+        assert pair.product in catalogue, pair
+        assert pair.adjacent in scope.KNOWN_ADJACENT, pair
+        body = bodies[pair.document]
+        assert pair.sentence in body, (
+            f"{pair.document} does not carry the sentence licensing "
+            f"{pair.product!r} with {pair.adjacent!r}"
+        )
+        folded = pair.sentence.casefold()
+        assert scope._pattern(pair.product).search(folded), pair
+        assert scope._pattern(pair.corpus_phrase).search(folded), pair
+        # The document that licenses the pairing has to be reachable under the
+        # filter the licensed verdict then applies, or the licence buys nothing.
+        assert pair.document in kb.documents_for_product(pair.product), pair
+
+
+def test_a_query_naming_only_an_adjacent_product_is_still_refused():
+    """The other half of the tie-break: no catalogue product, no reprieve.
+
+    OB-01 names "fixed deposit" and nothing Meridian sells, so it refuses. That
+    is why "fixed deposit" stays in the list rather than being deleted once
+    kb-18 turned out to answer the NRE question: without it, OB-01 is answered
+    at 0.5694 out of kb-07-interest-rate-slabs, a document that carries loan
+    rates and says nothing about deposit rates.
+    """
+    verdict = scope.classify("What is the interest rate on a fixed deposit for 5 years?")
+    assert verdict.product == "fixed deposit"
+    assert verdict.known_adjacent
+
+
+def test_no_outside_boundary_item_names_a_catalogue_product():
+    """The dataset's blind spot, recorded so nobody measures against it again.
+
+    Not one golden item names a catalogue product and an adjacent one in the
+    same sentence, which is why a tie-break change between those two lists was
+    confirmed green against the whole dataset while turning
+    "Is my joint account covered by life insurance?" into a cited answer out of
+    kb-11. The probes in
+    test_a_query_naming_both_sides_is_decided_by_the_corpus_not_by_the_phrases
+    cover the shape instead; this test states the gap rather than filling it.
+    """
+    catalogue = kb.catalogue_products()
+    for item in queries.items_of_kind(queries.KIND_OUTSIDE_BOUNDARY):
+        folded = item.text.casefold()
+        named = [p for p in catalogue if scope._pattern(p).search(folded)]
+        assert not named, f"{item.item_id} names {named}, so the gate will pass it"
+
+
+def test_the_industry_noun_passes_and_the_product_phrases_refuse():
+    """Fix round 2: "insurance" alone names an industry, not a Meridian product.
+
+    In a banking question the bare noun usually names a merchant, a salary
+    deduction or a document. "An insurance company debited my card twice"
+    answers from kb-05 at 0.4221 with its chunks agreeing, and the gate refused
+    it along with seven other probes the corpus answers. Deleting the noun
+    outright was measured and rejected too: with no insurance phrase at all,
+    OB-08 is answered at 0.3685 out of kb-06-account-closure.
+    """
+    for passes in [
+        "An insurance company debited my card twice without my authorisation, "
+        "how do I dispute it?",
+        "My employer deducts an insurance premium from my salary, does that count as income?",
+        "Which insurance documents does the bank accept as address proof?",
+    ]:
+        assert not scope.classify(passes).known_adjacent, passes
+
+    for refuses in [
+        "Does the bank sell term life insurance cover?",
+        "What does a car insurance policy cost here?",
+        "Do you sell life insurance?",
+        "Is term insurance available through the app?",
+    ]:
+        assert scope.classify(refuses).known_adjacent, refuses
 
 
 def test_known_adjacent_never_collides_with_a_catalogue_product():
@@ -155,6 +351,48 @@ def test_the_filter_narrows_to_the_documents_the_catalogue_tags():
     assert "kb-11-joint-account-rules" in tagged
     assert "kb-13-personal-loan-eligibility" not in tagged
     assert tagged == sorted(tagged)
+
+
+def test_the_filter_never_hides_the_document_that_answers_a_kyc_question(built_index):
+    """D-53's filter is only safe while catalogue.json tags cover the document.
+
+    kb-16 was tagged with the five loans, the card and "savings account" only,
+    although its own line 10 says Meridian applies the same re-verification
+    cycle across savings, loan and card accounts, and kb-12 line 12 puts every
+    non-resident account under the same KYC standards. So "What happens if KYC
+    is overdue on my joint account?" filtered to documents that do not answer
+    it and was **answered** at 0.4853 citing kb-04 and kb-11 - the worst failure
+    mode of the pair, because the support rule cannot catch it: the two wrong
+    documents agree with each other. Unfiltered the same query reads 0.6272 with
+    kb-16 in all three slots.
+    """
+    tagged = kb.documents_for_product("joint account")
+    assert "kb-16-kyc-reverification" in tagged
+
+    result = generate.answer(
+        "What happens if KYC is overdue on my joint account?", config.STRATEGY_SENTENCES
+    )
+    assert result.product == "joint account"
+    assert result.citations == ("kb-16-kyc-reverification",)
+
+
+def test_a_document_is_tagged_with_every_catalogue_product_its_body_names():
+    """The corpus is the authority over catalogue.json, not the other way round.
+
+    A document that names a Meridian product in its own prose covers it, so the
+    filter must not hide the document from a question about it. This catches
+    the under-tagging shape mechanically; a claim written in generic terms
+    ("savings accounts, loan accounts and card accounts") still needs a reader,
+    which is how kb-16 escaped for a round.
+    """
+    catalogue = kb.catalogue_products()
+    for document in kb.load_documents():
+        folded = document.body.casefold()
+        for product in catalogue:
+            if scope._pattern(product).search(folded):
+                assert document.doc_id in kb.documents_for_product(product), (
+                    f"{document.doc_id} names {product!r} and is not tagged with it"
+                )
 
 
 def test_an_unknown_product_is_an_error_not_an_empty_filter():

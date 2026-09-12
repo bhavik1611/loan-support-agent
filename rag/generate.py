@@ -31,7 +31,7 @@ FALLBACK_TEXT = (
 # A real model does not: gpt-oss-120b cited as U+3010 kb-07 U+3011 and
 # _cited_documents returned nothing for a fully grounded answer. Stating the
 # format costs nothing under mock, which accepts `system` and never reads it
-# (D-62).
+# (D-63).
 SYSTEM_PROMPT = (
     "You are Meridian Bank's loan support assistant. Answer only from the "
     "CONTEXT block. Never add a fact that is not in the context. Cite the "
@@ -52,6 +52,7 @@ Outcome = Literal["answered", "refused_gate", "refused_threshold"]
 
 @dataclass(frozen=True)
 class GroundedAnswer:
+    """The answer and its metadata."""
     query: str
     text: str
     citations: tuple[str, ...]
@@ -85,7 +86,9 @@ def _cited_documents(text: str, hits: list[Hit]) -> tuple[str, ...]:
 
 
 def answer(
-    query: str, strategy: str = config.STRATEGY_SENTENCES, k: int | None = None
+    query: str,
+    strategy: str = config.STRATEGY_SENTENCES,
+    k: int | None = None,
 ) -> GroundedAnswer:
     """Retrieve, decide, and either generate from the context or refuse.
 
@@ -96,8 +99,9 @@ def answer(
     """
     if config.SIMILARITY_THRESHOLD is None:
         raise RuntimeError(
-            "config.SIMILARITY_THRESHOLD is unset. Run the Task 11 calibration and "
-            "record the measured value; the brief forbids an untested preset."
+            "config.SIMILARITY_THRESHOLD is unset. Run Task 11 of the Part 1 plan, "
+            "the threshold calibration, and record the measured value; "
+            "the brief forbids an untested preset."
         )
 
     # The gate of spec section 8.5 runs before retrieval, because D-46 measured
@@ -122,7 +126,10 @@ def answer(
         )
 
     hits = retrieve.retrieve(
-        query, strategy, k=k, product=verdict.product if verdict.in_catalogue else None
+        query,
+        strategy,
+        k=k,
+        product=verdict.product if verdict.in_catalogue else None,
     )
     supported = retrieve.is_supported(hits, config.SIMILARITY_THRESHOLD)
 

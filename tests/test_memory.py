@@ -77,6 +77,70 @@ def test_a_self_contained_question_does_not():
         assert memory.needs_resolution(query) is False
 
 
+def test_a_cue_word_with_its_antecedent_in_the_same_sentence_does_not_resolve():
+    """EQ-11's shape: a cue word whose antecedent is one clause earlier.
+
+    The old matcher fired on the bare presence of a cue word and misrouted
+    exactly this query (spec 18.4). The fix reads the cue's position instead.
+    """
+    query = "How do I report a fraudulent card transaction and will it affect my credit score?"
+    assert memory.needs_resolution(query) is False
+
+
+def test_a_leading_filler_does_not_supply_an_antecedent():
+    """A second failure of the same shape (spec 18.4): a clause break alone
+
+    reads "Thanks," or "Hi," as content, and would wrongly treat these as
+    self-contained. config.NOUN_PHRASE_MARKERS is what tells them apart from
+    EQ-11's shape above - none of these openers carries a determiner.
+    """
+    for query in (
+        "Thanks, and is it approved?",
+        "OK, what about it?",
+        "Sorry, is it flagged for fraud?",
+        "Hi, can you tell me about them?",
+        "Hey, is the same true for mine?",
+        "Well, what about it?",
+    ):
+        assert memory.needs_resolution(query) is True
+
+
+def test_a_bare_plural_antecedent_is_the_stated_residue():
+    """The noun-phrase-marker rule's own named weakness.
+
+    A bare plural or mass noun takes no determiner, so a clause whose only
+    antecedent is one reads as elliptical. This is
+    eval/routing.py::SELF_CONTAINED_KNOWN_UNCAUGHT, not a bug to chase.
+    """
+    for query in (
+        "Loans affect credit scores, do they not?",
+        "Interest accrues monthly and does it compound?",
+        "Fraud reviews take time, so how long do they run?",
+    ):
+        assert memory.needs_resolution(query) is True
+
+
+def test_the_ellipsis_matcher_scores_against_its_own_probe_set():
+    """The probe set spec 18.4 says never existed before this fix.
+
+    Three self-contained probes, each with a bare plural or mass noun as its
+    antecedent, are an honest known miss
+    (eval/routing.py::SELF_CONTAINED_KNOWN_UNCAUGHT) rather than a reason to
+    grow config.NOUN_PHRASE_MARKERS beyond the closed class it names.
+    """
+    from eval import routing
+
+    result = routing.measure_ellipsis_matcher()
+    elliptical_missed = [r["query"] for r in result["elliptical"] if not r["correct"]]
+    assert elliptical_missed == []
+    assert result["elliptical_correct"] == result["elliptical_total"] == 14
+
+    missed = [r["query"] for r in result["self_contained"] if not r["correct"]]
+    assert missed == list(routing.SELF_CONTAINED_KNOWN_UNCAUGHT)
+    assert result["self_contained_correct"] == result["self_contained_total"] - 3
+    assert result["self_contained_total"] == 12
+
+
 def test_the_last_turn_route_is_readable(tmp_path):
     """The clarify cap in D-45 reads this."""
     thread = memory.load("t", root=tmp_path)

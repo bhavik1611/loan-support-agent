@@ -170,12 +170,12 @@ OUTCOMES = (
 # the tier D-48 kept precisely so this rate could be measured.
 NEAR_DOMAIN_KINDS = (KIND_OUTSIDE_BOUNDARY, KIND_INSIDE_UNCOVERED)
 
-# The before figure, measured in section 18.1 before the product gate existed:
-# 15 near-domain probes against both collections, 14 of those 30 readings
-# answered outright. It is printed beside the after figure because a fix with
-# no before number is a claim rather than evidence.
-NEAR_DOMAIN_BEFORE_ANSWERED = 14
-NEAR_DOMAIN_BEFORE_READINGS = 30
+# The before figure is computed, never quoted. It used to be two literals, 14
+# of 30, carried over from a 15-item near-domain tier that no longer exists;
+# today's tier is 12 items and 24 readings, so the printed comparison had a
+# different numerator population and a different denominator on the two sides
+# of the word "before". Both halves now come from the same golden items on the
+# same day, which is a comparison that cannot go stale.
 
 
 @dataclass(frozen=True)
@@ -213,6 +213,38 @@ def decide(item: GoldenItem, strategy: str) -> DecisionRow:
 def decisions(strategy: str) -> list[DecisionRow]:
     """Every golden item scored against one collection, in dataset order."""
     return [decide(item, strategy) for item in GOLDEN_DATASET]
+
+
+def _ungated_decide(item: GoldenItem, strategy: str) -> DecisionRow:
+    """The counterfactual decision with rag/scope.py's gate never called.
+
+    Calls the same two functions answer() calls, retrieve.retrieve and
+    retrieve.is_supported, directly. No product is passed to retrieve.retrieve
+    on purpose: the product filter is part of the gate's effect, and the
+    before figure must exclude both the gate's refusal and its filter.
+    """
+    hits = retrieve.retrieve(item.text, strategy, k=config.TOP_K)
+    supported = retrieve.is_supported(hits, config.SIMILARITY_THRESHOLD)
+    outcome = (
+        generate.OUTCOME_ANSWERED
+        if supported
+        else generate.OUTCOME_REFUSED_THRESHOLD
+    )
+    return DecisionRow(
+        item_id=item.item_id,
+        query=item.text,
+        kind=item.kind,
+        strategy=strategy,
+        outcome=outcome,
+        top1_similarity=retrieve.top1_similarity(hits),
+        product="",
+        citations=(),
+    )
+
+
+def _ungated_decisions(strategy: str) -> list[DecisionRow]:
+    """Every golden item scored without the product gate, in dataset order."""
+    return [_ungated_decide(item, strategy) for item in GOLDEN_DATASET]
 
 
 def counts_by_kind(rows: list[DecisionRow]) -> dict[str, dict[str, int]]:
@@ -309,23 +341,33 @@ def format_decision_report() -> str:
     ]
 
     combined: list[DecisionRow] = []
+    ungated: list[DecisionRow] = []
     for strategy in sorted(config.COLLECTION_FOR_STRATEGY):
         rows = decisions(strategy)
         combined += rows
+        ungated += _ungated_decisions(strategy)
         lines += _decision_table(rows, strategy)
 
     answered, readings = near_domain_false_answers(combined)
+    before_answered, before_readings = near_domain_false_answers(ungated)
     lines += [
         "--- the near-domain false-answer rate ---",
         "",
         "The near-domain tier is outside_boundary plus inside_uncovered: the",
         "questions that sound like Meridian Bank business and are not. Each item",
-        "is counted once per collection, which is the reading the before figure",
-        "was taken on.",
+        "is counted once per collection, so both figures below run over exactly",
+        "the same readings.",
         "",
-        f"  before the product gate : {NEAR_DOMAIN_BEFORE_ANSWERED} of "
-        f"{NEAR_DOMAIN_BEFORE_READINGS} readings answered outright",
+        f"  before the product gate : {before_answered} of {before_readings} "
+        "readings answered outright",
         f"  after the product gate  : {answered} of {readings} readings answered outright",
+        "",
+        "Both figures are computed on this run, over the same items, by the same",
+        "function. The before figure runs every golden item through the same",
+        "answer decision with rag/scope.py switched off: no refusal before",
+        "retrieval and no D-53 product filter on the search. Nothing here is",
+        "quoted from an earlier measurement, so the two sides cannot drift onto",
+        "different populations.",
         "",
     ]
     still = [row for row in combined if row.kind in NEAR_DOMAIN_KINDS

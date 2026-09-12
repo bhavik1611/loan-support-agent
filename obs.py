@@ -6,19 +6,19 @@ made deterministic, so nothing here invents a second correlation key.
 Two rules bound what this module may do, and both are the reason it exists as a
 module rather than as scattered `logging` calls:
 
-Determinism (D-69). A log line carries a clock and the ground rules say the same
+Determinism (D-70). A log line carries a clock and the ground rules say the same
 input produces the same bytes. Both stay true only because log output never
 reaches `transcripts/`, the README number blocks or any committed file. Lines go
 to stderr and to a gitignored `logs/`, and durations are rounded so clock noise
 never becomes the reason two runs look different.
 
-Redaction (D-70). Observability is the usual way a PII rule gets broken, because
+Redaction (D-71). Observability is the usual way a PII rule gets broken, because
 the rule is normally written for responses and not for diagnostics. Every query
 logged from here passes through the masker the guardrails already use; the API
 key is never logged in any form; prompts and retrieved context are logged as doc
 ids, counts and lengths, never as text.
 
-Stdlib only, by D-69.
+Stdlib only, by D-70.
 """
 
 from __future__ import annotations
@@ -133,7 +133,7 @@ def timed(name: str, **fields: Any) -> Iterator[dict[str, Any]]:
 
 
 def _emit(name: str, line: dict[str, Any], start: float, level: int) -> None:
-    # Rounded, per D-69: a duration is for spotting a boundary that got slow,
+    # Rounded, per D-70: a duration is for spotting a boundary that got slow,
     # not for distinguishing two runs of the same input.
     line["duration_ms"] = round((time.perf_counter() - start) * 1000, config.LOG_DURATION_PLACES)
     configure().log(level, name, extra={"fields": _clean(line)})
