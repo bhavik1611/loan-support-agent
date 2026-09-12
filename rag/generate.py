@@ -1,15 +1,22 @@
 """Task 4. Answer only from retrieved context, or say so plainly.
 
+Two mechanisms refuse here, and they are separate on purpose. The product gate
+of rag/scope.py decides topicality before anything is retrieved, per D-51; the
+threshold and the support rule then decide groundedness, per D-46. An answer
+that never reached retrieval reports outcome "refused_gate" and carries the
+product name; one that retrieved and failed the rule reports "refused_threshold".
+
 The decision rule lives in rag/retrieve.is_supported and is deliberately not
 duplicated here. Part 2 Task 7 wraps answer(), and Part 2 Task 10's output
 guardrail reads .supported and .top1_similarity, so those names are a contract.
 """
 
 from dataclasses import dataclass
+from typing import Literal
 
 import config
 import llm
-from rag import retrieve
+from rag import retrieve, scope
 from rag.retrieve import Hit
 
 FALLBACK_TEXT = (
@@ -23,6 +30,15 @@ SYSTEM_PROMPT = (
     "document id of every source you use."
 )
 
+# The three outcomes of spec section 9.4, and only three. Part 2 matches on
+# these strings, so they are frozen. Per D-54 the sentence a user reads is
+# Part 2's job: Part 1 produces the structured refusal and the product name.
+OUTCOME_ANSWERED = "answered"
+OUTCOME_REFUSED_GATE = "refused_gate"
+OUTCOME_REFUSED_THRESHOLD = "refused_threshold"
+
+Outcome = Literal["answered", "refused_gate", "refused_threshold"]
+
 
 @dataclass(frozen=True)
 class GroundedAnswer:
@@ -33,6 +49,8 @@ class GroundedAnswer:
     top1_similarity: float
     strategy: str
     hits: tuple[Hit, ...]
+    outcome: Outcome = OUTCOME_ANSWERED
+    product: str = ""
 
 
 def build_prompt(query: str, hits: list[Hit]) -> tuple[str, str]:
@@ -72,7 +90,26 @@ def answer(
             "record the measured value; the brief forbids an untested preset."
         )
 
-    hits = retrieve.retrieve(query, strategy, k=k)
+    # The gate of spec section 8.5 runs before retrieval, because D-46 measured
+    # that similarity cannot decide whether a question is about a product
+    # Meridian Bank sells.
+    verdict = scope.classify(query)
+    if verdict.known_adjacent:
+        return GroundedAnswer(
+            query=query,
+            text=FALLBACK_TEXT,
+            citations=(),
+            supported=False,
+            top1_similarity=0.0,
+            strategy=strategy,
+            hits=(),
+            outcome=OUTCOME_REFUSED_GATE,
+            product=verdict.product,
+        )
+
+    hits = retrieve.retrieve(
+        query, strategy, k=k, product=verdict.product if verdict.in_catalogue else None
+    )
     supported = retrieve.is_supported(hits, config.SIMILARITY_THRESHOLD)
 
     if not supported:
@@ -84,6 +121,8 @@ def answer(
             top1_similarity=retrieve.top1_similarity(hits),
             strategy=strategy,
             hits=tuple(hits),
+            outcome=OUTCOME_REFUSED_THRESHOLD,
+            product=verdict.product,
         )
 
     system, user = build_prompt(query, hits)
@@ -98,6 +137,8 @@ def answer(
             top1_similarity=retrieve.top1_similarity(hits),
             strategy=strategy,
             hits=tuple(hits),
+            outcome=OUTCOME_REFUSED_THRESHOLD,
+            product=verdict.product,
         )
 
     return GroundedAnswer(
@@ -108,4 +149,6 @@ def answer(
         top1_similarity=retrieve.top1_similarity(hits),
         strategy=strategy,
         hits=tuple(hits),
+        outcome=OUTCOME_ANSWERED,
+        product=verdict.product,
     )

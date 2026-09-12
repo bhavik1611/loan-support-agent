@@ -1,92 +1,217 @@
 {
-  "kb-01-loan-eligibility": {
-    "title": "Loan eligibility criteria by loan type",
-    "topic": "loan_eligibility",
-    "required": true
-  },
-  "kb-02-emi-calculation": {
-    "title": "EMI calculation rules",
-    "topic": "emi_calculation",
-    "required": true
-  },
-  "kb-03-credit-card-fees": {
-    "title": "Credit-card fee structure",
-    "topic": "credit_card_fees",
-    "required": true
-  },
-  "kb-04-kyc-documents": {
-    "title": "KYC document requirements",
-    "topic": "kyc_documents",
-    "required": true
-  },
-  "kb-05-fraud-dispute": {
-    "title": "Fraud-dispute resolution process",
-    "topic": "fraud_dispute",
-    "required": true
-  },
-  "kb-06-account-closure": {
-    "title": "Account-closure process",
-    "topic": "account_closure",
-    "required": true
-  },
-  "kb-07-interest-rate-slabs": {
-    "title": "Interest-rate slabs",
-    "topic": "interest_rate_slabs",
-    "required": true
-  },
-  "kb-08-prepayment-penalty": {
-    "title": "Prepayment-penalty rules",
-    "topic": "prepayment_penalty",
-    "required": true
-  },
-  "kb-09-minimum-balance": {
-    "title": "Minimum-balance requirements",
-    "topic": "minimum_balance",
-    "required": true
-  },
-  "kb-10-credit-score-impact": {
-    "title": "Credit-score impact factors",
-    "topic": "credit_score_impact",
-    "required": true
-  },
-  "kb-11-joint-account-rules": {
-    "title": "Joint-account rules",
-    "topic": "joint_account_rules",
-    "required": true
-  },
-  "kb-12-nri-account-eligibility": {
-    "title": "NRI-account eligibility",
-    "topic": "nri_account_eligibility",
-    "required": true
-  },
-  "kb-13-personal-loan-eligibility": {
-    "title": "Personal Loan eligibility in detail",
-    "topic": "personal_loan_eligibility",
-    "required": false
-  },
-  "kb-14-home-loan-ltv": {
-    "title": "Home Loan eligibility and loan-to-value rules",
-    "topic": "home_loan_ltv",
-    "required": false
-  },
-  "kb-15-card-late-payment-charges": {
-    "title": "Credit-card late-payment and overlimit charges",
-    "topic": "card_late_payment",
-    "required": false
-  },
-  "kb-16-kyc-reverification": {
-    "title": "KYC re-verification and periodic update rules",
-    "topic": "kyc_reverification",
-    "required": false
-  },
-  "kb-17-foreclosure-vs-part-prepayment": {
-    "title": "Foreclosure versus part-prepayment",
-    "topic": "foreclosure_vs_prepayment",
-    "required": false
-  },
-  "kb-18-nre-vs-nro-operation": {
-    "title": "NRE versus NRO account operation rules",
-    "topic": "nre_vs_nro",
-    "required": false
+  "products": [
+    "Personal Loan",
+    "Auto Loan",
+    "Education Loan",
+    "Business Loan",
+    "Home Loan",
+    "Meridian Rewards Card",
+    "savings account",
+    "salary account",
+    "joint account",
+    "NRE account",
+    "NRO account"
+  ],
+  "documents": {
+    "kb-01-loan-eligibility": {
+      "title": "Loan eligibility criteria by loan type",
+      "topic": "loan_eligibility",
+      "required": true,
+      "products": [
+        "Auto Loan",
+        "Business Loan",
+        "Education Loan",
+        "Home Loan",
+        "Personal Loan"
+      ]
+    },
+    "kb-02-emi-calculation": {
+      "title": "EMI calculation rules",
+      "topic": "emi_calculation",
+      "required": true,
+      "products": [
+        "Auto Loan",
+        "Business Loan",
+        "Education Loan",
+        "Home Loan",
+        "Personal Loan"
+      ]
+    },
+    "kb-03-credit-card-fees": {
+      "title": "Credit-card fee structure",
+      "topic": "credit_card_fees",
+      "required": true,
+      "products": [
+        "Meridian Rewards Card"
+      ]
+    },
+    "kb-04-kyc-documents": {
+      "title": "KYC document requirements",
+      "topic": "kyc_documents",
+      "required": true,
+      "products": [
+        "Auto Loan",
+        "Business Loan",
+        "Education Loan",
+        "Home Loan",
+        "NRE account",
+        "NRO account",
+        "Personal Loan",
+        "joint account",
+        "salary account",
+        "savings account"
+      ]
+    },
+    "kb-05-fraud-dispute": {
+      "title": "Fraud-dispute resolution process",
+      "topic": "fraud_dispute",
+      "required": true,
+      "products": [
+        "Meridian Rewards Card",
+        "NRE account",
+        "NRO account",
+        "joint account",
+        "salary account",
+        "savings account"
+      ]
+    },
+    "kb-06-account-closure": {
+      "title": "Account-closure process",
+      "topic": "account_closure",
+      "required": true,
+      "products": [
+        "NRE account",
+        "NRO account",
+        "joint account",
+        "salary account",
+        "savings account"
+      ]
+    },
+    "kb-07-interest-rate-slabs": {
+      "title": "Interest-rate slabs",
+      "topic": "interest_rate_slabs",
+      "required": true,
+      "products": [
+        "Auto Loan",
+        "Business Loan",
+        "Education Loan",
+        "Home Loan",
+        "Meridian Rewards Card",
+        "Personal Loan"
+      ]
+    },
+    "kb-08-prepayment-penalty": {
+      "title": "Prepayment-penalty rules",
+      "topic": "prepayment_penalty",
+      "required": true,
+      "products": [
+        "Auto Loan",
+        "Business Loan",
+        "Education Loan",
+        "Home Loan",
+        "Personal Loan"
+      ]
+    },
+    "kb-09-minimum-balance": {
+      "title": "Minimum-balance requirements",
+      "topic": "minimum_balance",
+      "required": true,
+      "products": [
+        "salary account",
+        "savings account"
+      ]
+    },
+    "kb-10-credit-score-impact": {
+      "title": "Credit-score impact factors",
+      "topic": "credit_score_impact",
+      "required": true,
+      "products": [
+        "Auto Loan",
+        "Business Loan",
+        "Education Loan",
+        "Home Loan",
+        "Meridian Rewards Card",
+        "Personal Loan"
+      ]
+    },
+    "kb-11-joint-account-rules": {
+      "title": "Joint-account rules",
+      "topic": "joint_account_rules",
+      "required": true,
+      "products": [
+        "joint account"
+      ]
+    },
+    "kb-12-nri-account-eligibility": {
+      "title": "NRI-account eligibility",
+      "topic": "nri_account_eligibility",
+      "required": true,
+      "products": [
+        "NRE account",
+        "NRO account",
+        "joint account",
+        "savings account"
+      ]
+    },
+    "kb-13-personal-loan-eligibility": {
+      "title": "Personal Loan eligibility in detail",
+      "topic": "personal_loan_eligibility",
+      "required": false,
+      "products": [
+        "Personal Loan"
+      ]
+    },
+    "kb-14-home-loan-ltv": {
+      "title": "Home Loan eligibility and loan-to-value rules",
+      "topic": "home_loan_ltv",
+      "required": false,
+      "products": [
+        "Home Loan"
+      ]
+    },
+    "kb-15-card-late-payment-charges": {
+      "title": "Credit-card late-payment and overlimit charges",
+      "topic": "card_late_payment",
+      "required": false,
+      "products": [
+        "Meridian Rewards Card"
+      ]
+    },
+    "kb-16-kyc-reverification": {
+      "title": "KYC re-verification and periodic update rules",
+      "topic": "kyc_reverification",
+      "required": false,
+      "products": [
+        "Auto Loan",
+        "Business Loan",
+        "Education Loan",
+        "Home Loan",
+        "Meridian Rewards Card",
+        "Personal Loan",
+        "savings account"
+      ]
+    },
+    "kb-17-foreclosure-vs-part-prepayment": {
+      "title": "Foreclosure versus part-prepayment",
+      "topic": "foreclosure_vs_prepayment",
+      "required": false,
+      "products": [
+        "Auto Loan",
+        "Business Loan",
+        "Education Loan",
+        "Home Loan",
+        "Personal Loan"
+      ]
+    },
+    "kb-18-nre-vs-nro-operation": {
+      "title": "NRE versus NRO account operation rules",
+      "topic": "nre_vs_nro",
+      "required": false,
+      "products": [
+        "NRE account",
+        "NRO account",
+        "savings account"
+      ]
+    }
   }
 }

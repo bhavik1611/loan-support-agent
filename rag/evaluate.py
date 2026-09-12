@@ -9,7 +9,7 @@ hide that, every row prints |R| and the recommendation has to argue with it.
 from dataclasses import dataclass
 
 import config
-from eval.queries import EVAL_QUERIES, EvalQuery
+from eval.queries import EVAL_QUERIES, GoldenItem
 from rag import retrieve
 
 
@@ -44,10 +44,10 @@ def score_from_sets(
     )
 
 
-def score_query(query: EvalQuery, strategy: str) -> QueryScore:
+def score_query(query: GoldenItem, strategy: str) -> QueryScore:
     hits = retrieve.retrieve(query.text, strategy, k=config.TOP_K)
     return score_from_sets(
-        query_id=query.query_id,
+        query_id=query.item_id,
         query=query.text,
         strategy=strategy,
         retrieved=retrieve.parent_documents(hits),  # the dedup the brief requires
