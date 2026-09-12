@@ -99,7 +99,7 @@ loan-support-agent/
     meridian_bank.db          Generated seven-table store, gitignored.
   transcripts/                Committed graded evidence.
   tests/                      Invariant tests, one per acceptance criterion.
-  docs/specs/                This design specification.
+  docs/superpowers/specs/     This design specification.
   reference/problem-statement.md
   chroma/                     Generated vector store, gitignored.
 ```

@@ -17,7 +17,7 @@ Nothing outside `config.py` knows the database path or a stream offset.
 
 **Tech Stack:** Python 3.12.13, `sqlite3` from the standard library (no new dependency), pytest.
 
-**Spec:** [`docs/specs/2026-09-10-loan-support-agent-design.md`](../specs/2026-09-10-loan-support-agent-design.md), section 5.4 and decisions D-15 to D-23.
+**Spec:** [`docs/superpowers/specs/2026-09-10-loan-support-agent-design.md`](../specs/2026-09-10-loan-support-agent-design.md), section 5.4 and decisions D-15 to D-23.
 
 **Predecessor:** [`2026-09-11-part1-dataset-and-rag.md`](2026-09-11-part1-dataset-and-rag.md), status `implemented`. That plan stays closed; this one is additive and must not regress it.
 
@@ -704,7 +704,7 @@ Any failure here is a regression in this plan's work, not a pre-existing issue. 
 
 **Files:**
 - Modify: `README.md`
-- Modify: `docs/specs/2026-09-10-loan-support-agent-design.md` (open items only)
+- Modify: `docs/superpowers/specs/2026-09-10-loan-support-agent-design.md` (open items only)
 - Modify: this plan's `Status:` line
 
 - [ ] **Step 1: Add a database section to `README.md`**

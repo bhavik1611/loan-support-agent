@@ -11,7 +11,7 @@ Nothing outside `config.py` knows a filesystem path, and nothing outside `llm.py
 
 **Tech Stack:** Python 3.12.13 managed with `uv`, ChromaDB (persistent client, cosine space), `sentence-transformers` with `all-MiniLM-L6-v2`, PyYAML for front matter, pytest.
 
-**Spec:** [`docs/specs/2026-09-10-loan-support-agent-design.md`](../specs/2026-09-10-loan-support-agent-design.md)
+**Spec:** [`docs/superpowers/specs/2026-09-10-loan-support-agent-design.md`](../specs/2026-09-10-loan-support-agent-design.md)
 
 **Brief:** [`reference/problem-statement.md`](../../../reference/problem-statement.md).
 Where this plan and the brief disagree, the brief wins and this plan is wrong.
@@ -3414,8 +3414,8 @@ Spec section 12, D-12, and open items 2, 3 and 4.
 **Files:**
 - Modify: `README.md`
 - Modify: `rag/generate.py` (the `strategy` default only)
-- Modify: `docs/specs/2026-09-10-loan-support-agent-design.md` (section 14 only)
-- Modify: `docs/plans/2026-09-11-part1-dataset-and-rag.md` (the `Status:` line only)
+- Modify: `docs/superpowers/specs/2026-09-10-loan-support-agent-design.md` (section 14 only)
+- Modify: `docs/superpowers/plans/2026-09-11-part1-dataset-and-rag.md` (the `Status:` line only)
 
 **Interfaces:**
 - Consumes: `transcripts/part1-readme-numbers.md`, and the numbers read in Tasks 8, 11 and 14.
@@ -3461,7 +3461,7 @@ Paste the generated tables from `transcripts/part1-readme-numbers.md` verbatim; 
    The table from spec section 11: six invariants, each naming the acceptance criterion it restates.
    Say that Precision@3 and Recall@3 are deliberately not pinned, and why.
 10. **Design decisions.**
-    Link `docs/specs/2026-09-10-loan-support-agent-design.md` for the full decision log rather than restating fourteen rows.
+    Link `docs/superpowers/specs/2026-09-10-loan-support-agent-design.md` for the full decision log rather than restating fourteen rows.
 11. **Repository layout.**
     The tree, one line of purpose per entry.
 

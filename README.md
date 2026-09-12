@@ -10,7 +10,7 @@ Every graded transcript in [`transcripts/`](transcripts/) was produced in that m
 A real language model can optionally be wired in behind the `LLM_PROVIDER` environment variable, and no acceptance criterion depends on it.
 
 The brief this repository answers is [`reference/problem-statement.md`](reference/problem-statement.md).
-The design decisions and the alternatives they beat are in [`docs/specs/2026-09-10-loan-support-agent-design.md`](docs/specs/2026-09-10-loan-support-agent-design.md).
+The design decisions and the alternatives they beat are in [`docs/superpowers/specs/2026-09-10-loan-support-agent-design.md`](docs/superpowers/specs/2026-09-10-loan-support-agent-design.md).
 
 ## Status
 
