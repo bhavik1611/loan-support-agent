@@ -1,4 +1,4 @@
-"""Tests 7 to 12 of spec section 11.
+"""Tests 7 to 12 of spec section 16.
 
 Three of these assert the generated rows cannot contradict the knowledge base.
 That is the price of D-16's seven tables and it is paid here rather than

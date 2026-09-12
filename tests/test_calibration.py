@@ -1,4 +1,4 @@
-"""Test 6 of spec section 11: the clusters must actually separate."""
+"""Test 6 of spec section 16: the clusters must actually separate."""
 
 import config
 from eval import calibration

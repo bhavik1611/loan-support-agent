@@ -1,4 +1,4 @@
-"""Tests 1 to 4 of spec section 11, one per Part 1 acceptance criterion."""
+"""Tests 1 to 4 of spec section 16, one per Part 1 acceptance criterion."""
 
 import hashlib
 

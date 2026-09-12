@@ -1,4 +1,4 @@
-"""Test 5 of spec section 11, plus the invariants the index must hold."""
+"""Test 5 of spec section 16, plus the invariants the index must hold."""
 
 import config
 from rag import index, kb
