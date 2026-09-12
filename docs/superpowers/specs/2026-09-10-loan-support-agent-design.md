@@ -900,6 +900,13 @@ Four further items opened during implementation and review, and are recorded her
    The consequence is not a tuning problem: before the gate, 20 of 30 near-domain readings cleared `T` and 14 of 30 were answered outright.
    The gate of section 8.5 removes 13 of the 15; the residue is item 8.
 
+   The product filter of D-53 has one measured effect on in-scope retrieval, found in Task 20's regeneration and worth recording because an earlier review claim about it was overstated and withdrawn.
+   EQ-03, "What minimum balance must I keep in my savings account?", names a catalogue product, so the filter applies.
+   On `kb_fixed_400_80` its rank-3 parent moves from `kb-10-credit-score-impact` at 0.4115 to `kb-09-minimum-balance` at 0.3847, because `kb-10` is tagged with the six loan products and the `savings account` filter excludes it.
+   That is the filter working as designed and the answer improving: a credit-score document has nothing to say about a minimum balance.
+   On `kb_sentences` nothing moves, because all three of EQ-03's chunks already came from `kb-09`.
+   One of twelve `answerable` items is affected, which is consistent with the measurement that only 3 of 12 in-scope probes name a product at all, and it is the reason the filter is conditional.
+
 7. **`T` is set by exactly two readings, and one probe can move it.**
    Min-max midpoint is legible, which is why D-49 kept it, and it means the minimum in-scope value and the maximum out-of-scope value decide the threshold alone.
    Measured: adding 12 ordinary far-out probes raised the maximum out-of-scope reading from 0.2374 to 0.2870 on one probe, "Which vaccine schedule applies to a newborn in the first year?", which moves `T` and halves the gap.

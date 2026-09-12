@@ -28,7 +28,7 @@ uv venv --python 3.12 .venv
 VIRTUAL_ENV=.venv uv pip install -r requirements.txt
 
 .venv/bin/python scripts/run_part1.py      # runs every Part 1 task, rewrites transcripts/
-.venv/bin/python -m pytest                  # 166 tests
+.venv/bin/python -m pytest                  # 212 Part 1 tests, 339 with Part 2's
 ```
 
 The embedding weights for `all-MiniLM-L6-v2` download once on first use, into `~/.cache/huggingface` outside the repository.
@@ -404,7 +404,8 @@ Retrieving a wider candidate set and then deduplicating down to 3 parents would 
 
 ## Tests
 
-166 tests, all passing offline.
+212 Part 1 tests, all passing offline.
+The repository suite reports 339 because Part 2 is being built alongside this branch and adds 127 of its own; the split is by whether a test file imports `agent/`.
 The ten that restate an acceptance criterion directly:
 
 | # | Test | Criterion it restates |
@@ -449,7 +450,7 @@ scripts/run_part1.py        Runs every Part 1 task and writes the transcripts.
 scripts/check_database.py   The grader's one-command database check.
 data/                       Committed snapshot and database manifest, both hash-tested.
 transcripts/                Committed graded evidence.
-tests/                      166 tests, one per acceptance criterion plus unit coverage.
+tests/                      212 Part 1 tests, one per acceptance criterion plus unit coverage.
 docs/                       The design spec and the implementation plans.
 reference/                  The problem statement.
 chroma/                     Generated vector store, gitignored.
