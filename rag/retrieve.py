@@ -25,9 +25,9 @@ def retrieve(
     """The top k chunks for a query, highest cosine similarity first.
 
     `product` narrows the search to the documents catalogue.json tags with that
-    product, per D-53. The narrowing is conditional on purpose: 9 of the 12
+    product, per D-53. The narrowing is conditional on purpose: 10 of the 12
     in-scope calibration probes name no product at all, so an unconditional
-    filter would search an empty subset for three quarters of real questions.
+    filter would search an empty subset for most real questions.
     With no product the query is issued exactly as it was before the gate
     existed, with no `where` clause at all.
 

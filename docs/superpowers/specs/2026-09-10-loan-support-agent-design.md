@@ -902,7 +902,7 @@ Four further items opened during implementation and review, and are recorded her
 6. **The embedding does not carry product identity, and this is the root cause behind D-46 and D-51.**
    Holding one sentence frame fixed and swapping only the product noun, "What is the interest rate on a fixed deposit for 5 years" and the same sentence with "car insurance policy" score 0.6805 against each other, and with "home loan" 0.7605.
    For comparison, the lowest genuine in-scope probe scores 0.3263 against the document that answers it, so two unrelated products in one frame sit twice as close as a real question sits to its own answer.
-   The consequence is not a tuning problem: before the gate, 20 of 30 near-domain readings cleared `T` and 14 of 30 were answered outright.
+   The consequence is not a tuning problem: before the gate, 15 of the 24 near-domain readings were answered outright, computed over the same 12 items and two collections as the after-figure.
    The gate of section 8.5 removes 10 of the 12 near-domain items as that tier stands today; the residue is item 8.
 
    The product filter of D-53 has one measured effect on in-scope retrieval, found in Task 20's regeneration and worth recording because an earlier review claim about it was overstated and withdrawn.

@@ -40,9 +40,18 @@ def test_the_body_is_prose_and_carries_no_metadata():
         assert len(doc.body) > 200
 
 
-def _seed(tmp_path, documents: str, products: str = '["Widget Loan"]', bodies=("kb-99-broken",)):
+def _seed(
+    tmp_path,
+    documents: str,
+    products: str = '["Widget Loan"]',
+    bodies=("kb-99-broken",),
+    licences: str = "[]",
+):
     """A throwaway knowledge base. `documents` is the entries object verbatim."""
-    catalogue = f'{{"products": {products}, "documents": {documents}}}'
+    catalogue = (
+        f'{{"products": {products}, "licensed_pairs": {licences}, '
+        f'"documents": {documents}}}'
+    )
     (tmp_path / kb.CATALOGUE_NAME).write_text(catalogue, encoding="utf-8")
     for stem in bodies:
         (tmp_path / f"{stem}{kb.DOCUMENT_SUFFIX}").write_text("Body." * 60, encoding="utf-8")

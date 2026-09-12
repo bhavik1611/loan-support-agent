@@ -84,7 +84,9 @@ from rag import kb
 
 # Products Meridian Bank does not sell that people ask about anyway. The
 # catalogue side of the gate is read from knowledge_base/catalogue.json and is
-# deliberately never duplicated here, so the corpus stays the authority.
+# deliberately never duplicated here, so the corpus stays the authority. So is
+# the licence that lets one of these phrases stand beside a Meridian product
+# without refusing; see classify.
 # Thirteen phrases, every one of them a product or an instrument, each measured
 # against the corpus per the docstring above.
 KNOWN_ADJACENT: list[str] = [
@@ -113,61 +115,119 @@ class ScopeVerdict:
     known_adjacent: bool
 
 
+# Every letter that is not a vowel, for the one plural rule that needs to look
+# at the letter before the final "y". "salary account" must not become "salary
+# accounties", and it does not, because the rule reads the last letter of the
+# phrase and that is "t".
+_CONSONANTS = frozenset("bcdfghjklmnpqrstvwxz")
+
+
+def _plural(phrase: str) -> str:
+    """The natural English plural of a gate phrase, case-folded.
+
+    Two rules cover all 24 names in the catalogue and KNOWN_ADJACENT. A phrase
+    ending in a consonant plus "y" takes "-ies": English writes "insurance
+    policies" and "cryptocurrencies", and nobody has ever written "insurance
+    policys". Everything else takes "-s".
+
+    The "-y" rule was missing for one round, and the cost was measured rather
+    than imagined: "What insurance policies does Meridian offer?" passed the
+    gate and was answered at 0.4838 on kb_sentences out of kb-13 and kb-01,
+    with an answer about the fixed-obligation-to-income ratio for a Personal
+    Loan. That is the exact confident wrong answer the four insurance phrases
+    were added to prevent, arriving through the plural of one of them.
+    """
+    if len(phrase) >= 2 and phrase.endswith("y") and phrase[-2] in _CONSONANTS:
+        return phrase[:-1] + "ies"
+    return phrase + "s"
+
+
 def _pattern(phrase: str) -> re.Pattern:
     """Whole-phrase match on the case-folded query, singular or plural.
 
-    The alternation is the canonical phrase and the canonical phrase with a
-    trailing "s", not an optional trailing "s" on the canonical itself. Those
-    are different on any phrase that already ends in "s": an optional "s" on
-    "deposits" would match "deposit" as well, and the point of matching whole
-    phrases is that a shorter word inside one is not the phrase.
+    The alternation is the canonical phrase and its plural, not an optional
+    trailing "s" on the canonical itself. Those are different on any phrase
+    that already ends in "s": an optional "s" on "shares" would match the verb
+    "share" as well, and the point of matching whole phrases is that a shorter
+    word inside one is not the phrase. "shares" is gone for that collision, and
+    the alternation is what keeps the guarantee available to whatever replaces
+    it.
 
-    No surviving entry ends in "s", because the one that did, "shares", was
-    removed for colliding with the verb. The alternation still earns its place
-    on "mutual funds", "fixed deposits" and "SIPs", which people do write.
+    Mass nouns and acronyms get a plural nobody writes - "golds", "ELSSs" - and
+    that is harmless: a form no customer types matches no query. The rule is
+    there for "mutual funds", "fixed deposits", "SIPs", "savings accounts" and
+    "insurance policies", which people do write.
     """
-    escaped = re.escape(phrase.casefold())
-    return re.compile(rf"\b(?:{escaped}|{escaped}s)\b")
+    folded = phrase.casefold()
+    escaped = re.escape(folded)
+    plural = re.escape(_plural(folded))
+    return re.compile(rf"\b(?:{escaped}|{plural})\b")
+
+
+def _longest(phrases: list[str]) -> str:
+    """Longest phrase, ties broken alphabetically so iteration order is inert."""
+    return sorted(phrases, key=lambda phrase: (-len(phrase), phrase))[0]
 
 
 def classify(query: str) -> ScopeVerdict:
     """The three outcomes of spec section 8.5, and only three.
 
-    **The catalogue wins whenever a query names both sides, whatever the
-    lengths.** If the query names something Meridian sells, the question is in
-    scope, and how many characters the competing phrase happens to run to has
-    nothing to do with that. Length only breaks a tie within one side.
+    **When a query names both a Meridian product and an adjacent one, the
+    adjacent phrase refuses unless the corpus licenses that exact pairing.**
+    The licence is data in knowledge_base/catalogue.json, read through
+    kb.licensed_pairs, not a branch written here, so the corpus stays the
+    authority for the boundary exactly as it is for the document tags.
 
-    This replaced longest-match-first, which ranked by length across both lists
-    and let the catalogue win only an exact character tie. That rule refused
-    "Can I open a fixed deposit in my NRE account?", a question kb-18 answers
-    outright at 0.6910 with all three chunks agreeing, because "fixed deposit"
-    runs two characters longer than "NRE account". Ten phrase pairs in the two
-    lists sat within two characters of each other, so five of the surviving
-    verdicts were correct by an accident of spelling rather than by the rule.
+    Two rules were tried before this one and both were wrong, each on a
+    different half of the queries, and both for the same reason: they decided a
+    two-product query by a property with nothing to do with whether the
+    documents cover the pair.
+
+    - Longest-match-first across both lists refused "Can I open a fixed deposit
+      in my NRE account?", which kb-18 answers outright at 0.6910 with all three
+      chunks agreeing, because "fixed deposit" runs two characters longer than
+      "NRE account". Ten phrase pairs across the two lists sit within two
+      characters of each other, so the verdicts it got right were right by an
+      accident of spelling.
+    - Catalogue-wins-unconditionally fixed that one and opened the answering
+      direction, which is worse. "Is my joint account covered by life insurance?"
+      resolved to "joint account" and was answered at 0.5615 out of
+      kb-11-joint-account-rules, a document about survivorship on death that says
+      nothing about insurance. The user asking whether Meridian sells life cover
+      got told what happens to the account when a holder dies, with a citation.
+
+    What made the NRE case right was never the lengths: kb-18 line 10 says an
+    NRE or NRO account can be opened as a term deposit. That is a fact in the
+    corpus, so the corpus is what the rule now asks. On today's documents the
+    licence holds two entries, the NRE and NRO halves of that one sentence, and
+    nothing else pairs a Meridian product with something Meridian does not sell.
     """
     folded = query.casefold()
-    candidates = []
-    for product in kb.catalogue_products():
-        if _pattern(product).search(folded):
-            candidates.append((len(product), 0, product, True))
-    for product in KNOWN_ADJACENT:
-        if _pattern(product).search(folded):
-            candidates.append((len(product), 1, product, False))
+    catalogue_hits = [p for p in kb.catalogue_products() if _pattern(p).search(folded)]
+    adjacent_hits = [p for p in KNOWN_ADJACENT if _pattern(p).search(folded)]
 
-    if not candidates:
-        return ScopeVerdict(query=query, product="", in_catalogue=False, known_adjacent=False)
+    # An adjacent phrase is discharged only by a catalogue product the query
+    # also names and the corpus licenses it against. Any phrase left standing
+    # refuses, because the corpus has nothing that covers the combination.
+    licensed = {(pair.product, pair.adjacent) for pair in kb.licensed_pairs()}
+    standing = [
+        adjacent
+        for adjacent in adjacent_hits
+        if not any((product, adjacent) in licensed for product in catalogue_hits)
+    ]
 
-    # Catalogue ahead of adjacent unconditionally, then longest phrase within
-    # one side, then alphabetical so the verdict never depends on iteration
-    # order. The tuple is (length, side, phrase, in_catalogue), so the key puts
-    # side first and negates length.
-    _, _, product, in_catalogue = sorted(
-        candidates, key=lambda c: (c[1], -c[0], c[2])
-    )[0]
-    return ScopeVerdict(
-        query=query,
-        product=product,
-        in_catalogue=in_catalogue,
-        known_adjacent=not in_catalogue,
-    )
+    if standing:
+        return ScopeVerdict(
+            query=query,
+            product=_longest(standing),
+            in_catalogue=False,
+            known_adjacent=True,
+        )
+    if catalogue_hits:
+        return ScopeVerdict(
+            query=query,
+            product=_longest(catalogue_hits),
+            in_catalogue=True,
+            known_adjacent=False,
+        )
+    return ScopeVerdict(query=query, product="", in_catalogue=False, known_adjacent=False)
