@@ -2959,9 +2959,18 @@ def test_an_injection_attempt_is_refused_before_any_retrieval(built_index):
 
 
 def test_an_out_of_scope_question_is_refused_on_groundedness(built_index):
-    """The brief's output-side guardrail. Names no product, so it reaches
-    retrieval and fails T, which is a different refusal from the gate's."""
-    response = graph.ask("What is the best pizza topping?", thread_id="e")
+    """The brief's output-side guardrail, and criterion 24b as reworded.
+
+    The probe is IU-01, an `inside_uncovered` item, and the class is the
+    instrument rather than a convenience. A question has to route to `policy`
+    before it can reach retrieval at all, and only an in-scope-sounding one
+    reliably does: measured end to end this refuses at 0.3931 with
+    `grounded=False`, which is a different refusal from the gate's.
+    """
+    response = graph.ask(
+        "Can I get a credit card from another bank with a low limit?", thread_id="e"
+    )
+    assert response["route"] == "policy"
     assert response["guardrails"]["grounded"] is False
     assert "do not know" in response["answer"].lower()
     assert response["policy"]["outcome"] == "refused_threshold"
@@ -3045,6 +3054,19 @@ def test_the_same_turn_is_byte_reproducible(built_index):
     assert first["trace_id"] != second["trace_id"]  # thread differs
     assert first["answer"] == second["answer"]
 ```
+
+**The out-of-scope probe here is an `inside_uncovered` item, not a far one, and that is measured rather than preferred.**
+The Task 10 test above originally used "What is the best pizza topping?" on the reasoning that it names no product, so it would reach retrieval and fail `T`.
+It does not reach retrieval.
+The router classifies it `vague` and sends it to `clarify`, so `policy_answer` never runs and `verify` correctly reports `grounded=None` rather than `False`.
+
+Measured across the golden dataset's five `far_out_of_scope` items on 2026-09-12: three route `clarify`, one routes `policy`, and one routes `lookup`.
+The winning margins are noise-sized - "In which year did the Berlin Wall come down?" wins on `lookup` by 0.0369 - because `eval/routing.py` calibrated the three centroids on 6 policy and 6 lookup probes plus a vague set, with **no out-of-scope query in the labelled set at all**.
+The router's behaviour on far probes is therefore undefined by construction, not regressed, and D-44 having rejected a margin and a floor is what leaves the winner to noise.
+
+An `inside_uncovered` item is the right instrument because it is the only class that is in-scope enough to route to `policy` and uncovered enough to fail the support rule.
+Both IU items route `policy`; IU-01 refuses at 0.3931 and IU-02 answers at 0.4645, the carried risk in spec 18.2 item 5.
+This is not probe-shopping: where the route itself is what a test asserts, the class is the subject and swapping across classes would be.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
