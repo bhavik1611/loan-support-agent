@@ -75,7 +75,7 @@ No I/O, no database, no graph. This is the piece the brief scrutinises hardest, 
   - `agent.escalation.recommend_escalation(record: dict) -> bool`
   - `config.ESCALATION_FRAUD_WEIGHT`, `ESCALATION_STALENESS_WEIGHT`, `ESCALATION_SATURATION_DAYS`, `ESCALATION_DISBURSED_RATE`, `ESCALATION_THRESHOLD`
 
-- [ ] **Step 1: Add the constants to `config.py`**
+- [x] **Step 1: Add the constants to `config.py`**
 
 Insert immediately before the line `# --- Environment ----------------------------------------------------------`:
 
@@ -107,7 +107,7 @@ ESCALATION_HALF_RATE_STATUS = "Disbursed"
 ESCALATION_THRESHOLD = 0.50
 ```
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create `tests/test_escalation.py`:
 
@@ -180,12 +180,12 @@ def test_the_score_orders_records_rather_than_bucketing_them():
     assert len(distinct) == 42
 ```
 
-- [ ] **Step 3: Run the tests to verify they fail**
+- [x] **Step 3: Run the tests to verify they fail**
 
 Run: `.venv/bin/python -m pytest tests/test_escalation.py -q`
 Expected: FAIL, collection error `ModuleNotFoundError: No module named 'agent'`.
 
-- [ ] **Step 4: Create the package and the module**
+- [x] **Step 4: Create the package and the module**
 
 Create `agent/__init__.py` as an empty file:
 
@@ -242,7 +242,7 @@ def recommend_escalation(record: dict) -> bool:
     return escalation_score(record) >= config.ESCALATION_THRESHOLD
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_escalation.py -q`
 Expected: PASS, 9 tests.
@@ -250,12 +250,12 @@ Expected: PASS, 9 tests.
 If `test_the_score_is_not_a_bare_boolean_or` or `test_the_threshold_sits_at_the_eightieth_percentile` fails, do not adjust the test.
 The weights or the saturation point have drifted from D-33 and D-34; fix `config.py` to match the spec.
 
-- [ ] **Step 6: Run the full suite**
+- [x] **Step 6: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
 Expected: PASS. Task 1 adds 9 tests, so the suite is now **baseline + 9**.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add agent/__init__.py agent/escalation.py config.py tests/test_escalation.py

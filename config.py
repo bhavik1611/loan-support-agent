@@ -221,6 +221,32 @@ SUPPORT_MIN_SHARED = 2
 # writes transcripts/part1-calibration.txt.
 SIMILARITY_THRESHOLD = 0.3066
 
+# --- Part 2 Task 6, the escalation score (D-33, D-34) ---------------------
+
+# Weighted so that neither signal alone at a typical value crosses the
+# threshold, which is what forces the two to combine. A formula where either
+# signal fires on its own is the bare boolean OR the brief forbids: measured
+# on this dataset, 0.5*fraud + 0.5*(days/30) selects exactly the 16
+# fraud-flagged records at its own 85th percentile and nothing else.
+ESCALATION_FRAUD_WEIGHT = 0.45
+ESCALATION_STALENESS_WEIGHT = 0.55
+
+# Only 10 of the 100 records sit at or beyond 21 days, so the staleness term
+# stops discriminating there. Declared modelling choice, not a sourced fact:
+# the knowledge base states no loan-assessment turnaround. kb-01's 3 working
+# days is the shortened path for an existing customer, not the standard one.
+ESCALATION_SATURATION_DAYS = 21
+
+# A disbursed loan's clock still runs because the money has left the bank,
+# but no customer is waiting on a decision. A rejected file's clock stops.
+ESCALATION_DISBURSED_RATE = 0.5
+ESCALATION_HALF_RATE_STATUS = "Disbursed"
+
+# The 80th percentile of the score over the committed 100 records. Measured,
+# not preset. Reproduce with scripts/run_part2.py, which writes
+# transcripts/part2-escalation.txt.
+ESCALATION_THRESHOLD = 0.50
+
 # --- Environment ----------------------------------------------------------
 
 DEFAULT_PROVIDER = "mock"
