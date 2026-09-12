@@ -3808,8 +3808,9 @@ Stable ids are what keep every Precision@3 number already in `README.md` compara
 
 - [ ] **Step 7: Author the three new classes**
 
-Thirteen `outside_boundary` items, `OB-01` to `OB-13`, each naming a product in `KNOWN_ADJACENT`.
-The review measured these, and they are the set the gate was sized against.
+Ten `outside_boundary` items, `OB-01` to `OB-10`, each naming a product in `KNOWN_ADJACENT`.
+Thirteen were authored and three retired in fix round 1, when the phrases they tested came out of `KNOWN_ADJACENT` for refusing questions the corpus answers.
+The retired items are not reworded onto a surviving phrase; section 18.1 item 8 records why.
 
 Two `inside_uncovered` items, `IU-01` and `IU-02`, being exactly the residue named in spec 18.1 item 8: "Can I get a credit card from another bank with a low limit?" and "How do I transfer money to an account in another country?".
 
@@ -3858,7 +3859,7 @@ Task 18 authored the golden dataset; this task scores it.
 - [ ] **Step 1: Add the decision table to `rag/evaluate.py`**
 
 Keep Precision@3 and Recall@3 exactly as they are, scored over the `answerable` items only.
-Add a second pass over all 32 items recording `answered`, `refused_gate` or `refused_threshold`, and a per-class summary.
+Add a second pass over all 29 items recording `answered`, `refused_gate` or `refused_threshold`, and a per-class summary.
 
 Report the near-domain false-answer rate explicitly.
 Before the gate it was 14 of 30 readings answered outright, and printing the after figure beside it is the evidence the fix worked.

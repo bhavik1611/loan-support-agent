@@ -475,7 +475,7 @@ That is item 8 in section 18.1, and it is what a real support desk maintains rat
 
 ### 9.1 The golden dataset
 
-`eval/queries.py` holds one golden dataset of 32 hand-authored items in four classes, per D-55.
+`eval/queries.py` holds one golden dataset of 29 hand-authored items in four classes, per D-55.
 It is the **scored** half of the corpus and it fits nothing.
 The calibration probes of section 8.2 are the fitting half, and no string appears in both.
 `tests/test_queries.py::test_probes_do_not_reuse_the_evaluation_query_strings` enforces that boundary, and it is the reason the dataset can be called golden at all.
@@ -493,11 +493,15 @@ class GoldenItem:
 | class | ids | count | what it is | correct behaviour |
 |---|---|---|---|---|
 | `answerable` | `EQ-01` to `EQ-12` | 12 | a real question with a supporting document | answer, citing its parent |
-| `outside_boundary` | `OB-01` to `OB-13` | 13 | names a product Meridian does not sell, per D-47 | refuse at the gate, before retrieval |
-| `inside_uncovered` | `IU-01` to `IU-02` | 2 | inside the boundary, no document covers it | refuse on the threshold and the support rule |
+| `outside_boundary` | `OB-01` to `OB-10` | 10 | names a product Meridian does not sell, per D-47 | refuse at the gate, before retrieval |
+| `inside_uncovered` | `IU-01` to `IU-02` | 2 | inside the boundary, no document covers it | reported, never asserted; measured as one refusal and one answer in 18.1 item 8 |
 | `far_out_of_scope` | `FO-01` to `FO-05` | 5 | not banking at all, and distinct from the fitting probes | refuse on the threshold |
 
 The 12 `answerable` items are the original `EVAL_QUERIES`, unchanged in text and id.
+
+The `outside_boundary` count fell from 13 to 10 on 2026-09-12, when four `KNOWN_ADJACENT` phrases were removed for refusing questions the corpus answers.
+Three items retired with the phrases they tested rather than being reworded onto a surviving phrase, because rewording a probe until its assertion passes is the failure mode this dataset exists to avoid.
+Section 18.1 item 8 carries the measurements.
 Per D-11 their gold-set sizes stay mixed: 4 items with 1 relevant document, 5 with 2, and 3 with 3.
 Keeping the ids stable means every Precision@3 and Recall@3 number already in `README.md` remains comparable across the amendment.
 
@@ -527,7 +531,7 @@ Only the 12 `answerable` items carry gold documents, so only they are scored thi
 
 Precision@3 and Recall@3 answer "did retrieval find the right document".
 They cannot answer "should the system have spoken at all", which after D-51 is a separate decision made by a separate mechanism.
-`rag/evaluate.py` therefore reports a second table over all 32 items, recording which of three outcomes each produced:
+`rag/evaluate.py` therefore reports a second table over all 29 items, recording which of three outcomes each produced:
 
 | outcome | meaning |
 |---|---|
