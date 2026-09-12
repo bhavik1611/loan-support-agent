@@ -174,8 +174,8 @@ NEAR_DOMAIN_KINDS = (KIND_OUTSIDE_BOUNDARY, KIND_INSIDE_UNCOVERED)
 # of 30, carried over from a 15-item near-domain tier that no longer exists;
 # today's tier is 12 items and 24 readings, so the printed comparison had a
 # different numerator population and a different denominator on the two sides
-# of the word "before". Both halves now come from decisions(gate=...) over the
-# same items on the same day, which is a comparison that cannot go stale.
+# of the word "before". Both halves now come from the same golden items on the
+# same day, which is a comparison that cannot go stale.
 
 
 @dataclass(frozen=True)
@@ -190,18 +190,14 @@ class DecisionRow:
     citations: tuple[str, ...]
 
 
-def decide(item: GoldenItem, strategy: str, gate: bool = True) -> DecisionRow:
+def decide(item: GoldenItem, strategy: str) -> DecisionRow:
     """One golden item's decision, read off GroundedAnswer.outcome directly.
 
     The outcome is not re-derived from `supported` and `top1_similarity` here.
     rag/generate.py owns that rule, and a second copy of it in the scorer would
     let the two disagree about what the system did.
-
-    `gate=False` is the counterfactual the before figure needs: the same query,
-    the same collection, the same threshold and support rule, with rag/scope.py
-    switched off.
     """
-    result = generate.answer(item.text, strategy, gate=gate)
+    result = generate.answer(item.text, strategy)
     return DecisionRow(
         item_id=item.item_id,
         query=item.text,
@@ -214,9 +210,41 @@ def decide(item: GoldenItem, strategy: str, gate: bool = True) -> DecisionRow:
     )
 
 
-def decisions(strategy: str, gate: bool = True) -> list[DecisionRow]:
+def decisions(strategy: str) -> list[DecisionRow]:
     """Every golden item scored against one collection, in dataset order."""
-    return [decide(item, strategy, gate=gate) for item in GOLDEN_DATASET]
+    return [decide(item, strategy) for item in GOLDEN_DATASET]
+
+
+def _ungated_decide(item: GoldenItem, strategy: str) -> DecisionRow:
+    """The counterfactual decision with rag/scope.py's gate never called.
+
+    Calls the same two functions answer() calls, retrieve.retrieve and
+    retrieve.is_supported, directly. No product is passed to retrieve.retrieve
+    on purpose: the product filter is part of the gate's effect, and the
+    before figure must exclude both the gate's refusal and its filter.
+    """
+    hits = retrieve.retrieve(item.text, strategy, k=config.TOP_K)
+    supported = retrieve.is_supported(hits, config.SIMILARITY_THRESHOLD)
+    outcome = (
+        generate.OUTCOME_ANSWERED
+        if supported
+        else generate.OUTCOME_REFUSED_THRESHOLD
+    )
+    return DecisionRow(
+        item_id=item.item_id,
+        query=item.text,
+        kind=item.kind,
+        strategy=strategy,
+        outcome=outcome,
+        top1_similarity=retrieve.top1_similarity(hits),
+        product="",
+        citations=(),
+    )
+
+
+def _ungated_decisions(strategy: str) -> list[DecisionRow]:
+    """Every golden item scored without the product gate, in dataset order."""
+    return [_ungated_decide(item, strategy) for item in GOLDEN_DATASET]
 
 
 def counts_by_kind(rows: list[DecisionRow]) -> dict[str, dict[str, int]]:
@@ -317,7 +345,7 @@ def format_decision_report() -> str:
     for strategy in sorted(config.COLLECTION_FOR_STRATEGY):
         rows = decisions(strategy)
         combined += rows
-        ungated += decisions(strategy, gate=False)
+        ungated += _ungated_decisions(strategy)
         lines += _decision_table(rows, strategy)
 
     answered, readings = near_domain_false_answers(combined)

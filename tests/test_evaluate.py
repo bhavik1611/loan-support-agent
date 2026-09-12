@@ -175,7 +175,7 @@ def test_the_decision_report_prints_the_before_figure_beside_the_after(built_ind
     ungated = []
     for strategy in sorted(config.COLLECTION_FOR_STRATEGY):
         rows += evaluate.decisions(strategy)
-        ungated += evaluate.decisions(strategy, gate=False)
+        ungated += evaluate._ungated_decisions(strategy)
     after_answered, after_readings = evaluate.near_domain_false_answers(rows)
     before_answered, before_readings = evaluate.near_domain_false_answers(ungated)
 
@@ -194,7 +194,7 @@ def test_the_ungated_pass_really_bypasses_the_gate(built_index):
     bypass that did not bypass would print the same number twice and look like
     a comparison.
     """
-    rows = evaluate.decisions(config.STRATEGY_SENTENCES, gate=False)
+    rows = evaluate._ungated_decisions(config.STRATEGY_SENTENCES)
     outside = [r for r in rows if r.kind == KIND_OUTSIDE_BOUNDARY]
     assert outside
     assert all(r.outcome != generate.OUTCOME_REFUSED_GATE for r in outside)
