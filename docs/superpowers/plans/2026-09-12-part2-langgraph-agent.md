@@ -54,7 +54,11 @@ A module whose docstring opens "Task 9" under a plan heading that says Task 6 is
 
 **[D-54] The absolute total is deliberately not written down.**
 It stood at 170 before Part 1 Tasks 17 to 20 were written, and those four tasks move it by an amount only the run knows.
-So each task below states how many tests it **adds**, and the running Part 2 delta beside it; Part 2 adds 132 tests in total.
+So each task below states how many tests it **adds**, and the running Part 2 delta beside it; the eleven tasks add 133 tests in total.
+
+**The eleven tasks are not the whole of Part 2's delta.**
+The EQ-11 ellipsis fix landed after Task 10 and outside the task numbering, because it was a defect the Task 10 implementer surfaced rather than planned work, and it carries its own tests in `tests/test_memory.py`, `tests/test_router.py` and `tests/test_queries.py`.
+Read the absolute from the suite, never from this document: a plan that tries to hold a total it does not control ends up lying about it.
 Read the baseline out of the suite once, immediately before Task 1, write it at the top of your notes, and check every task against it.
 A task whose delta is wrong has either skipped a test or added one nobody asked for, and both are worth stopping for.
 
@@ -3265,6 +3269,13 @@ def test_the_memory_transcripts_show_opposite_outcomes():
     assert "clarify" in cold
 
 
+def test_the_routing_transcript_reports_the_ellipsis_matcher():
+    """Spec 18.4. The matcher has a calibration set now, so the evidence shows it."""
+    body = (config.TRANSCRIPT_DIR / "part2-routing.txt").read_text(encoding="utf-8")
+    assert "THE ELLIPSIS MATCHER" in body
+    assert "known uncaught:" in body  # the residue is reported, not hidden
+
+
 def test_the_guardrail_transcript_names_every_rule():
     from agent import guardrails
 
@@ -3424,6 +3435,32 @@ def routing_transcript() -> tuple[str, dict]:
             f"{row['winner']:8} {row['expected']:8} "
             f"{'OK' if row['correct'] else 'MISS':3} {row['query']}"
         )
+    ellipsis = routing.measure_ellipsis_matcher()
+    lines += [
+        "",
+        "THE ELLIPSIS MATCHER (spec 18.4, the fifth instance)",
+        "",
+        "  needs_resolution decides whether a query leans on the turn before",
+        "  it. It used to fire on a bare cue word, which routed EQ-11 - an",
+        "  answerable question naming its own antecedent one clause earlier -",
+        "  to clarify. The rule now asks whether an earlier clause carries a",
+        "  noun-phrase marker, a closed class of determiners, possessives and",
+        "  quantifiers, because an antecedent has to be a noun phrase.",
+        "",
+        f"  elliptical    : {ellipsis['elliptical_correct']} of "
+        f"{ellipsis['elliptical_total']}",
+        f"  self-contained: {ellipsis['self_contained_correct']} of "
+        f"{ellipsis['self_contained_total']}",
+        "",
+        "  The three misses are bare plural and mass nouns, which take no",
+        "  determiner. They are listed rather than hidden, and a test pins",
+        "  the miss list to exactly that tuple so it cannot grow in silence.",
+        "",
+    ]
+    for row in ellipsis["self_contained"]:
+        if row["known_uncaught"]:
+            lines.append(f"  known uncaught: {row['query']}")
+
     lines += [
         "",
         "VAGUE PROBES (the router must not commit)",
@@ -3713,7 +3750,7 @@ if __name__ == "__main__":
 
 The lookup tool reads `data/meridian_bank.db`, which is gitignored, and the transcripts call it for real rather than monkeypatched.
 `require_database()` enforces this step rather than trusting it, and it runs before the first write: measured on 2026-09-12, `sqlite3.connect` creates an empty file instead of raising, so without the guard a clean clone fails at the first lookup with `OperationalError: no such table: loan_applications`, several transcripts already written.
-No test covers the guard, deliberately - it is a runner precondition rather than an acceptance criterion, and the task's count stays at 5.
+No test covers the guard, deliberately - it is a runner precondition rather than an acceptance criterion, and the task's count stays at 6.
 
 Run:
 
@@ -3739,12 +3776,12 @@ Do not retype any number.
 - [ ] **Step 7: Run the tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_part2_transcripts.py -q`
-Expected: PASS, 5 tests.
+Expected: PASS, 6 tests.
 
 - [ ] **Step 8: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS. Task 11 adds 5 tests, so the suite is now **baseline + 132**.
+Expected: PASS. Task 11 adds 6 tests, so the suite is now **baseline + 133**.
 
 - [ ] **Step 9: Prove the offline claim**
 
