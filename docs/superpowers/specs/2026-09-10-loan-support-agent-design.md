@@ -930,6 +930,9 @@ Four further items opened during implementation and review, and are recorded her
    Two probes already sit in that residue and are labelled `inside_uncovered` per D-50: "Can I get a credit card from another bank with a low limit?", which names an in-catalogue product but asks about a competitor, and "How do I transfer money to an account in another country?", which is inside the boundary with no document covering it.
    Measured 2026-09-12 against `kb_sentences` at `T` 0.3066, and the two do not behave alike.
    IU-01 reads 0.3931 top-1, clears `T`, and is refused only because its top three chunks land on `kb-01`, `kb-15` and `kb-12`, so the support rule finds no two in agreement.
+   Measured again in Task 19 across both collections, it is worse than a coin flip: IU-01 is **answered** under `kb_fixed_400_80` at 0.3327, citing `kb-15`.
+   So the same item is refused on one collection and answered on the other, and both `inside_uncovered` items are answered under `kb_fixed_400_80`.
+   That is the strongest argument against ever using IU-01 as a test instrument, and it did not reach Part 2's graph tests only because `graph.ask` is fixed to `kb_sentences`.
    IU-02 reads 0.4645 top-1 and is **answered**: all three of its top chunks come from `kb-12`, which covers NRI account eligibility and does not cover international remittance, so the support rule agrees with itself about the wrong document.
    That is the sharper half of this item, and it is a property of the support rule rather than of the gate: agreement between chunks measures that retrieval was consistent, never that it was right.
    Decision: leave it, measure it, and assert nothing about it.
