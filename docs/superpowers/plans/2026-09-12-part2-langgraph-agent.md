@@ -1033,7 +1033,7 @@ The probe in the tests below is the second kind on purpose.
 By inspection of the `KNOWN_ADJACENT` list in Part 1 Task 18's step **Write `rag/scope.py`** - fixed deposit, recurring deposit, mutual fund, SIP, ELSS, demat, shares, stock market, insurance, gold, cryptocurrency, income tax, GST, tax return - nothing in it matches "pizza topping", so this probe still exercises the groundedness path and these tests do not need rewriting.
 If a later edit adds a food word to that list, this test starts asserting the wrong mechanism and the fix is a new probe here, not a smaller list there.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/test_guardrails_output.py`:
 
@@ -1089,12 +1089,12 @@ def test_an_in_scope_query_passes_end_to_end(built_index):
     assert guardrails.grounded_rule_for(answer) is None
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `.venv/bin/python -m pytest tests/test_guardrails_output.py -q`
 Expected: FAIL, `AttributeError: module 'agent.guardrails' has no attribute 'check_grounded'`.
 
-- [ ] **Step 3: Append to `agent/guardrails.py`**
+- [x] **Step 3: Append to `agent/guardrails.py`**
 
 Add the import at the top of the file, beside the existing ones:
 
@@ -1139,17 +1139,17 @@ def grounded_rule_for(answer) -> str | None:
     )
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_guardrails_output.py -q`
 Expected: PASS, 7 tests.
 
-- [ ] **Step 5: Run the full suite**
+- [x] **Step 5: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
 Expected: PASS. Task 5 adds 7 tests, so the suite is now **baseline + 56**.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add agent/guardrails.py tests/test_guardrails_output.py
