@@ -1,0 +1,93 @@
+"""Test 25 of spec section 16, and the routing behaviour D-44 and D-45 specify."""
+
+from agent import intents
+
+
+def test_a_record_id_is_found():
+    assert intents.find_record_id("What is the status of LN-1042?") == "LN-1042"
+
+
+def test_a_lowercase_record_id_is_found_and_normalised():
+    assert intents.find_record_id("status of ln-1042 please") == "LN-1042"
+
+
+def test_no_record_id_returns_none():
+    assert intents.find_record_id("What is the minimum credit score?") is None
+
+
+def test_a_record_id_alone_routes_to_lookup(built_index):
+    decision = intents.classify("What is the status of LN-1042?", {})
+    assert decision.route == "lookup"
+    assert decision.record_id == "LN-1042"
+
+
+def test_a_record_id_with_policy_language_routes_to_both(built_index):
+    decision = intents.classify(
+        "Why is LN-1042 still under review, and what is the eligibility rule?", {}
+    )
+    assert decision.route == "both"
+    assert decision.record_id == "LN-1042"
+
+
+def test_an_elliptical_question_resolves_from_the_entity_slot(built_index):
+    decision = intents.classify("Is it flagged for fraud?", {"last_record_id": "LN-1042"})
+    assert decision.route == "lookup"
+    assert decision.record_id == "LN-1042"
+
+
+def test_an_elliptical_question_with_no_entity_asks_for_clarification(built_index):
+    decision = intents.classify("Is it flagged for fraud?", {})
+    assert decision.route == "clarify"
+    assert decision.record_id is None
+
+
+def test_a_policy_question_routes_to_policy(built_index):
+    decision = intents.classify("What is the minimum credit score for a home loan?", {})
+    assert decision.route == "policy"
+
+
+def test_a_vague_question_routes_to_clarify(built_index):
+    decision = intents.classify("Can you help me?", {})
+    assert decision.route == "clarify"
+
+
+def test_the_clarify_cap_falls_through_to_policy(built_index):
+    """D-45. Two ambiguous turns in a row must not clarify twice."""
+    decision = intents.classify("Can you help me?", {}, clarify_used=True)
+    assert decision.route == "policy"
+
+
+def test_three_centroids_are_declared():
+    assert set(intents.INTENT_EXEMPLARS) == {"policy", "lookup", "vague"}
+
+
+def test_every_labelled_probe_routes_to_its_label(built_index):
+    """Test 25, first half. The router decides rather than guesses."""
+    from eval import routing
+
+    result = routing.measure_routing()
+    wrong = [r["query"] for r in result["labelled"] if not r["correct"]]
+    assert not wrong, wrong
+    assert result["labelled_correct"] == result["labelled_total"] == 12
+
+
+def test_every_vague_probe_is_caught_except_the_one_on_record(built_index):
+    """Test 25, second half. The known exception cannot silently grow to two."""
+    from eval import routing
+
+    result = routing.measure_routing()
+    missed = [r["query"] for r in result["vague"] if not r["caught"]]
+    assert missed == list(routing.KNOWN_UNCAUGHT)
+
+
+def test_no_real_repository_query_is_swallowed_by_the_vague_centroid(built_index):
+    """The vague class must not eat questions the rest of the repo treats as real."""
+    from eval import calibration
+    from eval.queries import EVAL_QUERIES
+
+    texts = [q.text for q in EVAL_QUERIES] + list(calibration.IN_SCOPE_PROBES)
+    swallowed = [
+        text for text in texts
+        if max(intents.intent_scores(text), key=intents.intent_scores(text).get) == "vague"
+    ]
+    assert not swallowed, swallowed
