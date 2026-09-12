@@ -32,7 +32,7 @@ support rule: at least 2 of the top 3 chunks share one parent document
 
 [EQ-03] What minimum balance must I keep in my savings account?
   top-1 similarity : 0.5429  (threshold 0.3066)
-  retrieved parents: ['kb-09-minimum-balance', 'kb-09-minimum-balance', 'kb-10-credit-score-impact']
+  retrieved parents: ['kb-09-minimum-balance', 'kb-09-minimum-balance', 'kb-09-minimum-balance']
   supported        : True
   citations        : ['kb-09-minimum-balance']
   answer           :

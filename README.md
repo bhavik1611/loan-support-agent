@@ -269,9 +269,37 @@ Short policy-sentence embeddings simply do not sit where those defaults assume.
 
 Every measured value: [`transcripts/part1-calibration.txt`](transcripts/part1-calibration.txt).
 
+### Scope is decided before retrieval, because similarity cannot decide it
+
+The threshold above decides one thing well and a second thing not at all.
+It decides **groundedness**, whether the knowledge base holds a passage that supports an answer.
+It cannot decide **topicality**, whether the question is about a product Meridian Bank sells, and the measurement behind that is blunt.
+
+Hold one sentence frame fixed and swap only the product noun.
+"What is the interest rate on a fixed deposit for 5 years" scores **0.6805** against the same sentence reading "car insurance policy", and **0.7605** against the same sentence reading "home loan".
+The lowest genuine in-scope probe in the table above scores **0.3263** against the very document that answers it.
+An out-of-catalogue question can therefore sit more than twice as high as a real one, so no cut on this signal separates a deposit from a loan, and a larger probe set only measures the failure more precisely.
+Those two readings are recorded in decision D-46 of [the design spec](docs/superpowers/specs/2026-09-10-loan-support-agent-design.md); 0.3263 is the calibration transcript's own minimum.
+
+So topicality is decided first, by [`rag/scope.py`](rag/scope.py), before any vector search runs.
+It is deterministic string matching over two lists and nothing else: the product catalogue read out of [`knowledge_base/catalogue.json`](knowledge_base/catalogue.json), and ten `KNOWN_ADJACENT` phrases naming products Meridian does not sell.
+Longest phrase wins, and the catalogue wins an exact tie.
+A query naming an adjacent product is refused by name before retrieval, which is why every `refused_gate` row in the decision table reports top-1 similarity 0.0000: no search ran.
+
+It works, on the evidence of [`transcripts/part1-golden-dataset.txt`](transcripts/part1-golden-dataset.txt).
+All 10 `outside_boundary` items refuse at the gate on both collections, all 12 `answerable` items still answer on both, and the near-domain false-answer rate over the `outside_boundary` and `inside_uncovered` tiers falls from **14 of 30 readings answered outright to 3 of 24**.
+
+**And the list is curated, which is its weakness, stated in the same breath as the success.**
+An adjacent product nobody thought to add still falls through to the threshold that D-46 just showed cannot catch it.
+That was the anticipated weakness and it remains real and unmeasured.
+The weakness that actually fired was the opposite shape: four of the original fourteen entries matched things they did not mean, so `shares` caught the verb in "my wife shares the account with me", `income tax` and `GST` caught topics the corpus discusses where it touches banking, and each refused a question the knowledge base answers.
+All four are removed, the admission rule is now written into `rag/scope.py` (the list names products and instruments, never topics), and `tests/test_scope.py` pins the four recovered questions.
+The full account, including the one false answer removing `income tax` costs on the collection this repository does not ship, is item 8 of spec section 18.1.
+
 ### The answer decision
 
-An answer is produced only when **both** conditions hold:
+The gate above has already run and passed.
+An answer is then produced only when **both** of these conditions hold:
 
 1. `top1.similarity >= 0.3066`
 2. At least 2 of the top 3 chunks share the same parent `doc_id`
