@@ -1029,7 +1029,7 @@ Each line is a thing the brief's preamble mentions or a reviewer might expect, a
 | Tool calling through a real language model | `llm.py` raises for any provider but mock, by design. The deterministic router of section 11.3 is the stand-in. |
 | Streaming or async nodes | Part 3 territory, and streaming needs a real model, so it follows the `llm.py` swap in section 19. |
 
-### 18.3 A pattern across both parts
+### 18.4 A pattern across both parts
 
 Five mechanisms in this repository decide something on a measured signal.
 Four of them were found, on 2026-09-12, to be deciding on a signal that does not carry the property they were asked to decide, and every one of the four was correct on its own calibration set.
@@ -1066,6 +1066,24 @@ A second rule earned the same day, about test instruments rather than calibratio
 Every candidate probe for a refusal test is fragile somewhere, so the question is not which is robust but **which half fails visibly**.
 An instrument whose weak half is its refusal fails silently, by asserting that a wrong answer is right.
 An instrument whose weak half is a precondition the test checks first fails loudly and names its own cause.
+
+A fifth instance arrived on 2026-09-12 and is the first one caught **during** a fix rather than after it, which is attributable to a probe set existing at all.
+Building the `ELLIPSIS_CUES` replacement, the Part 2 session scored four candidate rules against a labelled set of 14 elliptical and 12 self-contained queries, and each round's probe set caught the previous round's rule.
+
+| rule | elliptical, of 14 | self-contained, of 12 |
+|---|---|---|
+| a bare cue word, the original defect | 14 | 0 |
+| a clause break, any word counts | 8 | 12 |
+| a clause break plus a curated filler list | 13 | 12 |
+| a clause break plus noun-phrase markers | 14 | 9 |
+
+**The lower-scoring rule shipped, deliberately, and the reason is the generalisable part.**
+The filler list scores 25 of 26 against the marker rule's 23, but its 12 of 12 is coincidental, since any word that is not filler satisfies it, and its residue is an *open* list of conversational openers with no way to know when it is complete.
+The marker rule asks a different question: not "is this filler", which needs a list of everything filler can be, but "could this be an antecedent", which has a grammatical answer, because an antecedent for "it" or "them" must be a noun phrase and English noun phrases are introduced by a closed class of determiners, possessives and quantifiers.
+
+The tie-break was taken out of sample, on five openers in neither probe set, because comparing in-sample scores between a fitted rule and a principled one measures the fitting rather than the rule.
+The marker rule's weakness is stated rather than minimised: a bare plural or mass noun takes no determiner, so "Loans affect credit scores, do they not?" reads as elliptical, and three such probes are pinned in a tuple with a test asserting the miss list equals exactly that tuple so it cannot silently grow.
+**A named grammatical class a reader can predict beat a higher score resting on an open list of words nobody thought of**, and that is the choice this section exists to recommend.
 
 ## 19. V2 roadmap
 
