@@ -14,9 +14,9 @@ zero network access. Reproduce with: .venv/bin/python scripts/run_part1.py
 | Measurement | Value |
 |---|---|
 | Minimum in-scope top-1 similarity | 0.3263 |
-| Maximum out-of-scope top-1 similarity | 0.2374 |
-| Gap between the clusters | 0.0889 |
-| **Chosen threshold T** | **0.2818** |
+| Maximum out-of-scope top-1 similarity | 0.2870 |
+| Gap between the clusters | 0.0393 |
+| **Chosen threshold T** | **0.3066** |
 
 ### Chunking comparison
 

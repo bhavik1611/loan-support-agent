@@ -38,7 +38,7 @@ defaults that do not reliably separate short policy-sentence embeddings
 from unrelated queries, so every value below was measured on this
 knowledge base with all-MiniLM-L6-v2 and cosine similarity.
 
-Probes: 12 in-scope, 5 out-of-scope, measured against both collections.
+Probes: 12 in-scope, 17 out-of-scope, measured against both collections.
 
 --- collection: kb_fixed_400_80 ---
   IN SCOPE
@@ -56,11 +56,23 @@ Probes: 12 in-scope, 5 out-of-scope, measured against both collections.
     0.3263  kb-05-fraud-dispute                       Someone used my card without permission, what happens next?
 
   OUT OF SCOPE
+    0.2870  kb-01-loan-eligibility                    Which vaccine schedule applies to a newborn in the first year?
     0.2374  kb-03-credit-card-fees                    Recommend a three-day hiking route in the Western Ghats.
     0.2150  kb-07-interest-rate-slabs                 What is the boiling point of liquid nitrogen at sea level?
+    0.2025  kb-01-loan-eligibility                    How long should I bake sourdough at 220 degrees?
+    0.1886  kb-02-emi-calculation                     How do I change a flat tyre on a bicycle?
+    0.1451  kb-02-emi-calculation                     What is the offside rule in football?
+    0.1441  kb-05-fraud-dispute                       What is the best time of year to visit Iceland?
+    0.1091  kb-01-loan-eligibility                    How do I fix a leaking kitchen tap?
+    0.1089  kb-14-home-loan-ltv                       What is the plot of the novel Midnight's Children?
     0.1047  kb-17-foreclosure-vs-part-prepayment      How do I replace the timing belt on a diesel engine?
     0.1008  kb-04-kyc-documents                       What is the best recipe for a chocolate sponge cake?
+    0.0971  kb-01-loan-eligibility                    Who composed the Four Seasons?
+    0.0932  kb-15-card-late-payment-charges           What is the tallest mountain in South America?
     0.0865  kb-18-nre-vs-nro-operation                Which team won the football World Cup in 2018?
+    0.0855  kb-02-emi-calculation                     Explain how photosynthesis converts light into sugar.
+    0.0598  kb-15-card-late-payment-charges           Write me a haiku about monsoon rain.
+    0.0527  kb-01-loan-eligibility                    How do I train a puppy to stop chewing furniture?
 
 --- collection: kb_sentences ---
   IN SCOPE
@@ -78,18 +90,30 @@ Probes: 12 in-scope, 5 out-of-scope, measured against both collections.
     0.4588  kb-05-fraud-dispute                       Someone used my card without permission, what happens next?
 
   OUT OF SCOPE
+    0.2232  kb-11-joint-account-rules                 Which vaccine schedule applies to a newborn in the first year?
     0.2084  kb-03-credit-card-fees                    Recommend a three-day hiking route in the Western Ghats.
+    0.2005  kb-07-interest-rate-slabs                 What is the best time of year to visit Iceland?
+    0.1960  kb-02-emi-calculation                     How do I change a flat tyre on a bicycle?
     0.1956  kb-06-account-closure                     What is the boiling point of liquid nitrogen at sea level?
+    0.1854  kb-05-fraud-dispute                       How long should I bake sourdough at 220 degrees?
+    0.1845  kb-14-home-loan-ltv                       What is the plot of the novel Midnight's Children?
+    0.1611  kb-02-emi-calculation                     What is the offside rule in football?
     0.1524  kb-01-loan-eligibility                    How do I replace the timing belt on a diesel engine?
+    0.1367  kb-01-loan-eligibility                    How do I fix a leaking kitchen tap?
+    0.1342  kb-16-kyc-reverification                  Who composed the Four Seasons?
+    0.1241  kb-12-nri-account-eligibility             Explain how photosynthesis converts light into sugar.
+    0.1156  kb-09-minimum-balance                     What is the tallest mountain in South America?
     0.1110  kb-04-kyc-documents                       What is the best recipe for a chocolate sponge cake?
     0.1005  kb-18-nre-vs-nro-operation                Which team won the football World Cup in 2018?
+    0.0786  kb-09-minimum-balance                     Write me a haiku about monsoon rain.
+    0.0431  kb-07-interest-rate-slabs                 How do I train a puppy to stop chewing furniture?
 
 --- pooled across both collections ---
   minimum in-scope top-1      = 0.3263
-  maximum out-of-scope top-1  = 0.2374
-  gap                         = 0.0889
+  maximum out-of-scope top-1  = 0.2870
+  gap                         = 0.0393
 
-  threshold T = (0.3263 + 0.2374) / 2 = 0.2818
+  threshold T = (0.3263 + 0.2870) / 2 = 0.3066
 
 An answer is produced only when top-1 similarity is at least T AND at
 least 2 of the top 3 chunks share one parent document.

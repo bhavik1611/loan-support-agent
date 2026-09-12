@@ -40,9 +40,9 @@ def test_every_required_document_is_gold_for_at_least_one_query():
 
 def test_probe_counts_oversample_the_brief_floors():
     assert len(calibration.IN_SCOPE_PROBES) == 12
-    assert len(calibration.OUT_OF_SCOPE_PROBES) == 5
+    assert len(calibration.FAR_OUT_OF_SCOPE_PROBES) == 17
     assert len(set(calibration.IN_SCOPE_PROBES)) == 12
-    assert len(set(calibration.OUT_OF_SCOPE_PROBES)) == 5
+    assert len(set(calibration.FAR_OUT_OF_SCOPE_PROBES)) == 17
 
 
 def test_probes_do_not_reuse_the_evaluation_query_strings():

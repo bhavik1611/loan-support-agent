@@ -213,13 +213,13 @@ MIN_CHUNKS_PER_DOCUMENT = 2
 TOP_K = 3
 SUPPORT_MIN_SHARED = 2
 
-# Measured on 2026-09-11 over 12 in-scope and 5 out-of-scope probes pooled
+# Measured on 2026-09-12 over 12 in-scope and 17 out-of-scope probes pooled
 # across both collections. Minimum in-scope top-1 0.3263, maximum out-of-scope
-# top-1 0.2374, gap 0.0889. T is the midpoint. A tutorial preset of 0.5 would
-# have wrongly refused 8 of the 24 in-scope measurements, which is why the
-# brief bans one. Reproduce with scripts/run_part1.py, which writes
-# transcripts/part1-calibration.txt.
-SIMILARITY_THRESHOLD = 0.2818
+# top-1 0.2870, gap 0.0393, down from 0.0889. T is the midpoint. A tutorial
+# preset of 0.5 would have wrongly refused 8 of the 24 in-scope measurements,
+# which is why the brief bans one. Reproduce with scripts/run_part1.py, which
+# writes transcripts/part1-calibration.txt.
+SIMILARITY_THRESHOLD = 0.3066
 
 # --- Environment ----------------------------------------------------------
 

@@ -239,7 +239,7 @@ def generation_transcript() -> str:
         for query in EVAL_QUERIES:
             lines += _one_answer(generate.answer(query.text, strategy), query.query_id)
         lines += ["--- deliberately out-of-scope queries ---", ""]
-        for probe in calibration.OUT_OF_SCOPE_PROBES[:2]:
+        for probe in calibration.FAR_OUT_OF_SCOPE_PROBES[:2]:
             lines += _one_answer(generate.answer(probe, strategy), "OOS")
     return "\n".join(lines)
 

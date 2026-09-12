@@ -1,12 +1,18 @@
-"""Probe queries for the empirical threshold calibration in Task 4.
+"""The fitting set for the empirical threshold calibration in Task 4.
 
-The brief's floor is 3 in-scope and 2 out-of-scope probes. Twelve and five
-oversample it deliberately: the gap between the two clusters is the entire
-justification for the chosen threshold, and three points do not make a cluster.
+This file derives T and is never scored against. The brief's floor is 3
+in-scope and 2 out-of-scope probes. Twelve and seventeen oversample it
+deliberately: the gap between the two clusters is the entire justification
+for the chosen threshold, and three points do not make a cluster.
 
 The in-scope probes are one per required topic and are deliberately worded
 differently from the twelve evaluation queries, so that calibration and
 scoring are not measuring the same twelve strings twice.
+
+The far out-of-scope probes here are unrelated to banking altogether. Near-
+domain probes, worded close enough to the domain to actually stress the
+threshold, live in eval/queries.py instead: scoring a threshold on the
+strings that set it measures nothing.
 """
 
 from dataclasses import dataclass
@@ -29,12 +35,24 @@ IN_SCOPE_PROBES: list[str] = [
     "Which account types can a person living abroad hold?",
 ]
 
-OUT_OF_SCOPE_PROBES: list[str] = [
+FAR_OUT_OF_SCOPE_PROBES: list[str] = [
     "What is the best recipe for a chocolate sponge cake?",
     "Which team won the football World Cup in 2018?",
     "How do I replace the timing belt on a diesel engine?",
     "What is the boiling point of liquid nitrogen at sea level?",
     "Recommend a three-day hiking route in the Western Ghats.",
+    "How do I train a puppy to stop chewing furniture?",
+    "What is the tallest mountain in South America?",
+    "Write me a haiku about monsoon rain.",
+    "Which vaccine schedule applies to a newborn in the first year?",
+    "How do I fix a leaking kitchen tap?",
+    "What is the plot of the novel Midnight's Children?",
+    "How long should I bake sourdough at 220 degrees?",
+    "Explain how photosynthesis converts light into sugar.",
+    "What is the best time of year to visit Iceland?",
+    "How do I change a flat tyre on a bicycle?",
+    "Who composed the Four Seasons?",
+    "What is the offside rule in football?",
 ]
 
 
@@ -49,9 +67,9 @@ class ProbeResult:
 
 
 def measure(strategy: str) -> list[ProbeResult]:
-    """Top-1 cosine similarity for all seventeen probes against one collection."""
+    """Top-1 cosine similarity for all twenty-nine probes against one collection."""
     results = []
-    for probes, in_scope in ((IN_SCOPE_PROBES, True), (OUT_OF_SCOPE_PROBES, False)):
+    for probes, in_scope in ((IN_SCOPE_PROBES, True), (FAR_OUT_OF_SCOPE_PROBES, False)):
         for probe in probes:
             hits = retrieve.retrieve(probe, strategy, k=1)
             results.append(
@@ -102,7 +120,7 @@ def format_report(summary: dict) -> str:
         "from unrelated queries, so every value below was measured on this",
         "knowledge base with all-MiniLM-L6-v2 and cosine similarity.",
         "",
-        f"Probes: {len(IN_SCOPE_PROBES)} in-scope, {len(OUT_OF_SCOPE_PROBES)} out-of-scope, "
+        f"Probes: {len(IN_SCOPE_PROBES)} in-scope, {len(FAR_OUT_OF_SCOPE_PROBES)} out-of-scope, "
         f"measured against both collections.",
         "",
     ]
