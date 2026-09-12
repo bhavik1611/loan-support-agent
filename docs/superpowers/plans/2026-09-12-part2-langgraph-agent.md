@@ -1521,7 +1521,7 @@ The turn log the brief asks for, plus the entity slot that makes "state correctl
   - `agent.memory.needs_resolution(query: str) -> bool`
   - `config.CONVERSATION_DIR`
 
-- [ ] **Step 1: Add the constant to `config.py`**
+- [x] **Step 1: Add the constant to `config.py`**
 
 Append to the Part 2 section:
 
@@ -1534,7 +1534,7 @@ Append to the Part 2 section:
 CONVERSATION_DIR = DATA_DIR / "conversations"
 ```
 
-- [ ] **Step 2: Add the store to `.gitignore`**
+- [x] **Step 2: Add the store to `.gitignore`**
 
 Append after the `data/meridian_bank.db` entry:
 
@@ -1543,7 +1543,7 @@ Append after the `data/meridian_bank.db` entry:
 data/conversations/
 ```
 
-- [ ] **Step 3: Write the failing tests**
+- [x] **Step 3: Write the failing tests**
 
 Create `tests/test_memory.py`:
 
@@ -1635,12 +1635,12 @@ def test_the_last_turn_route_is_readable(tmp_path):
     assert memory.last_route(thread) == "clarify"
 ```
 
-- [ ] **Step 4: Run the tests to verify they fail**
+- [x] **Step 4: Run the tests to verify they fail**
 
 Run: `.venv/bin/python -m pytest tests/test_memory.py -q`
 Expected: FAIL, `ImportError: cannot import name 'memory' from 'agent'`.
 
-- [ ] **Step 5: Write the module**
+- [x] **Step 5: Write the module**
 
 Create `agent/memory.py`:
 
@@ -1765,17 +1765,17 @@ def needs_resolution(query: str) -> bool:
     )
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [x] **Step 6: Run the tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_memory.py -q`
 Expected: PASS, 10 tests.
 
-- [ ] **Step 7: Run the full suite**
+- [x] **Step 7: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
 Expected: PASS. Task 7 adds 10 tests, so the suite is now **baseline + 79**.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add agent/memory.py config.py .gitignore tests/test_memory.py
