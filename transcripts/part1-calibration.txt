@@ -97,7 +97,7 @@ Probes: 12 in-scope, 17 out-of-scope, measured against both collections.
     0.1956  kb-06-account-closure                     What is the boiling point of liquid nitrogen at sea level?
     0.1854  kb-05-fraud-dispute                       How long should I bake sourdough at 220 degrees?
     0.1845  kb-14-home-loan-ltv                       What is the plot of the novel Midnight's Children?
-    0.1611  kb-02-emi-calculation                     What is the offside rule in football?
+    0.1619  kb-07-interest-rate-slabs                 What is the offside rule in football?
     0.1524  kb-01-loan-eligibility                    How do I replace the timing belt on a diesel engine?
     0.1367  kb-01-loan-eligibility                    How do I fix a leaking kitchen tap?
     0.1342  kb-16-kyc-reverification                  Who composed the Four Seasons?
