@@ -247,6 +247,24 @@ ESCALATION_HALF_RATE_STATUS = "Disbursed"
 # transcripts/part2-escalation.txt.
 ESCALATION_THRESHOLD = 0.50
 
+# --- Part 2 Task 10, guardrails (D-35, D-39) ------------------------------
+
+# Aadhaar is twelve digits and an account number is eleven to sixteen, so the
+# two overlap exactly. Masking keys on format alone and is therefore
+# fail-safe; the Verhoeff check digit only decides which label to print. On
+# the committed data 9 of 66 account numbers are twelve digits and 1 of those
+# 9 also passes Verhoeff, so the label is wrong once in 66 and the redaction
+# is never wrong. Measured, and stated in README.md.
+PII_PLACEHOLDERS = {
+    "PAN": "[PAN_REDACTED]",
+    "AADHAAR": "[AADHAAR_REDACTED]",
+    "ACCOUNT": "[ACCOUNT_REDACTED]",
+}
+
+ACCOUNT_DIGITS_MIN = 11
+ACCOUNT_DIGITS_MAX = 16
+AADHAAR_DIGITS = 12
+
 # --- Environment ----------------------------------------------------------
 
 DEFAULT_PROVIDER = "mock"

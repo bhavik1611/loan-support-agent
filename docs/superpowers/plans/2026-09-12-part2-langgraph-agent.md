@@ -543,7 +543,7 @@ Part 3 Task 12 calls this same function over what it logs, so it is a contract, 
   - `agent.guardrails.mask_pii(text: str) -> tuple[str, list[str]]`
   - `config.PII_PLACEHOLDERS: dict[str, str]`
 
-- [ ] **Step 1: Add the constants to `config.py`**
+- [x] **Step 1: Add the constants to `config.py`**
 
 Append to the Part 2 section added in Task 1:
 
@@ -567,7 +567,7 @@ ACCOUNT_DIGITS_MAX = 16
 AADHAAR_DIGITS = 12
 ```
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create `tests/test_guardrails_pii.py`:
 
@@ -666,7 +666,7 @@ def test_a_record_id_is_not_mistaken_for_pii():
     assert rules == []
 ```
 
-- [ ] **Step 3: Run the tests to verify they fail**
+- [x] **Step 3: Run the tests to verify they fail**
 
 Run: `.venv/bin/python -m pytest tests/test_guardrails_pii.py -q`
 Expected: FAIL at collection, `ImportError: cannot import name 'guardrails' from 'agent'`.
@@ -675,7 +675,7 @@ The test module's first line is `from agent import guardrails`, and Step 5 is wh
 An earlier draft of this step predicted `AttributeError: module 'db.generate' has no attribute 'is_valid_aadhaar'`, which is the failure you get only once `agent/guardrails.py` already exists - it anchored on what makes this task distinctive rather than on what actually fails first.
 You will see that AttributeError after Step 5 and before Step 4, if you happen to run the tests between them; both are the same red.
 
-- [ ] **Step 4: Add the public validator to `db/generate.py`**
+- [x] **Step 4: Add the public validator to `db/generate.py`**
 
 Insert immediately after the `_aadhaar_check_digit` function:
 
@@ -696,7 +696,7 @@ def is_valid_aadhaar(digits: str) -> bool:
     )
 ```
 
-- [ ] **Step 5: Write the guardrails module**
+- [x] **Step 5: Write the guardrails module**
 
 Create `agent/guardrails.py`:
 
@@ -759,19 +759,19 @@ def mask_pii(text: str) -> tuple[str, list[str]]:
     return masked, sorted(fired)
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [x] **Step 6: Run the tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_guardrails_pii.py -q`
 Expected: PASS, 12 tests.
 
-- [ ] **Step 7: Run the full suite**
+- [x] **Step 7: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
 Expected: PASS. Task 3 adds 12 tests, so the suite is now **baseline + 30**.
 
 The database manifest test must still pass. `is_valid_aadhaar` reads the Verhoeff tables and writes nothing, so no generated value moves. If `tests/test_database.py` fails here, you changed generation rather than adding a reader; revert and add only the function above.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add agent/guardrails.py db/generate.py config.py tests/test_guardrails_pii.py

@@ -239,6 +239,22 @@ def _aadhaar_check_digit(first_eleven: str) -> str:
     return str(VERHOEFF_INV[_verhoeff_checksum(first_eleven + "0")])
 
 
+def is_valid_aadhaar(digits: str) -> bool:
+    """Whether a bare digit string is structurally a real Aadhaar number.
+
+    Twelve digits, not starting 0 or 1 because UIDAI issues no such number,
+    and passing the Verhoeff check. Part 2's PII guardrail uses this to choose
+    between the AADHAAR and ACCOUNT labels, which overlap by length.
+    """
+    low, high = AADHAAR_FIRST_DIGITS
+    return (
+        len(digits) == 12
+        and digits.isdigit()
+        and low <= int(digits[0]) <= high
+        and _verhoeff_checksum(digits) == 0
+    )
+
+
 def _unique_aadhaar(rng: random.Random, seen: set[str]) -> str:
     """A structurally valid fabricated Aadhaar number.
 
