@@ -58,7 +58,33 @@ So each task below states how many tests it **adds**, and the running Part 2 del
 Read the baseline out of the suite once, immediately before Task 1, write it at the top of your notes, and check every task against it.
 A task whose delta is wrong has either skipped a test or added one nobody asked for, and both are worth stopping for.
 
-**A note on the working tree.** Updated 2026-09-12. The Part 1 source changes this paragraph originally named were committed in `f9ae786`. What is uncommitted now is the spec amendment carrying D-46 to D-57 and the Part 1 plan carrying Tasks 17 to 20, both belonging to Bhavik. Do not stage, commit, revert or reformat them. Stage only the files each task names.
+**A note on the working tree.** Updated 2026-09-12, second revision.
+A second engineer is working on Part 1 on this same branch and leaves files uncommitted for stretches of time.
+Do not stage, commit, revert or reformat anything a task does not name, and never assume an uncommitted file is yours because you did not see who wrote it.
+
+**Every commit step below names its files twice, and that is not a typo.**
+
+```bash
+git add <paths>
+git commit <the same paths> -m "..."
+```
+
+`git add` followed by a **bare** `git commit` is the shape to avoid.
+A bare commit writes the whole index, so it captures anything the other engineer had staged, and git warns nobody: this happened once on 2026-09-12 and cost two commits to unpick.
+Repeating the pathspec on the commit line bounds the commit to those files whatever else is in the index.
+
+The `git add` line is still needed and cannot be dropped.
+A pathspec-only `git commit` fails on a file git has never seen, with `error: pathspec '...' did not match any file(s) known to git`, and every task here creates new files.
+So the two lines do different jobs: `add` makes the new file known, and the pathspec on `commit` bounds what is written.
+
+Never repair history. No `reset`, no `revert`, no `rebase`, no amending a commit that is not yours. If the history looks wrong, stop and report it.
+
+Verify what landed by reading it back out of the object store, not the working tree, because the working tree reads correct whether or not the commit captured the content:
+
+```bash
+git show --stat HEAD
+git show HEAD:<path> | head -40
+```
 
 ---
 
@@ -265,7 +291,7 @@ Expected: PASS. Task 1 adds 9 tests, so the suite is now **baseline + 9**.
 
 ```bash
 git add agent/__init__.py agent/escalation.py config.py tests/test_escalation.py
-git commit -m "Add the designed escalation score, D-33 and D-34
+git commit agent/__init__.py agent/escalation.py config.py tests/test_escalation.py -m "Add the designed escalation score, D-33 and D-34
 
 Staleness is status-aware because the obvious formulas are not. Measured on
 the committed 100 records, 0.5*fraud + 0.5*(days/30) selects exactly the 16
@@ -539,7 +565,7 @@ Expected: PASS. Task 2 adds 9 tests, so the suite is now **baseline + 18**.
 
 ```bash
 git add agent/tools.py tests/test_tools.py
-git commit -m "Add check_loan_application_status and the RAG tool wrapper
+git commit agent/tools.py tests/test_tools.py -m "Add check_loan_application_status and the RAG tool wrapper
 
 An unknown record id returns found=False with the same keys rather than
 raising, because a miss has to reach the user through the same response
@@ -803,7 +829,7 @@ The database manifest test must still pass. `is_valid_aadhaar` reads the Verhoef
 
 ```bash
 git add agent/guardrails.py db/generate.py config.py tests/test_guardrails_pii.py
-git commit -m "Mask fixed-format PII, and resolve the Aadhaar and account collision
+git commit agent/guardrails.py db/generate.py config.py tests/test_guardrails_pii.py -m "Mask fixed-format PII, and resolve the Aadhaar and account collision
 
 An Aadhaar is twelve digits and an account number is eleven to sixteen, so
 nine of the sixty-six generated customers collide exactly. A masker that
@@ -992,7 +1018,7 @@ Expected: PASS. Task 4 adds 19 tests, so the suite is now **baseline + 49**.
 
 ```bash
 git add agent/guardrails.py tests/test_guardrails_injection.py
-git commit -m "Detect prompt injection with four named rules
+git commit agent/guardrails.py tests/test_guardrails_injection.py -m "Detect prompt injection with four named rules
 
 Each rule returns its own name, because a refusal that cannot say what it
 caught cannot be demonstrated firing, which is what the brief asks for.
@@ -1162,7 +1188,7 @@ Expected: PASS. Task 5 adds 7 tests, so the suite is now **baseline + 56**.
 
 ```bash
 git add agent/guardrails.py tests/test_guardrails_output.py
-git commit -m "Add the output-side groundedness check
+git commit agent/guardrails.py tests/test_guardrails_output.py -m "Add the output-side groundedness check
 
 unsupported delegates to rag.retrieve.is_supported rather than restating the
 threshold and the shared-parent rule, so there is one implementation of the
@@ -1518,7 +1544,7 @@ Expected: PASS. Task 6 adds 13 tests, so the suite is now **baseline + 69**.
 
 ```bash
 git add agent/schema.py agent/response.schema.json config.py tests/test_response_schema.py
-git commit -m "Add the response envelope and its committed JSON Schema
+git commit agent/schema.py agent/response.schema.json config.py tests/test_response_schema.py -m "Add the response envelope and its committed JSON Schema
 
 One model with nullable typed blocks rather than a union of four, because
 Part 3's FastAPI response model would otherwise become a union and the grader
@@ -1816,7 +1842,7 @@ Expected: PASS. Task 7 adds 10 tests, so the suite is now **baseline + 79**.
 
 ```bash
 git add agent/memory.py config.py .gitignore tests/test_memory.py
-git commit -m "Persist conversation history, with an entity slot that does work
+git commit agent/memory.py config.py .gitignore tests/test_memory.py -m "Persist conversation history, with an entity slot that does work
 
 A bare turn log satisfies the brief literally and demonstrates nothing: the
 agent would behave identically whether the log were full or empty, and the
@@ -2233,7 +2259,7 @@ Expected: PASS. Task 8 adds 14 tests, so the suite is now **baseline + 93**.
 
 ```bash
 git add agent/intents.py eval/routing.py tests/test_router.py
-git commit -m "Route by record id, then by three intent centroids
+git commit agent/intents.py eval/routing.py tests/test_router.py -m "Route by record id, then by three intent centroids
 
 A record id is decisive because it is evidence rather than a similarity
 judgement. Everything else is scored against policy, lookup and vague
@@ -2808,7 +2834,7 @@ Expected: PASS. Task 9 adds 21 tests, so the suite is now **baseline + 114**.
 
 ```bash
 git add agent/state.py agent/nodes.py tests/test_nodes.py
-git commit -m "Add the graph state and the nine nodes
+git commit agent/state.py agent/nodes.py tests/test_nodes.py -m "Add the graph state and the nine nodes
 
 Nothing in nodes.py imports langgraph. Every node is a pure function from
 state to a state fragment, so each is tested by calling it with a dict, and
@@ -2868,9 +2894,19 @@ def test_the_graph_has_nine_nodes(built_index):
 
 
 def test_a_policy_question_takes_the_policy_route(built_index):
+    """Routing is decided before an answer exists, so a refused question routes.
+
+    This probe carries "for a loan" deliberately, and the Task 2 note measured
+    why: it scores 0.7015, more than twice T, and is still refused because its
+    top three chunks land on three different parents. Keeping it here asserts
+    something the short form cannot - that `route` reports which branch ran and
+    not whether it succeeded. Do not assert citations on this one; assert those
+    where the answer is the subject.
+    """
     response = graph.ask("What is the minimum credit score for a loan?", thread_id="p")
     assert response["route"] == "policy"
     assert response["policy"] is not None
+    assert response["policy"]["outcome"] == "refused_threshold"
     assert response["lookup"] is None
 
 
@@ -3119,7 +3155,7 @@ Expected: PASS. Task 10 adds 13 tests, so the suite is now **baseline + 127**.
 
 ```bash
 git add agent/graph.py tests/test_graph.py
-git commit -m "Wire the nine nodes into the graph
+git commit agent/graph.py tests/test_graph.py -m "Wire the nine nodes into the graph
 
 This module is topology and nothing else, because every decision already
 lives in nodes.py as a pure function. Nine nodes, two conditional edges, one
@@ -3638,7 +3674,7 @@ Expected: PASS, the same **baseline + 132**. Every Part 2 acceptance criterion h
 
 ```bash
 git add scripts/run_part2.py transcripts/part2-*.txt transcripts/part2-readme-numbers.md README.md tests/test_part2_transcripts.py
-git commit -m "Write the Part 2 transcripts and the README number block
+git commit scripts/run_part2.py transcripts/part2-*.txt transcripts/part2-readme-numbers.md README.md tests/test_part2_transcripts.py -m "Write the Part 2 transcripts and the README number block
 
 One script writes all seven transcripts and the README block, so a retune
 moves a number in both places or in neither. Same rule as run_part1.py, and
