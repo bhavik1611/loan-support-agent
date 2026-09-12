@@ -313,6 +313,9 @@ def main() -> None:
     print("Task 5: chunking comparison")
     write("part1-evaluation.txt", evaluate.format_comparison())
 
+    print("Task 5: decision-level evaluation")
+    write("part1-golden-dataset.txt", evaluate.format_decision_report())
+
     print("README number tables")
     write("part1-readme-numbers.md", readme_numbers(summary, counts))
 

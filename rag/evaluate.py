@@ -4,13 +4,25 @@ The denominator is |R|, the number of distinct parent documents among the top
 three chunks, not a flat 3. That avoids penalising a collection for agreeing
 with itself, and it does favour the collection that concentrates. Rather than
 hide that, every row prints |R| and the recommendation has to argue with it.
+
+Task 19 adds a second, separate pass at the bottom of this file. The metrics
+above are scored over the 12 answerable items only, because only they carry
+gold documents; the decision table is scored over all 29 and measures a
+different thing, per spec section 9.4.
 """
 
 from dataclasses import dataclass
 
 import config
-from eval.queries import EVAL_QUERIES, GoldenItem
-from rag import retrieve
+from eval.queries import (
+    EVAL_QUERIES,
+    GOLDEN_DATASET,
+    KIND_INSIDE_UNCOVERED,
+    KIND_OUTSIDE_BOUNDARY,
+    KINDS,
+    GoldenItem,
+)
+from rag import generate, retrieve
 
 
 @dataclass(frozen=True)
@@ -132,4 +144,210 @@ def format_comparison() -> str:
         lines.append(
             f"{config.COLLECTION_FOR_STRATEGY[strategy]:<20} {precision:>13.4f} {recall:>11.4f}"
         )
+    return "\n".join(lines) + "\n"
+
+
+# --- Task 19. Decision-level evaluation, spec section 9.4 --------------------
+#
+# Precision@3 and Recall@3 above answer "did retrieval find the right
+# document". They cannot answer "should the system have spoken at all", which
+# after D-51 is a separate decision made by a separate mechanism. So this
+# second pass runs all 29 golden items through rag/generate.answer and records
+# which of its three outcomes each produced.
+#
+# Per D-56 only two of the four classes are ever asserted by a test. The
+# numbers below are reported, and the reporting is the point: the
+# inside_uncovered readings and the near-domain false-answer rate stay visible
+# without a test pinning a number that a legitimate retune moves.
+
+OUTCOMES = (
+    generate.OUTCOME_ANSWERED,
+    generate.OUTCOME_REFUSED_GATE,
+    generate.OUTCOME_REFUSED_THRESHOLD,
+)
+
+# The two classes that sound like Meridian Bank business and are not. They are
+# the tier D-48 kept precisely so this rate could be measured.
+NEAR_DOMAIN_KINDS = (KIND_OUTSIDE_BOUNDARY, KIND_INSIDE_UNCOVERED)
+
+# The before figure, measured in section 18.1 before the product gate existed:
+# 15 near-domain probes against both collections, 14 of those 30 readings
+# answered outright. It is printed beside the after figure because a fix with
+# no before number is a claim rather than evidence.
+NEAR_DOMAIN_BEFORE_ANSWERED = 14
+NEAR_DOMAIN_BEFORE_READINGS = 30
+
+
+@dataclass(frozen=True)
+class DecisionRow:
+    item_id: str
+    query: str
+    kind: str
+    strategy: str
+    outcome: str
+    top1_similarity: float
+    product: str
+    citations: tuple[str, ...]
+
+
+def decide(item: GoldenItem, strategy: str) -> DecisionRow:
+    """One golden item's decision, read off GroundedAnswer.outcome directly.
+
+    The outcome is not re-derived from `supported` and `top1_similarity` here.
+    rag/generate.py owns that rule, and a second copy of it in the scorer would
+    let the two disagree about what the system did.
+    """
+    result = generate.answer(item.text, strategy)
+    return DecisionRow(
+        item_id=item.item_id,
+        query=item.text,
+        kind=item.kind,
+        strategy=strategy,
+        outcome=result.outcome,
+        top1_similarity=result.top1_similarity,
+        product=result.product,
+        citations=result.citations,
+    )
+
+
+def decisions(strategy: str) -> list[DecisionRow]:
+    """Every golden item scored against one collection, in dataset order."""
+    return [decide(item, strategy) for item in GOLDEN_DATASET]
+
+
+def counts_by_kind(rows: list[DecisionRow]) -> dict[str, dict[str, int]]:
+    """class -> outcome -> count, in the declared KINDS and OUTCOMES order.
+
+    Both levels are seeded from tuples rather than accumulated from the rows,
+    so the iteration order of the result is the declared order and never the
+    order the data happened to arrive in.
+    """
+    tally = {kind: {outcome: 0 for outcome in OUTCOMES} for kind in KINDS}
+    for row in rows:
+        tally[row.kind][row.outcome] += 1
+    return tally
+
+
+def near_domain_false_answers(rows: list[DecisionRow]) -> tuple[int, int]:
+    """(answered, readings) over the outside_boundary and inside_uncovered rows.
+
+    An answer to either class is a false answer: outside_boundary names a
+    product Meridian Bank does not sell, and inside_uncovered is inside the
+    boundary with no document behind it, so there is nothing to ground on.
+    """
+    near = [row for row in rows if row.kind in NEAR_DOMAIN_KINDS]
+    answered = sum(1 for row in near if row.outcome == generate.OUTCOME_ANSWERED)
+    return answered, len(near)
+
+
+def _decision_table(rows: list[DecisionRow], strategy: str) -> list[str]:
+    lines = [
+        f"--- collection: {config.COLLECTION_FOR_STRATEGY[strategy]} "
+        f"(strategy: {strategy}) ---",
+        "",
+        f"{'item':<6} {'class':<18} {'outcome':<18} {'top-1':>7}  {'product':<20} citations",
+    ]
+    for row in rows:
+        lines.append(
+            f"{row.item_id:<6} {row.kind:<18} {row.outcome:<18} "
+            f"{row.top1_similarity:>7.4f}  {row.product or '-':<20} "
+            f"{list(row.citations)}"
+        )
+
+    tally = counts_by_kind(rows)
+    lines += [
+        "",
+        "per-class summary",
+        "",
+        f"  {'class':<18} {'n':>3} {'answered':>9} {'refused_gate':>13} "
+        f"{'refused_threshold':>18}",
+    ]
+    for kind in KINDS:
+        row = tally[kind]
+        lines.append(
+            f"  {kind:<18} {sum(row.values()):>3} "
+            f"{row[generate.OUTCOME_ANSWERED]:>9} "
+            f"{row[generate.OUTCOME_REFUSED_GATE]:>13} "
+            f"{row[generate.OUTCOME_REFUSED_THRESHOLD]:>18}"
+        )
+
+    answered, readings = near_domain_false_answers(rows)
+    lines += [
+        "",
+        f"  near-domain false answers on this collection: {answered} of {readings}",
+        "",
+    ]
+    return lines
+
+
+def format_decision_report() -> str:
+    """The decision table for both collections, plus the near-domain rate."""
+    lines = [
+        f"Decision-level evaluation - {len(GOLDEN_DATASET)} golden items, both collections",
+        "",
+        "Precision@3 and Recall@3 measure whether retrieval found the right",
+        "document. They cannot measure whether the system should have spoken at",
+        "all, which after D-51 is decided by a separate mechanism before any",
+        "vector search runs. This table records that decision instead.",
+        "",
+        "  answered           the gate passed, T was cleared, and the support rule agreed",
+        "  refused_gate       the product gate of rag/scope.py refused before retrieval",
+        "  refused_threshold  retrieval ran, and T or the support rule refused",
+        "",
+        f"threshold T = {config.SIMILARITY_THRESHOLD}, top-k = {config.TOP_K}, support rule:",
+        f"at least {config.SUPPORT_MIN_SHARED} of the top {config.TOP_K} chunks share one "
+        "parent document.",
+        "",
+        "A refused_gate row reports top-1 similarity 0.0000 because no retrieval",
+        "ran, not because a search scored zero.",
+        "",
+        "Per D-56 a test asserts two of these four classes and no more:",
+        "outside_boundary must refuse at the gate, and far_out_of_scope must",
+        "refuse by either mechanism. The answerable and inside_uncovered numbers",
+        "are reported here and pinned nowhere, for the reason D-13 gives.",
+        "",
+    ]
+
+    combined: list[DecisionRow] = []
+    for strategy in sorted(config.COLLECTION_FOR_STRATEGY):
+        rows = decisions(strategy)
+        combined += rows
+        lines += _decision_table(rows, strategy)
+
+    answered, readings = near_domain_false_answers(combined)
+    lines += [
+        "--- the near-domain false-answer rate ---",
+        "",
+        "The near-domain tier is outside_boundary plus inside_uncovered: the",
+        "questions that sound like Meridian Bank business and are not. Each item",
+        "is counted once per collection, which is the reading the before figure",
+        "was taken on.",
+        "",
+        f"  before the product gate : {NEAR_DOMAIN_BEFORE_ANSWERED} of "
+        f"{NEAR_DOMAIN_BEFORE_READINGS} readings answered outright",
+        f"  after the product gate  : {answered} of {readings} readings answered outright",
+        "",
+    ]
+    still = [row for row in combined if row.kind in NEAR_DOMAIN_KINDS
+             and row.outcome == generate.OUTCOME_ANSWERED]
+    if still:
+        lines.append("Still answered, named rather than hidden:")
+        lines.append("")
+        for row in still:
+            lines.append(
+                f"  {row.item_id} ({row.kind}) on "
+                f"{config.COLLECTION_FOR_STRATEGY[row.strategy]} "
+                f"at {row.top1_similarity:.4f}  {row.query}"
+            )
+        lines += [
+            "",
+            "These are coverage gaps rather than scope failures: the question is",
+            "inside the product boundary of D-47 and no document answers it, so",
+            "the support rule agrees with itself about a document that does not",
+            "answer the question. The fix belongs to Part 2 or to V2's two-signal",
+            "fallback, never to rewording the probe until it passes.",
+            "",
+        ]
+    else:
+        lines += ["No near-domain reading is answered on either collection.", ""]
     return "\n".join(lines) + "\n"

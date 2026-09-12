@@ -349,6 +349,10 @@ With one relevant document per query, Recall@3 could only take the values 0 and 
 
 Per-query arithmetic for both collections, as fractions: [`transcripts/part1-evaluation.txt`](transcripts/part1-evaluation.txt).
 
+Precision@3 and Recall@3 measure whether retrieval found the right document, and they are scored over the 12 `answerable` items because only those carry gold documents.
+They cannot measure whether the system should have spoken at all, which is a separate decision made by a separate mechanism before any vector search runs.
+The decision-level table scores all 29 golden items on that question instead, recording `answered`, `refused_gate` or `refused_threshold` per item per collection, with the near-domain false-answer rate printed beside the figure measured before the product gate existed: [`transcripts/part1-golden-dataset.txt`](transcripts/part1-golden-dataset.txt).
+
 ### The denominator asymmetry, and why it does not change the answer
 
 Dividing by `|R|` rather than by a flat 3 avoids penalising a collection for agreeing with itself, but it favours whichever collection concentrates more, because a smaller `|R|` inflates precision for the same overlap.
