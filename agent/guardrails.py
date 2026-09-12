@@ -54,3 +54,57 @@ def mask_pii(text: str) -> tuple[str, list[str]]:
     masked = _GROUPED_12.sub(_digits, masked)
     masked = _BARE_DIGITS.sub(_digits, masked)
     return masked, sorted(fired)
+
+
+# Checked in order, first match wins, so detection is deterministic when a
+# query trips two rules at once. Each name is returned to the caller and
+# printed in the refusal, because a guardrail that cannot say what it caught
+# cannot be demonstrated firing.
+INJECTION_RULES: tuple[tuple[str, re.Pattern], ...] = (
+    (
+        # Three alternatives, because "Disregard the above" carries no noun and
+        # a single pattern broad enough to catch it also catches "Can I ignore
+        # the minimum balance rule?", which is an ordinary customer question.
+        "instruction_override",
+        re.compile(
+            r"\b(?:ignore|disregard|forget|override)\b[^.]{0,30}"
+            r"\b(?:previous|prior|earlier|above|all)\b[^.]{0,20}"
+            r"\b(?:instruction|instructions|prompt|prompts|rule|rules|message|messages|context)\b"
+            r"|\b(?:ignore|disregard|forget|override)\s+(?:the\s+)?(?:above|previous|prior|earlier)\b"
+            r"|\b(?:ignore|disregard|forget|override)\b[^.]{0,30}"
+            r"\byour\s+(?:instruction|instructions|prompt|rules)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "role_reassignment",
+        re.compile(
+            r"\b(you are now|act as|pretend to be|from now on you|"
+            r"you must now behave)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "exfiltration",
+        re.compile(
+            r"\b(reveal|print|show|repeat|output|dump)\b[^.]{0,30}"
+            r"\b(system prompt|your instructions|your prompt|your rules)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        # llm.py recovers its own prompt with ^\[([a-z0-9\-]+)\] applied to the
+        # whole user string, so a forged source line in a query would be read
+        # back as retrieved context. This rule exists for that surface.
+        "delimiter_injection",
+        re.compile(r"(?m)(^|\s)(CONTEXT:|QUESTION:)|\[kb-\d{2}\]", re.IGNORECASE),
+    ),
+)
+
+
+def detect_injection(text: str) -> str | None:
+    """The name of the first rule that matches, or None."""
+    for name, pattern in INJECTION_RULES:
+        if pattern.search(text):
+            return name
+    return None

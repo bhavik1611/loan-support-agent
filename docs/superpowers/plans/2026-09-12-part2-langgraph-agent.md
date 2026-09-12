@@ -807,7 +807,7 @@ A refusal that cannot say which rule fired is not demonstrable, and the brief as
   - `agent.guardrails.INJECTION_RULES: tuple[tuple[str, re.Pattern], ...]`
   - `agent.guardrails.detect_injection(text: str) -> str | None`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/test_guardrails_injection.py`:
 
@@ -880,12 +880,12 @@ def test_the_first_matching_rule_wins_deterministically():
     assert guardrails.detect_injection(text) == "instruction_override"
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `.venv/bin/python -m pytest tests/test_guardrails_injection.py -q`
 Expected: FAIL, `AttributeError: module 'agent.guardrails' has no attribute 'detect_injection'`.
 
-- [ ] **Step 3: Append the rules to `agent/guardrails.py`**
+- [x] **Step 3: Append the rules to `agent/guardrails.py`**
 
 Add at the end of the file:
 
@@ -944,7 +944,7 @@ def detect_injection(text: str) -> str | None:
     return None
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_guardrails_injection.py -q`
 Expected: PASS, 20 tests.
@@ -952,12 +952,12 @@ Expected: PASS, 20 tests.
 If a benign probe trips a rule, widen the benign list only after confirming the rule is genuinely too broad, then tighten the pattern.
 Never delete a benign probe to make a rule pass; a false positive on an ordinary loan question is a real defect.
 
-- [ ] **Step 5: Run the full suite**
+- [x] **Step 5: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
 Expected: PASS. Task 4 adds 20 tests, so the suite is now **baseline + 50**.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add agent/guardrails.py tests/test_guardrails_injection.py
