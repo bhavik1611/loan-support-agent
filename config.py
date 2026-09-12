@@ -286,7 +286,22 @@ RESPONSE_SCHEMA_PATH = REPO_ROOT / "agent" / "response.schema.json"
 
 # --- Environment ----------------------------------------------------------
 
+# .env is read once, at import, and never overrides a variable the real
+# environment already set (D-63). The precedence matters: a grader who exports
+# LLM_PROVIDER=mock for a run must not have it silently replaced by a developer
+# .env sitting in the checkout.
+def _load_dotenv() -> None:
+    try:
+        from dotenv import load_dotenv
+    except ImportError:  # the file is optional, so the dependency is too
+        return
+    load_dotenv(REPO_ROOT / ".env", override=False)
+
+
+_load_dotenv()
+
 DEFAULT_PROVIDER = "mock"
+PROVIDER_GROQ = "groq"
 
 
 def resolve_provider() -> str:
@@ -296,3 +311,38 @@ def resolve_provider() -> str:
 
 LLM_PROVIDER = resolve_provider()
 MOCK_LLM = LLM_PROVIDER == DEFAULT_PROVIDER
+
+# --- Groq provider, spec section 20 ---------------------------------------
+
+GROQ_API_KEY_VAR = "GROQ_API_KEY"
+GROQ_BASE_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+# Verified against the live models endpoint on 2026-09-12 rather than recalled:
+# the Llama 3.3 70B id this would otherwise have pinned is not hosted (D-60).
+# groq/compound is excluded deliberately; it carries server-side web search and
+# could answer from outside the retrieved context.
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+
+# gpt-oss is a reasoning model and bills reasoning against the same budget: on
+# the measured call 71 of 118 completion tokens were reasoning. Too small a
+# budget returns empty content, which llm.py raises on rather than letting
+# rag/generate.py read it as a refusal (D-61).
+GROQ_MAX_TOKENS = 1200
+GROQ_TIMEOUT_SECONDS = 60
+
+# Groq's edge returns 403 for the stdlib default "Python-urllib/3.12" and 200
+# for any explicit agent. Measured on 2026-09-12 with the same body from the
+# same process, changing only this header (D-64).
+GROQ_USER_AGENT = "loan-support-agent/1.0"
+
+# --- Observability, spec section 21 ---------------------------------------
+
+LOG_DIR = REPO_ROOT / "logs"
+LOG_FILE = LOG_DIR / "agent.jsonl"
+
+# Quiet by default, so adding the spine changed nothing about an ordinary run.
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "WARNING")
+
+# Durations are rounded to this many decimal places before they are logged, so
+# clock noise never becomes the reason two runs look different (D-69).
+LOG_DURATION_PLACES = 1

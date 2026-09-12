@@ -35,3 +35,6 @@ data/conversations/
 .mcp.json
 .lavish/
 CLAUDE.md
+
+# Groq demo output. Not reproducible, so never committed.
+demo/

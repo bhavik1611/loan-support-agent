@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 import config
 from rag import index, kb
+import obs
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,13 @@ def retrieve(
     the index, so neither collection is rebuilt for the filter.
     """
     k = config.TOP_K if k is None else k
+    with obs.timed(
+        "rag.retrieve", strategy=strategy, k=k, product=product or None
+    ) as line:
+        return _retrieve(query, strategy, k, product, line)
+
+
+def _retrieve(query, strategy, k, product, line):
     collection = index.get_collection(strategy)  # raises on an unknown strategy
     narrowing = {}
     if product:
@@ -65,7 +73,11 @@ def retrieve(
                 similarity=round(1.0 - float(distance), 4),
             )
         )
-    return sorted(hits, key=lambda h: h.similarity, reverse=True)
+    ranked = sorted(hits, key=lambda h: h.similarity, reverse=True)
+    line["hits"] = len(ranked)
+    line["top1_similarity"] = ranked[0].similarity if ranked else None
+    line["doc_ids"] = sorted({h.doc_id for h in ranked})
+    return ranked
 
 
 def parent_documents(hits: list[Hit]) -> list[str]:

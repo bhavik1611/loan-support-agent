@@ -24,6 +24,7 @@ from functools import lru_cache
 
 from agent import memory
 from rag import index
+import obs
 
 RECORD_ID = re.compile(r"\bLN-\d{4}\b", re.IGNORECASE)
 
@@ -123,6 +124,17 @@ def intent_scores(query: str) -> dict[str, float]:
 
 def classify(query: str, entities: dict, clarify_used: bool = False) -> RouteDecision:
     """The route for this query, given what the thread already knows."""
+    decision = _classify(query, entities, clarify_used)
+    obs.event(
+        "agent.route",
+        route=decision.route,
+        reason=decision.reason,
+        top_score=max(decision.scores.values()) if decision.scores else None,
+    )
+    return decision
+
+
+def _classify(query: str, entities: dict, clarify_used: bool = False) -> RouteDecision:
     record_id = find_record_id(query)
 
     if record_id is None and memory.needs_resolution(query):

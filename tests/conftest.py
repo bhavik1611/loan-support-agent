@@ -9,6 +9,18 @@ os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 
 
+@pytest.fixture(autouse=True)
+def pinned_to_mock(monkeypatch):
+    """Every test runs under MOCK_LLM, whatever the environment says.
+
+    config.py loads .env at import (D-63), so without this a developer who sets
+    LLM_PROVIDER=groq in .env turns the whole offline suite into network calls
+    and the offline claim in CLAUDE.md quietly becomes false. Pinning here is
+    what makes `HF_HUB_OFFLINE=1 pytest` a proof rather than a habit.
+    """
+    monkeypatch.setenv("LLM_PROVIDER", "mock")
+
+
 @pytest.fixture(scope="session")
 def built_index():
     from rag import index

@@ -66,6 +66,7 @@ import re
 from dataclasses import dataclass
 
 from rag import kb
+import obs
 
 # Products Meridian Bank does not sell that people ask about anyway. The
 # catalogue side of the gate is read from knowledge_base/catalogue.json and is
@@ -130,6 +131,7 @@ def classify(query: str) -> ScopeVerdict:
             candidates.append((len(product), 1, product, False))
 
     if not candidates:
+        obs.event("scope.classify", outcome="no_product_named", product="")
         return ScopeVerdict(query=query, product="", in_catalogue=False, known_adjacent=False)
 
     # Longest phrase first, catalogue ahead of adjacent on a tie, then
@@ -137,6 +139,11 @@ def classify(query: str) -> ScopeVerdict:
     _, _, product, in_catalogue = sorted(
         candidates, key=lambda c: (-c[0], c[1], c[2])
     )[0]
+    obs.event(
+        "scope.classify",
+        outcome="in_catalogue" if in_catalogue else "known_adjacent",
+        product=product,
+    )
     return ScopeVerdict(
         query=query,
         product=product,

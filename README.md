@@ -28,7 +28,7 @@ uv venv --python 3.12 .venv
 VIRTUAL_ENV=.venv uv pip install -r requirements.txt
 
 .venv/bin/python scripts/run_part1.py      # runs every Part 1 task, rewrites transcripts/
-.venv/bin/python -m pytest                  # 212 Part 1 tests, 339 with Part 2's
+.venv/bin/python -m pytest                  # 212 Part 1 tests, 350 with Part 2's and the provider
 ```
 
 The embedding weights for `all-MiniLM-L6-v2` download once on first use, into `~/.cache/huggingface` outside the repository.
@@ -40,7 +40,10 @@ HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 .venv/bin/python -m pytest
 ```
 
 Both pass with the network hard-disabled.
-No API key is read anywhere, and `chroma/` is generated locally and gitignored.
+`chroma/` is generated locally and gitignored.
+
+No API key is read in the default mode, and no acceptance criterion depends on one.
+A key is read only when you opt in with `LLM_PROVIDER=groq`, which is described below and which the graded scripts refuse to run under.
 
 ## Part 1 Task 1 - dataset design
 
@@ -402,10 +405,54 @@ Both mean `|R|` values sit near 1.3, so the top 3 chunks usually come from one p
 Recall here is capped by retrieving 3 *chunks* rather than 3 *documents*, which is a property of the design and not of either chunker.
 Retrieving a wider candidate set and then deduplicating down to 3 parents would lift recall for both, and is listed as a V2 upgrade rather than smuggled into V1.
 
+## The optional Groq provider
+
+`MOCK_LLM` is the default and the mode every graded transcript was produced in.
+A real model is optional, off by default, and cannot affect anything graded.
+
+```bash
+cp .env.example .env          # then put your key in it; .env is gitignored
+LLM_PROVIDER=groq .venv/bin/python scripts/run_groq_demo.py
+```
+
+Four environment variables, and the file names them without values:
+
+| Variable | Default | What it does |
+|---|---|---|
+| `LLM_PROVIDER` | `mock` | `mock` is offline and deterministic. `groq` calls the real model. |
+| `GROQ_API_KEY` | none | Required only under `groq`. Absent, the provider raises and names it. |
+| `GROQ_MODEL` | `openai/gpt-oss-120b` | Verified against the live models endpoint, not recalled. |
+| `LOG_LEVEL` | `WARNING` | `INFO` to see one JSON line per boundary. |
+
+Three properties are worth stating because they are what makes the switch safe:
+
+- **`scripts/run_part1.py` refuses to run under a real provider** and exits non-zero before writing anything. `transcripts/` and the number blocks above are byte-guarded, and a real model is not bit-reproducible.
+- **The test suite is pinned to `mock`** whatever `.env` says, so the offline proof above stays a proof.
+- **Nothing degrades quietly.** A missing key, an HTTP error, or a completion truncated mid-answer all raise. None of them is passed off as the knowledge base declining to answer.
+
+Only the answer sentence changes when the key is set. The product gate, the router, retrieval, the lookup template and the guardrails are deterministic under every provider.
+
+## Observability
+
+Every boundary emits one JSON line, keyed on the same deterministic `trace_id` the response envelope carries.
+
+```bash
+LOG_LEVEL=INFO .venv/bin/python -m pytest tests/test_generate.py -q
+```
+
+```json
+{"doc_ids": ["kb-07-interest-rate-slabs"], "duration_ms": 12.4, "event": "rag.retrieve", "hits": 3, "level": "INFO", "outcome": "ok", "strategy": "kb_sentences", "top1_similarity": 0.5103}
+```
+
+Lines go to stderr and to a gitignored `logs/`, never into `transcripts/` or the tables above, because a log line carries a clock and those bytes are guaranteed.
+Queries pass through the same masker the guardrails use, the API key is never logged in any form, and retrieved context is logged as document ids and counts rather than as text.
+
+A metrics endpoint is deliberately not here: there is no server in this part to serve one from, and Part 3 adds one.
+
 ## Tests
 
 212 Part 1 tests, all passing offline.
-The repository suite reports 339 because Part 2 is being built alongside this branch and adds 127 of its own; the split is by whether a test file imports `agent/`.
+The repository suite reports 350 because Part 2 is being built alongside this branch and adds 127 of its own, and the provider and logging spine add 11; the split is by whether a test file imports `agent/`.
 The ten that restate an acceptance criterion directly:
 
 | # | Test | Criterion it restates |

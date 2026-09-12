@@ -287,8 +287,26 @@ def readme_numbers(summary: dict, counts: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _require_mock_provider() -> None:
+    """Refuse to write graded artefacts under a real provider (D-67).
+
+    transcripts/ and the README number blocks are byte-guarded, and a real
+    model is not bit-reproducible. Without this, one forgotten line in .env
+    rewrites them and the diff looks like a legitimate retune.
+    """
+    provider = config.resolve_provider()
+    if provider != config.DEFAULT_PROVIDER:
+        sys.exit(
+            f"Refusing to run: LLM_PROVIDER={provider!r}. This script writes "
+            f"graded, byte-guarded artefacts and only {config.DEFAULT_PROVIDER!r} "
+            f"is reproducible. Unset LLM_PROVIDER, or use "
+            f"scripts/run_groq_demo.py to exercise the real provider."
+        )
+
+
 def main() -> None:
     """Main function."""
+    _require_mock_provider()
     print("Part 1 - running every task under MOCK_LLM")
     print()
 

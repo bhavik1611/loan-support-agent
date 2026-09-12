@@ -14,6 +14,7 @@ from agent import escalation
 import dataset
 from db import query
 from rag import generate
+import obs
 
 # Every key the lookup block carries, on a hit and on a miss alike.
 LOOKUP_FIELDS = (
@@ -56,8 +57,16 @@ def check_loan_application_status(record_id: str, conn=None) -> dict:
     """
     record = dataset.get_application(record_id)
     if record is None:
+        obs.event("agent.lookup", record_id=record_id, found=False)
         return dict.fromkeys(LOOKUP_FIELDS) | {"found": False, "record_id": record_id}
 
+    obs.event(
+        "agent.lookup",
+        record_id=record_id,
+        found=True,
+        status=record["status"],
+        recommend_escalation=escalation.recommend_escalation(record),
+    )
     return {
         "found": True,
         "record_id": record_id,

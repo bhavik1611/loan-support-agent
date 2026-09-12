@@ -16,6 +16,7 @@ from typing import Literal
 
 import config
 import llm
+import obs
 from rag import retrieve, scope
 from rag.retrieve import Hit
 
@@ -24,10 +25,19 @@ FALLBACK_TEXT = (
     "supporting material to answer that question, so I will not guess."
 )
 
+# The closing-line instruction is not decoration: _cited_documents below splits
+# on the literal "Sources:" and reads bracketed ids after it. Under MOCK_LLM the
+# template writes that shape by construction, so the contract was never stated.
+# A real model does not: gpt-oss-120b cited as U+3010 kb-07 U+3011 and
+# _cited_documents returned nothing for a fully grounded answer. Stating the
+# format costs nothing under mock, which accepts `system` and never reads it
+# (D-62).
 SYSTEM_PROMPT = (
     "You are Meridian Bank's loan support assistant. Answer only from the "
     "CONTEXT block. Never add a fact that is not in the context. Cite the "
-    "document id of every source you use."
+    "document id of every source you use. End your reply with a final line of "
+    "exactly this form, using square brackets and the ids as given: "
+    "Sources: [doc-id] [doc-id]"
 )
 
 # The three outcomes of spec section 9.4, and only three. Part 2 matches on
@@ -93,8 +103,12 @@ def answer(
     # The gate of spec section 8.5 runs before retrieval, because D-46 measured
     # that similarity cannot decide whether a question is about a product
     # Meridian Bank sells.
+    obs.event("rag.answer.start", query=obs.mask(query), strategy=strategy)
     verdict = scope.classify(query)
     if verdict.known_adjacent:
+        obs.event(
+            "rag.answer", outcome=OUTCOME_REFUSED_GATE, product=verdict.product
+        )
         return GroundedAnswer(
             query=query,
             text=FALLBACK_TEXT,
@@ -113,6 +127,11 @@ def answer(
     supported = retrieve.is_supported(hits, config.SIMILARITY_THRESHOLD)
 
     if not supported:
+        obs.event(
+            "rag.answer",
+            outcome=OUTCOME_REFUSED_THRESHOLD,
+            top1_similarity=retrieve.top1_similarity(hits),
+        )
         return GroundedAnswer(
             query=query,
             text=FALLBACK_TEXT,
