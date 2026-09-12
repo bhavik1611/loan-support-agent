@@ -933,6 +933,13 @@ Four further items opened during implementation and review, and are recorded her
    Measured again in Task 19 across both collections, it is worse than a coin flip: IU-01 is **answered** under `kb_fixed_400_80` at 0.3327, citing `kb-15`.
    So the same item is refused on one collection and answered on the other, and both `inside_uncovered` items are answered under `kb_fixed_400_80`.
    That is the strongest argument against ever using IU-01 as a test instrument, and it did not reach Part 2's graph tests only because `graph.ask` is fixed to `kb_sentences`.
+
+   That last clause names a coupling worth stating on its own, because it is real and nothing in either part makes it visible.
+   **Part 2's behaviour on the `inside_uncovered` class is a property of Part 1's collection choice, not of `agent/`.**
+   Item 4 above settled that choice on Precision@3 and Recall@3, which are deliberately unpinned by any test per D-13, so a legitimate retune of the chunk parameters could reverse the recommendation.
+   If it did, IU-01 would flip from refused to answered inside Part 2 with no test failing anywhere, because D-56 correctly forbids asserting on this class.
+   Nothing here should change: pinning the class to protect the coupling would trade a fragile number for a fragile test, which is the trade D-13 and D-56 both refuse.
+   The coupling is recorded so that whoever retunes reads this before concluding the collections are interchangeable downstream.
    IU-02 reads 0.4645 top-1 and is **answered**: all three of its top chunks come from `kb-12`, which covers NRI account eligibility and does not cover international remittance, so the support rule agrees with itself about the wrong document.
    That is the sharper half of this item, and it is a property of the support rule rather than of the gate: agreement between chunks measures that retrieval was consistent, never that it was right.
    Decision: leave it, measure it, and assert nothing about it.
