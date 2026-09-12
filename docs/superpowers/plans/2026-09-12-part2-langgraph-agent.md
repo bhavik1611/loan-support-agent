@@ -2326,7 +2326,7 @@ reading the return value of two functions rather than by running a graph.
 """
 
 import config
-from agent import escalation, guardrails, intents, memory, schema, tools
+from agent import guardrails, intents, memory, schema, tools
 from agent.state import AgentState
 from rag import retrieve
 
