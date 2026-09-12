@@ -1,8 +1,9 @@
 # Loan Support Agent - design specification
 
-Status: approved design for Part 1, declared interfaces for Parts 2 to 4, roadmap only for V2.
+Status: approved design for Parts 1 and 2, declared interfaces for Parts 3 and 4, roadmap only for V2.
 Written 2026-09-10 after two grilling rounds.
 Amended 2026-09-12 after three more, adding the time axis in D-26 to D-31.
+Amended again 2026-09-12, adding Part 2 in sections 15 to 20 and D-33 to D-45, approved off the review artifact of that date.
 Authority: `reference/problem-statement.md` is the brief; where this document and the brief disagree, the brief wins and this document is wrong.
 
 ## 1. Scope
@@ -11,8 +12,9 @@ This repository answers the **Cred (Banking & FinTech)** capstone track with a l
 V1 is the brief-compliant system: it answers loan-policy questions from a knowledge base written here, looks up loan applications from a dataset generated here, and is orchestrated, deployed, evaluated and hardened across four parts.
 V2 is a later, portfolio-grade rebuild that is described in section 10 and implemented nowhere in this repository.
 
-This document specifies Part 1 in full.
-Parts 2 to 4 appear only as the interfaces they will consume, so that Part 1 is built against a known contract rather than refactored into one later.
+This document specifies Parts 1 and 2 in full.
+Parts 3 and 4 appear only as the interfaces they will consume, so that the parts below them are built against a known contract rather than refactored into one later.
+Part 1 is implemented; Part 2 is approved and not yet implemented.
 
 ## 2. Ground rules
 
@@ -68,6 +70,20 @@ Decisions marked "overrode recommendation" were taken by Bhavik against the reco
 | D-32 | What a knowledge-base document is | Plain `.txt` prose, with `title`, `topic` and `required` in a sidecar `catalogue.json` | Markdown with YAML front matter lost because it makes a document carry claims about itself that a real policy document does not: an ingestion pipeline reads files a business already has, and those files are prose. Renaming the extension while keeping the front matter lost too, and lost for the worse reason, because it relabels the format without changing anything. Deriving the metadata instead of storing it lost because `required` records which of the brief's topics a document covers, which is a fact about the corpus rather than about any one file, and `rag/index.py` writes `topic` and `required` into every chunk's metadata, so the retrieval layer needs them as much as evaluation does. The catalogue is the one place they live, and the loader fails rather than defaults if it and the directory disagree. Bodies were migrated programmatically and verified byte-identical, so no measured number moved. |
 | D-31 | Whether the snapshot carries the new fields | `data/loan_applications.json` gains `created_at` and `updated_at`, appended after the brief's six in the brief's order | Overrode recommendation. Keeping the projection at six fields lost, although it was recommended: it would have left the committed snapshot byte-identical and the hash test untouched. Bhavik chose to carry the timestamps through to the projection, so acceptance criterion 7 is restated rather than deleted, and the fields are appended rather than interleaved so that `PROJECTED_FIELDS`' promise to hold "the brief's six fields, in the brief's order" stays literally true. |
 
+| D-33 | The escalation score's shape | `0.45*fraud + 0.55*stale`, where `stale` is `min(days/21, 1)` at full rate while the application is open, half rate once `Disbursed`, and zero once `Rejected` | `0.5*fraud + 0.5*(days/30)` lost on measurement: at its own 85th percentile it selects exactly the 16 fraud-flagged records and no others, so the recency term changes nothing and the score is the bare boolean OR the brief forbids. The same formula with a 21-day saturation but no status awareness lost for the same reason, identically. Zeroing staleness for **both** terminal statuses lost because it leaves 5 `Disbursed` applications carrying a fraud flag permanently below the line, which is money already out of the bank with nobody looking at it. |
+| D-34 | The escalation threshold | 0.50, which is the 80th percentile of the score over the committed 100 records | A percentile computed at run time lost because it moves when the dataset does and the transcripts would stop being reproducible. A round 0.5 chosen first and justified afterwards lost because that is the untested preset the brief bans in Task 4 and the same objection applies here. |
+| D-35 | How a fixed-format PII field is recognised | Format alone decides that a value is masked; the Verhoeff check digit only decides whether the label reads `AADHAAR` or `ACCOUNT` | Recognising Aadhaar by its 12-digit format alone lost because 9 of the 66 generated account numbers are also 12 digits and would have reached Part 3's log in the clear. Gating the mask on a valid check digit lost because a mask that can fail open is not a mask; this way the label can be wrong, never the redaction. |
+| D-36 | The response envelope's shape | One Pydantic model with typed nullable `policy`, `lookup` and `guardrails` blocks, exported to a committed JSON Schema and validated with `jsonschema` as well as by construction | A discriminated union per route lost because Part 3's FastAPI response model would become a union of four and the grader would have four schemas to check. A flat always-present schema lost because it advertises fields a given route can never fill. Trusting Pydantic construction alone lost because only re-validating the serialised dict proves the **exported** schema is the one being met. |
+| D-37 | What the persisted memory holds | The turn log the brief asks for, plus a resolved-entity slot carrying `last_record_id` | A bare turn log lost because it can only demonstrate that history is present, and the brief also asks for a transcript showing state correctly absent. With an entity slot the same second-turn question routes to `lookup` on a warm thread and to `clarify` on a fresh one, which is a difference a reader can see. A rolling MOCK_LLM summary lost because the summary would be template output and would demonstrate plumbing rather than memory. |
+| D-38 | Where the trace id comes from | `sha256(f"{thread_id}|{turn_index}|{masked_query}")` truncated to 16 hex characters | `uuid4()` lost outright: two runs of `scripts/run_part2.py` would produce different transcript bytes and the determinism ground rule in section 2 would stop holding. A monotonic counter lost because it is not stable when one transcript is regenerated on its own. The input is the **masked** query, so no raw PII reaches the hash. |
+| D-39 | What the guardrails are | Three input PII rules, four named injection rules, and two output rules | A single unnamed injection regex lost because a refusal that cannot say which rule fired is not demonstrable, and the brief asks for each guardrail to be shown firing. `delimiter_injection` exists because `llm.py` parses its own prompt back with `^\[([a-z0-9\-]+)\]` and a forged `[kb-07]` line in a query would otherwise be read as retrieved context. `phantom_citation` goes beyond the brief and catches a cited `doc_id` that was never retrieved. |
+| D-40 | Where Part 2's evidence lands | Seven transcripts written by `scripts/run_part2.py`, never typed by hand | Same rule as D-12, restated because it is the rule most easily lost when a second script appears. A single combined Part 2 transcript lost because a grader checking one acceptance criterion would have to read all of them. |
+| D-41 | How the lookup route speaks | A fixed non-LLM template over the record's own fields, tagged `source: "record"` in the envelope | Sending the record through `llm.generate` lost because that is generation with no retrieval behind it, so the groundedness guardrail has nothing to check and the output would sit in the same envelope as a grounded answer while meaning something different. Returning the structured block with no sentence lost because a support agent reads the sentence. |
+| D-42 | How much customer context is spoken aloud | Name and open-loan count in the answer text; credit score only in the structured block, never in prose | Saying the credit score in the answer text lost because a support agent reading a score aloud to a member is a different act from seeing it on screen, and the envelope already carries it for any caller that needs it. Omitting it entirely lost because D-21 put it in `customer_context` deliberately and Part 3 consumes that block. |
+| D-44 | How intent is routed | A record-id regex decides outright; otherwise the query is embedded with the model already loaded and scored against intent exemplar centroids | A scored keyword table lost because it is a second vocabulary to keep in sync with the knowledge base, and it is brittle under paraphrase. A `MOCK_LLM` classifier node lost because under mock the classifier is template matching anyway, so it adds a layer without adding signal. The margin that decides whether the router may commit is measured, not preset, for the reason the brief gives in Task 4. |
+| D-45 | What happens when the router cannot commit | A `clarify` node returning one specific question, capped at one per thread | Defaulting to the RAG route lost because the router would silently guess and the groundedness fallback would absorb the mistake, which hides it. Treating low margin as the `both` route lost because it wastes a lookup on queries carrying no record id and blurs what `both` means. Uncapped clarification lost because two ambiguous turns in a row would loop. |
+| D-43 | How far past the brief Part 2 goes | Nine nodes, two conditional edges and four route outcomes, against the brief's floor of four nodes and one conditional edge | A brief-tight graph of four nodes lost because the conditional edge would then be a binary with nothing to demonstrate beyond itself. A supervisor delegating to specialist sub-agents lost because under `MOCK_LLM` a supervisor is template matching delegating to template matching, and the brief names multi-agent orchestration in its preamble without requiring it in any Part 2 task. Section 20 lists what this deliberately does not build. |
+
 ## 4. Repository layout
 
 ```
@@ -83,11 +99,24 @@ loan-support-agent/
     retrieve.py               Task 4. Top-k retrieval, cosine similarity, support rule.
     generate.py               Task 4. Grounded generation and the fallback.
     evaluate.py               Task 5. Precision@3 and Recall@3 for both collections.
+  agent/
+    state.py                  Task 7. AgentState, the graph's only channel schema.
+    escalation.py             Task 6. The designed score and its threshold, pure functions of one record.
+    tools.py                  Tasks 6 and 7. check_loan_application_status, and the RAG tool wrapper.
+    intents.py                Task 7. Intent exemplars and the embedding router.
+    guardrails.py             Task 10. PII masking, injection rules, groundedness check.
+    memory.py                 Task 8. JSON thread store and the entity slot.
+    schema.py                 Task 9. The response envelope and its exported JSON Schema.
+    response.schema.json      Task 9. Committed, and what compose validates against.
+    nodes.py                  Task 7. The nine node functions.
+    graph.py                  Task 7. Wiring, compile, and the ask() entry point.
   eval/
     queries.py                12 evaluation queries with graded gold labels.
     calibration.py            In-scope and out-of-scope probe queries for threshold calibration.
+    routing.py                Part 2. Labelled probe queries for the ROUTE_MARGIN calibration.
   scripts/
     run_part1.py              Runs every Part 1 task and writes the transcripts.
+    run_part2.py              Runs every Part 2 task and writes the transcripts.
     check_database.py         The grader's one-command database check.
   db/
     schema.py                 The seven CREATE TABLE statements.
@@ -95,6 +124,7 @@ loan-support-agent/
     build.py                  Build the database and write the manifest.
     query.py                  Read helpers Part 2 consumes.
   data/
+    conversations/            Generated JSON thread store, gitignored.
     loan_applications.json    Committed snapshot, guarded by a hash test.
     database-manifest.md      Committed DDL, row counts and hash of the database.
     meridian_bank.db          Generated seven-table store, gitignored.
@@ -105,8 +135,8 @@ loan-support-agent/
   chroma/                     Generated vector store, gitignored.
 ```
 
-Parts 2 to 4 add `agent/`, `api/`, `mcp_server/` and `mcp_client.py` alongside these.
-No existing module moves when they arrive, which is the point of D-02.
+Parts 3 and 4 add `api/`, `mcp_server/` and `mcp_client.py` alongside these.
+No existing module moved when `agent/` arrived and none moves when those do, which is the point of D-02.
 
 ## 5. Part 1 Task 1 - dataset
 
@@ -393,8 +423,13 @@ Nothing here is implemented in Part 1 beyond what Part 1 already needs.
 | Part 2 Task 7, RAG tool | `answer(query, strategy) -> GroundedAnswer` with `.text`, `.citations`, `.supported`, `.top1_similarity` | `rag/generate.py` |
 | Part 2 Task 10, output guardrail | `.supported` and `.top1_similarity` on `GroundedAnswer` | `rag/generate.py` |
 | Part 3 Task 13, LLM judge | `generate(system, user) -> str` under `MOCK_LLM` | `llm.py` |
-| Part 3 Task 12, log masking | The same masking function the input guardrail uses | Part 2, `agent/guardrails.py` |
-| Part 4 Task 14, MCP tool | `get_application` with a proper docstring | `dataset.py` |
+| Part 3 Task 11, request and response models | `AgentResponse`, and the committed `agent/response.schema.json` it exports | `agent/schema.py` |
+| Part 3 Task 11, the one call behind both endpoints | `ask(query, thread_id) -> AgentResponse` | `agent/graph.py` |
+| Part 3 Task 12, log masking | `mask_pii(text) -> (masked, rules_fired)`, the same function the input guardrail uses | `agent/guardrails.py` |
+| Part 3 Task 12, trace id | `AgentResponse.trace_id`, deterministic per D-38 | `agent/schema.py` |
+| Part 4 Task 14, MCP tool | `get_application` with a proper docstring, and `escalation_score` beside it | `dataset.py`, `agent/escalation.py` |
+| Part 4 Task 15, checkpointing | The compiled graph, which takes a checkpointer at `compile()` time and is keyed by the same `thread_id` the memory store uses | `agent/graph.py` |
+| Part 4 Task 16, the node that retries | A node boundary that already exists, so the retry policy attaches without reshaping the graph | `agent/graph.py` |
 | All parts | `T`, chunk parameters, paths, `MOCK_LLM` flag | `config.py` |
 
 The recommended collection from Task 5 becomes Part 2's fixed RAG input.
@@ -423,8 +458,25 @@ Per D-13, one test per acceptance criterion, and no more.
 | 11 | Every `kyc_documents.doc_type` and `support_tickets.channel` appears in `kb-04` and `kb-05` | Section 5.4 consistency rules 2 and 3 |
 | 12 | A freshly built database matches the committed `data/database-manifest.md` | D-17, the drift guarantee D-09 established for the JSON snapshot |
 
+Part 2 continues the numbering.
+
+| # | Test | Acceptance criterion it restates |
+|---|---|---|
+| 17 | `check_loan_application_status` returns status, amount and score for a known id, and a typed miss for an unknown one | "correctly looks up a record" |
+| 18 | At least one unflagged record scores at or above the threshold and at least one flagged record scores below it | "a designed, justified escalation score, not a bare boolean OR". This is the test D-33 exists for, and the rejected formulas fail it |
+| 19 | The compiled graph reports nine nodes, and two sample queries take different branches | "4 or more nodes and a conditional edge that routes to both tools" |
+| 20 | Turn 2 of a seeded thread resolves the record id from memory, and the same turn on a fresh thread routes to `clarify` | "multi-turn memory demonstrated, with a separate transcript showing it correctly absent" |
+| 21 | Every response from every route validates against `agent/response.schema.json` | "every agent response validates against the declared schema" |
+| 22 | A PAN, an Aadhaar and a 14-digit account number are each masked, and no raw value appears anywhere in the emitted state | "PII masking demonstrated firing on the fixed-format fields" |
+| 23 | Each of the four injection rules fires on its own probe and yields `route = refused` with the rule named | "prompt-injection detection demonstrated firing" |
+| 24 | An out-of-scope query yields the groundedness refusal rather than an answer | "an output-side groundedness check that refuses" |
+| 25 | The measured in-scope routing margin exceeds the measured ambiguous margin | D-44's calibration discipline, and the brief's ban on an untested preset |
+| 26 | The same thread and turn yields the same `trace_id` twice | D-38, and the determinism ground rule in section 2 |
+| 27 | The `both` route writes `policy` and `lookup` from different nodes, and no key twice | Section 16.2, the claim that the fan-out cannot reorder |
+
 Precision@3 and Recall@3 are deliberately not pinned.
 They move legitimately when chunk parameters are tuned, and a test that fights tuning is a test that gets deleted.
+The measured `ROUTE_MARGIN` is pinned only by test 25, which asserts the separation rather than the value, for the same reason.
 
 ## 12. Evidence
 
@@ -437,7 +489,17 @@ Per D-12.
 - `transcripts/part1-generation.txt` - 5 or more in-scope queries answered, plus the out-of-scope fallback
 - `transcripts/part1-evaluation.txt` - per-query arithmetic for both collections and the averages
 
-`README.md` states the completed track, the exact dataset-design choices needed to reproduce the dataset, the measured calibration values and chosen threshold, the Task 5 recommendation, and a link to each transcript.
+`scripts/run_part2.py` runs every Part 2 task in order and writes:
+
+- `transcripts/part2-escalation.txt` - the formula, the full score distribution, the threshold's percentile, and the escalated set
+- `transcripts/part2-routing.txt` - the `ROUTE_MARGIN` calibration, then both tool routes firing on different queries
+- `transcripts/part2-graph.txt` - the node list, the edge list, and one run per route end to end
+- `transcripts/part2-memory.txt` - the two-turn thread with state carried
+- `transcripts/part2-memory-fresh.txt` - the separate fresh thread with state absent
+- `transcripts/part2-schema.txt` - the exported JSON Schema, then every response validated against it
+- `transcripts/part2-guardrails.txt` - one deliberate case per rule, with the text before and after
+
+`README.md` states the completed track, the exact dataset-design choices needed to reproduce the dataset, the measured calibration values and chosen threshold, the Task 5 recommendation, the escalation formula with its threshold percentile, and a link to each transcript.
 Number tables in `README.md` are generated by the same run that writes the transcripts, never typed by hand.
 
 ## 13. V2 roadmap
@@ -486,3 +548,235 @@ A fifth item opened during implementation and is recorded here rather than fixed
    `data/loan_applications.json` is byte-identical to its pre-database state and a test asserts it on every run.
    The knowledge-base agreement tests found a real drift on their first run - the generator had written "Voter ID Card" and "NREGA Job Card" where `kb-04` says "a voter identity card" and "a job card issued under NREGA" - which is what those tests exist for.
    Largest EMI deviation from `kb-02`'s formula across all 276 instalments: 0.0047 rupees.
+
+## 15. Part 2 Task 6 - the lookup tool and the escalation score
+
+### 15.1 What the tool returns
+
+`agent/tools.py::check_loan_application_status(record_id: str) -> dict` returns the brief's three keys plus the context D-21 allows.
+
+| Key | Source |
+|---|---|
+| `status`, `loan_amount_inr` | `dataset.get_application` |
+| `escalation_score`, `recommend_escalation` | `agent/escalation.py` |
+| `customer_context` | `db/query.py::customer_context`, exactly its four non-PII fields |
+| `found` | `False` when the id is unknown, rather than raising |
+
+An unknown id is a normal outcome, not an error.
+The graph has to put it in the same envelope as everything else, so the tool returns `found: False` rather than raising and forcing a try block into a node.
+
+### 15.2 The escalation score
+
+Per D-33.
+
+```
+fraud = 1.0 if flagged_for_fraud_review else 0.0
+
+raw   = min(days_since_created / 21, 1.0)
+stale = raw        if status in {Submitted, Under Review, Approved}
+      = 0.5 * raw  if status == Disbursed
+      = 0.0        if status == Rejected
+
+escalation_score = round(0.45 * fraud + 0.55 * stale, 4)
+```
+
+The open-status set is imported from `db/query.py::OPEN_STATUSES` rather than redefined, so the two cannot drift.
+
+Three of the four constants are declared modelling choices rather than sourced facts, and `README.md` says so, the same way it already does for tenure and business hours.
+
+| Constant | Value | Why |
+|---|---|---|
+| Saturation | 21 days | Only 10 of the 100 records sit at or beyond it, so the term stops discriminating there. The knowledge base states no loan-assessment turnaround, so nothing could be read out of it: `kb-01`'s 3 working days is the shortened path for an existing customer, not the standard one. |
+| Weights | 0.45 fraud, 0.55 staleness | Chosen so neither signal at a typical value crosses the threshold alone, which is what forces the two to combine. |
+| Disbursed half-rate | 0.5 | The money has left the bank, so the clock still runs, but no customer is waiting on a decision. |
+| Open statuses | Submitted, Under Review, Approved | Imported, not declared. |
+
+### 15.3 The threshold, and the property that justifies it
+
+`ESCALATION_THRESHOLD = 0.50`, in `config.py` with every other tunable.
+
+Measured over the committed 100 records:
+
+| Measure | Value |
+|---|---|
+| Percentile of 0.50 in the score distribution | 80th |
+| Records escalated | 20 |
+| Of those, flagged | 14 |
+| Of those, unflagged but stale | 6 |
+| Flagged records below the threshold | 2, both `Rejected` |
+| Distinct score values | 42 |
+| Days before a flagged open application fires | 2 |
+| Days before an unflagged open application fires | 20 |
+
+The last four rows are the point.
+Six unflagged records cross the line on staleness alone and two flagged records stay below it, which is exactly what a bare boolean OR on `flagged_for_fraud_review` cannot produce: an OR yields 16 and 0.
+Test 18 asserts both directions, so a future retune that collapses the score back into an OR fails the suite rather than passing quietly.
+
+## 16. Part 2 Task 7 - the graph
+
+Per D-43: nine nodes and two conditional edges, against the brief's floor of four and one.
+
+### 16.1 Nodes
+
+| Node | Does | Writes |
+|---|---|---|
+| `guard_input` | Masks fixed-format PII, runs the four injection rules | `masked_query`, `guardrails` |
+| `recall` | Loads the thread's history and entity slot, resolves ellipsis | `history`, `entities` |
+| `route` | Picks the intent and records the margin | `route`, `route_scores` |
+| `policy_answer` | `rag.generate.answer` on `kb_sentences` | `policy` |
+| `lookup_status` | `check_loan_application_status`, per section 15 | `lookup` |
+| `clarify` | Returns one specific question | `clarification` |
+| `verify` | Output-side groundedness and the citation check | `guardrails.grounded` |
+| `compose` | Builds the envelope, validates it, persists the turn | `response` |
+| `refuse` | Short-circuit refusal naming the rule that fired | `refusal` |
+
+`route` is a node and `pick_branch` is the edge's path function.
+Keeping them separate means the branch decision is a pure function of state and test 19 can call it without running the graph.
+
+### 16.2 The conditional edges
+
+The first is `guard_input -> refuse` when an injection rule fired, and `guard_input -> recall` otherwise.
+
+The second is the one the brief asks for.
+`pick_branch(state)` returns `"policy"`, `"lookup"`, `"clarify"`, or the two-element sequence `["policy_answer", "lookup_status"]`.
+
+That sequence is why the `both` route is one return value rather than two edges: `StateGraph.add_conditional_edges` types its path as `Callable[..., Hashable | Sequence[Hashable]]`, so LangGraph runs both nodes in the same superstep and merges.
+
+The merge is safe because the two nodes write disjoint keys, `policy` and `lookup`.
+No reducer runs, so merge order cannot change the bytes, and the determinism ground rule survives the only concurrency in the system.
+Test 27 asserts the disjointness rather than assuming it.
+
+Every branch, including `refuse`, converges on `compose`.
+A refusal is a response, so it carries a trace id, validates against the same schema, and is persisted to the thread like any other turn.
+
+### 16.3 The router
+
+Three stages, cheapest first, per D-44 and D-45.
+
+1. A record id in the query, `\bLN-\d{4}\b`, is decisive. With policy language alongside it, the route is `both`; alone, `lookup`.
+2. Otherwise the query is embedded with `rag/index.py::embed` and scored against intent exemplar centroids. The embeddings are already unit-normalised, so cosine is a dot product and no new dependency appears.
+3. If the best intent's margin over the second is below `config.ROUTE_MARGIN`, the route is `clarify`.
+
+`ROUTE_MARGIN` is measured, not chosen.
+`eval/routing.py` holds labelled probe queries, `scripts/run_part2.py` measures the in-scope and ambiguous margins, and `transcripts/part2-routing.txt` records them, exactly as `SIMILARITY_THRESHOLD` 0.2818 was derived in section 8.2.
+The value cannot be written here because it does not exist until the code runs; section 20 carries it as an open item.
+
+### 16.4 State
+
+`AgentState` is a `TypedDict` and the graph's only channel schema.
+
+`thread_id`, `trace_id`, `turn`, `query`, `masked_query`, `history`, `entities`, `route`, `route_scores`, `policy`, `lookup`, `clarification`, `refusal`, `guardrails`, `response`.
+
+`trace_id` is `sha256(f"{thread_id}|{turn}|{masked_query}")[:16]`, per D-38.
+It is derived from the masked query, so no raw PII reaches the hash input, and Part 3 Task 12 can log it beside the masked text without a second decision.
+
+## 17. Part 2 Task 8 - memory
+
+Per D-37.
+
+One JSON file per thread under `data/conversations/`, gitignored as runtime state.
+`scripts/run_part2.py` copies the two demonstration threads into `transcripts/`, which is where committed evidence lives under D-12.
+
+The store holds the turn log the brief asks for, plus an `entities` object whose only member in V1 is `last_record_id`.
+`lookup_status` sets it; `recall` injects it when the query carries a pronoun or ellipsis and no explicit record id.
+
+The two transcripts are the same second-turn question on two threads:
+
+| Thread | Turn 1 | Turn 2, "Is it flagged for fraud?" | Route |
+|---|---|---|---|
+| `demo-multiturn` | "What is the status of LN-1042?" | resolves `it` to LN-1042 from the entity slot | `lookup` |
+| `demo-fresh` | none | nothing to resolve `it` to | `clarify` |
+
+That difference is what makes "state correctly absent" visible.
+A bare turn log would show an empty list in one file and a populated one in the other, and the agent would behave identically either way.
+
+This store is not Part 4's checkpointer.
+The JSON store is the conversation, readable and diffable; the SQLite checkpointer in Task 15 is graph execution state for resuming a half-finished run.
+Both key on `thread_id` and neither reads the other.
+
+## 18. Part 2 Task 9 - the response envelope
+
+Per D-36.
+
+`agent/schema.py` defines one Pydantic model, `AgentResponse`, and exports `agent/response.schema.json`, which is committed.
+
+Top level: `trace_id`, `thread_id`, `turn`, `route`, `answer`, then the nullable blocks `policy`, `lookup` and `guardrails`.
+
+| `route` | `policy` | `lookup` | `answer` |
+|---|---|---|---|
+| `policy` | set | null | grounded text with citations |
+| `lookup` | null | set | the record template of D-41 |
+| `both` | set | set | both, joined |
+| `clarify` | null | null | one specific question |
+| `refused` | null | null | the refusal, and the rule that caused it |
+
+`compose` validates twice on purpose.
+Pydantic builds the object, then `jsonschema.validate` checks the serialised dict against the committed schema file.
+Only the second check proves the exported schema is the one being met, and the exported schema is what Part 3's FastAPI layer and the grader both read.
+
+The `lookup` block carries `source: "record"`, per D-41.
+A lookup answer is a fixed template over the record's own fields with no model call behind it, so it must be distinguishable in the envelope from a grounded answer that went through retrieval.
+
+`customer_context` inside `lookup` carries the four fields D-21 permits.
+Per D-42, the answer text names the customer and their open-loan count; the credit score appears only in the block and never in prose.
+
+## 19. Part 2 Task 10 - guardrails
+
+Per D-39. Three input rules, four injection rules, two output rules.
+
+| Side | Rule | Fires on | Effect |
+|---|---|---|---|
+| input, PII | `PAN` | `[A-Z]{5}[0-9]{4}[A-Z]` | `[PAN_REDACTED]` |
+| input, PII | `AADHAAR` | 12 digits with a valid Verhoeff check digit | `[AADHAAR_REDACTED]` |
+| input, PII | `ACCOUNT` | 11 to 16 digits, not a valid Aadhaar | `[ACCOUNT_REDACTED]` |
+| input, injection | `instruction_override` | "ignore previous instructions", "disregard the above" | refuse, rule named |
+| input, injection | `role_reassignment` | "you are now", "act as", "pretend to be" | refuse, rule named |
+| input, injection | `exfiltration` | "reveal your system prompt", "print your instructions" | refuse, rule named |
+| input, injection | `delimiter_injection` | a forged `CONTEXT:` or `[kb-NN]` block in the query | refuse, rule named |
+| output | `unsupported` | `GroundedAnswer.supported` is false | the Part 1 fallback text |
+| output | `phantom_citation` | a cited `doc_id` that was not among the retrieved hits | drop to refusal |
+
+The masker is one function, `mask_pii`, and Part 3 Task 12 calls the same one over what it logs.
+That is a contract, not a convenience: the brief requires that a fixed-format PII field never reach disk in the clear.
+
+`delimiter_injection` exists because of a real surface in this repository.
+`llm.py` recovers its own prompt with `_SOURCE = ^\[([a-z0-9\-]+)\]\s*(.+)$` applied to the whole user string, so a query containing a forged `[kb-07] ...` line would be parsed as retrieved context.
+
+`AADHAAR` and `ACCOUNT` overlap by format, and the Verhoeff digit is what separates them, per D-35.
+Measured over the 66 generated customers: account-number lengths are `{11: 11, 12: 9, 13: 10, 14: 14, 15: 10, 16: 12}`, so 9 collide with the Aadhaar format exactly, and 1 of those 9 also passes the Verhoeff check and is labelled `AADHAAR` instead of `ACCOUNT`.
+All 66 are redacted either way.
+The label can be wrong once in 66; the redaction cannot be wrong at all, which is the property that matters.
+
+## 20. Part 2 open items and carried risks
+
+Recorded here rather than resolved, at Bhavik's instruction on the review artifact of 2026-09-12, so that implementation acts on them deliberately.
+
+1. `config.ROUTE_MARGIN` is not chosen.
+   It is measured at implementation time over `eval/routing.py`, written to `transcripts/part2-routing.txt`, and pinned only by test 25, which asserts the separation rather than the value.
+   Writing a number here would be the untested preset the brief bans in Task 4, and the same objection applies to a router.
+
+2. **Carried risk.** The known false refusal of open item 5 gets louder in Part 2.
+   "What documents are needed for KYC?" scores 0.5124 top-1, far above `T`, but its top three sentence chunks land on three different parents, so the support rule refuses.
+   In Part 1 that sat in a transcript; in Part 2 it is what a user sees.
+   Decision: leave it. It is honest behaviour, `tests/test_generate.py` pins it, and changing the support rule now would move every measured Part 1 number.
+   The two-signal fallback in section 13 is the V2 upgrade that removes it, and it is the option that lost in D-07.
+
+3. **Carried risk.** The `clarify` route can loop if a user answers an ambiguous question ambiguously.
+   Decision: one clarify per thread, per D-45.
+   A second consecutive ambiguous turn falls through to the policy route and lets the groundedness guardrail handle the outcome, so the graph cannot ask twice in a row.
+   `recall` reads the previous turn's route to enforce this, which is a second use for state the thread already carries.
+
+4. The `both` route's answer joins two texts whose tones differ, one grounded and cited, one a record template.
+   No decision is needed before implementation, but the join is the first thing to read in `transcripts/part2-graph.txt`, and if it reads badly the fix is the template in D-41 rather than the graph.
+
+### What Part 2 deliberately does not build
+
+Each line is a thing the brief's preamble mentions or a reviewer might expect, and the reason it is absent.
+
+| Not building | Why not, in V1 |
+|---|---|
+| A supervisor or multi-agent pattern | The brief's preamble names multi-agent orchestration; no Part 2 task requires it. Under `MOCK_LLM` a supervisor is template matching delegating to template matching. |
+| A rolling conversation summary | The summary would be template output, so it would demonstrate plumbing rather than memory. |
+| A reflection or self-critique loop | Nothing under `MOCK_LLM` can judge its own output, so the loop would always agree with itself. |
+| Tool calling through a real language model | `llm.py` raises for any provider but mock, by design. The deterministic router of section 16.3 is the stand-in. |
+| Streaming or async nodes | Part 3 territory, and streaming needs a real model, so it follows the `llm.py` swap in section 13. |
