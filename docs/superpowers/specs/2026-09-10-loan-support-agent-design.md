@@ -884,6 +884,11 @@ Four further items opened during implementation and review, and are recorded her
    "for a loan" pulls `kb-13` in beside `kb-10`, the top three land on three different parents, and the support rule declines at 0.7015, more than twice `T`.
    Drop those two words and two of three chunks share `kb-10`, so it answers at the lower similarity of 0.6477.
 
+   A fourth instance was created deliberately and is worth keeping for that reason.
+   Fix round 1 retagged `kb-09` so that "What minimum balance must I keep in my NRE account?" would stop being answered without the document holding the figures.
+   It now reads 0.543 across `kb-09`, `kb-12` and `kb-18`, three distinct parents, and is refused.
+   The retag traded a plausible incomplete answer for an honest refusal, which is the right direction, but the user still gets nothing: it narrowed the defect rather than closing it.
+
    Taken with item 8, the support rule now has a measured failure in both directions: here it fails to agree about the right documents, and in IU-02 it agrees with itself about the wrong one at 0.4645.
    Every one of these readings, 0.5124 and 0.7015 and 0.4645, sits comfortably above `T`.
    Chunk agreement is doing all of the deciding in all of them, and it is the only signal in the pipeline with no calibration behind it.
