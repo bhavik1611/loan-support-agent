@@ -16,6 +16,7 @@ import re
 
 import config
 from db.generate import is_valid_aadhaar
+from rag import retrieve
 
 _PAN = re.compile(r"\b[A-Z]{5}[0-9]{4}[A-Z]\b")
 
@@ -108,3 +109,37 @@ def detect_injection(text: str) -> str | None:
         if pattern.search(text):
             return name
     return None
+
+
+def check_grounded(
+    supported: bool, citations, retrieved_doc_ids
+) -> str | None:
+    """The output side. Returns the rule that fired, or None if the answer stands.
+
+    Takes plain values rather than a GroundedAnswer on purpose: these three
+    are what the graph carries in state, and Part 4 Task 15 attaches a SQLite
+    checkpointer that serialises state. A dataclass holding Hit objects would
+    not survive that round trip, so nothing unserialisable ever goes in.
+
+    `unsupported` delegates to Part 1's decision, which produced `supported`,
+    rather than restating the threshold and the shared-parent rule here.
+
+    `phantom_citation` is beyond the brief. Under MOCK_LLM the generator
+    builds its citation list from the chunks it was handed, so this cannot
+    currently fire; it exists because the moment a real provider is wired in
+    behind LLM_PROVIDER a fabricated citation becomes possible, and this is
+    the check that catches it.
+    """
+    if not supported:
+        return "unsupported"
+    retrieved = set(retrieved_doc_ids)
+    if any(doc_id not in retrieved for doc_id in citations):
+        return "phantom_citation"
+    return None
+
+
+def grounded_rule_for(answer) -> str | None:
+    """check_grounded applied to a GroundedAnswer, for callers holding one."""
+    return check_grounded(
+        answer.supported, answer.citations, retrieve.parent_documents(list(answer.hits))
+    )
