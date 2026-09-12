@@ -52,6 +52,8 @@ No API key is read anywhere, and `chroma/` is generated locally and gitignored.
 |---|---|---|---|---|
 | `1` | 100 | 16 (16.0%) | 5 | 5 |
 
+<!-- End of generated block. -->
+
 Full report: [`transcripts/part1-dataset.txt`](transcripts/part1-dataset.txt).
 
 ### Everything needed to reproduce the dataset
@@ -260,6 +262,8 @@ That oversamples the brief's floors of 3 and 2, because the gap between the two 
 | Gap between the clusters | 0.0393 |
 | **Chosen threshold T** | **0.3066** |
 
+<!-- End of generated block. -->
+
 `T` is the midpoint of the two observed clusters, pooled across both collections.
 One threshold rather than one per collection, because the answer decision has to be a single rule that Part 2 imports.
 
@@ -276,7 +280,7 @@ It decides **groundedness**, whether the knowledge base holds a passage that sup
 It cannot decide **topicality**, whether the question is about a product Meridian Bank sells, and the measurement behind that is blunt.
 
 Hold one sentence frame fixed and swap only the product noun.
-"What is the interest rate on a fixed deposit for 5 years" scores **0.6805** against the same sentence reading "car insurance policy", and **0.7605** against the same sentence reading "home loan".
+"What is the interest rate on a fixed deposit for 5 years?" scores **0.6805** against the same sentence reading "car insurance policy", and **0.7605** against the same sentence reading "home loan" - the question mark is part of all three probes, and dropping it reads 0.6266 and 0.6938 instead.
 The lowest genuine in-scope probe in the table above scores **0.3263** against the very document that answers it.
 An out-of-catalogue question can therefore sit more than twice as high as a real one, so no cut on this signal separates a deposit from a loan, and a larger probe set only measures the failure more precisely.
 Those two readings are recorded in decision D-46 of [the design spec](docs/superpowers/specs/2026-09-10-loan-support-agent-design.md); 0.3263 is the calibration transcript's own minimum.
@@ -374,6 +378,8 @@ With one relevant document per query, Recall@3 could only take the values 0 and 
 |---|---|---|---|---|
 | `kb_fixed_400_80` | 89 | 1.25 | 0.7917 | 0.5972 |
 | `kb_sentences` | 215 | 1.33 | 0.8750 | 0.6528 |
+
+<!-- End of generated block. -->
 
 Per-query arithmetic for both collections, as fractions: [`transcripts/part1-evaluation.txt`](transcripts/part1-evaluation.txt).
 

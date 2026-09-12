@@ -65,7 +65,13 @@ def retrieve(
                 similarity=round(1.0 - float(distance), 4),
             )
         )
-    return sorted(hits, key=lambda h: h.similarity, reverse=True)
+    # An explicit total order. Similarity is rounded to 4 dp on the way in, so
+    # sorting on it alone manufactures ties the raw distances never had, and a
+    # stable sort then silently inherits whatever order ChromaDB returned.
+    # (doc_id, chunk_index) identifies a chunk uniquely, so this key can never
+    # tie and the rank order is the same bytes on every machine and every
+    # ChromaDB version.
+    return sorted(hits, key=lambda h: (-h.similarity, h.doc_id, h.chunk_index))
 
 
 def parent_documents(hits: list[Hit]) -> list[str]:

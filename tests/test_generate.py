@@ -37,15 +37,35 @@ def test_every_citation_names_a_retrieved_document(built_index):
     assert set(result.citations) <= retrieved
 
 
-def test_both_strategies_answer_every_evaluation_query(built_index):
-    """All twelve labelled queries clear both conditions in both collections."""
+def test_both_strategies_run_every_evaluation_query(built_index):
+    """All twelve labelled queries run on both collections and come back whole.
+
+    It deliberately does not assert `result.supported`. D-56 says the
+    `answerable` class is reported and never pinned, for the reason D-13 gives:
+    EQ-11 clears T by 0.064 (0.3708 on kb_fixed_400_80, 0.3773 on kb_sentences),
+    so a legitimate chunk retune moves it across and a test asserting the
+    outcome would be fighting the tuning rather than guarding a contract. The
+    assertion that was here predated D-56 by a day and contradicted it.
+
+    The direction that protects users is guarded elsewhere and stays guarded:
+    criterion 28 in tests/test_scope.py forbids the gate refusing any
+    answerable item, and the decision transcript reports every threshold
+    outcome without pinning one.
+    """
     from eval.queries import EVAL_QUERIES
 
     for strategy in sorted(config.COLLECTION_FOR_STRATEGY):
         for query in EVAL_QUERIES:
             result = generate.answer(query.text, strategy)
-            assert result.supported, f"{strategy}/{query.item_id}"
             assert result.strategy == strategy
+            assert result.query == query.text
+            assert result.outcome in (
+                generate.OUTCOME_ANSWERED,
+                generate.OUTCOME_REFUSED_GATE,
+                generate.OUTCOME_REFUSED_THRESHOLD,
+            )
+            assert isinstance(result.top1_similarity, float)
+            assert result.supported == (result.outcome == generate.OUTCOME_ANSWERED)
 
 
 def test_a_query_spread_across_three_parents_is_refused(built_index):

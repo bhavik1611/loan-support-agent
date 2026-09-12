@@ -34,6 +34,12 @@ def test_every_in_scope_probe_retrieves_a_required_document(built_index):
         for r in calibration.measure(config.STRATEGY_SENTENCES)
         if r.in_scope and r.top_doc_id not in required
     ]
-    # A probe landing on a confusable neighbour is acceptable and expected;
-    # this test only reports how often, so record rather than assert on zero.
-    assert len(misses) <= 4, misses
+    # A probe landing on a confusable neighbour is acceptable and expected, so
+    # the bound is not zero. It is the measured count, not a round number with
+    # slack in it: 2 on kb_fixed_400_80 and 2 on kb_sentences, both of them a
+    # required document losing to the neighbour written to be confusable with
+    # it ("Who is eligible to apply for a business loan?" lands on kb-13, and
+    # "How much does a missed payment hurt my credit rating?" lands on kb-15).
+    # A third miss is a regression in the neighbour set, not tuning noise, and
+    # every other threshold in this repository is measured rather than preset.
+    assert len(misses) <= 2, misses

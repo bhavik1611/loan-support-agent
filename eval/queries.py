@@ -33,8 +33,14 @@ surviving phrase. An item whose only job was to test a vocabulary entry has no
 job once the entry is gone, and moving one into far_out_of_scope would have been
 worse: the retired tax-return item reads 0.3703 under sentence chunking, above T,
 and is refused by the support rule alone, so criterion 29 would have been
-asserting on a coin flip. The class is now exactly one item per surviving phrase,
-and ten phrases mean ten items.
+asserting on a coin flip.
+
+The class stayed at ten when fix round 2 split the bare noun "insurance" into
+the four phrases that name the product rather than the industry, so the list is
+thirteen phrases and the class is ten items. One item per phrase was never the
+invariant; one item per phrase the corpus could plausibly be asked about was.
+OB-08 exercises the split and now declares "insurance cover", the longest of the
+four phrases its own wording matches.
 """
 
 from dataclasses import dataclass
@@ -146,9 +152,12 @@ GOLDEN_DATASET: list[GoldenItem] = [
     # These are the items the gate was sized against. Each one names a phrase in
     # rag/scope.KNOWN_ADJACENT, and the correct behaviour is a refusal before
     # any retrieval runs. The product column below is the canonical spelling the
-    # refusal carries, not a copy of the item's own wording. Ten items for ten
-    # surviving phrases, one each, after fix round 1 retired the three that
-    # tested phrases the corpus turned out to answer.
+    # refusal carries, not a copy of the item's own wording.
+    #
+    # Not one of these ten names a catalogue product, which is what makes them
+    # indifferent to fix round 2's tie-break change: the catalogue now wins
+    # whenever a query names both sides, and none of these queries names the
+    # catalogue side at all.
     GoldenItem(
         "OB-01",
         "What is the interest rate on a fixed deposit for 5 years?",
@@ -203,7 +212,7 @@ GOLDEN_DATASET: list[GoldenItem] = [
         "Does the bank sell term life insurance cover?",
         KIND_OUTSIDE_BOUNDARY,
         (),
-        "insurance",
+        "insurance cover",
     ),
     GoldenItem(
         "OB-09",

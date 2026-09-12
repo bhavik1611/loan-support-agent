@@ -75,7 +75,11 @@ def _cited_documents(text: str, hits: list[Hit]) -> tuple[str, ...]:
 
 
 def answer(
-    query: str, strategy: str = config.STRATEGY_SENTENCES, k: int | None = None
+    query: str,
+    strategy: str = config.STRATEGY_SENTENCES,
+    k: int | None = None,
+    *,
+    gate: bool = True,
 ) -> GroundedAnswer:
     """Retrieve, decide, and either generate from the context or refuse.
 
@@ -83,6 +87,20 @@ def answer(
     kb_sentences scored Precision@3 0.8750 against 0.7917 and Recall@3 0.6528
     against 0.5972, while carrying the higher mean |R|, so the margin is not
     the denominator flattering it. Part 2 consumes this collection.
+
+    `gate=False` turns rag/scope.py off entirely - no refusal before retrieval
+    and no D-53 product filter on the search - and it exists for exactly one
+    caller: rag/evaluate.py measures the near-domain false-answer rate the
+    system would have without the gate, so it can print a before figure beside
+    the after figure. Both halves then come out of this one function and the
+    comparison cannot go stale.
+
+    The alternative was a second copy of the answer decision inside the scorer,
+    computing the before figure from retrieve.is_supported directly. That lost
+    because the two copies could then disagree about what the system does,
+    which is the same reason decide() reads GroundedAnswer.outcome rather than
+    re-deriving it. This is not a second design kept alive: the gate is the
+    design, and `gate=False` is the measurement of its absence.
     """
     if config.SIMILARITY_THRESHOLD is None:
         raise RuntimeError(
@@ -94,7 +112,7 @@ def answer(
     # that similarity cannot decide whether a question is about a product
     # Meridian Bank sells.
     verdict = scope.classify(query)
-    if verdict.known_adjacent:
+    if gate and verdict.known_adjacent:
         return GroundedAnswer(
             query=query,
             text=FALLBACK_TEXT,
@@ -108,7 +126,10 @@ def answer(
         )
 
     hits = retrieve.retrieve(
-        query, strategy, k=k, product=verdict.product if verdict.in_catalogue else None
+        query,
+        strategy,
+        k=k,
+        product=verdict.product if (gate and verdict.in_catalogue) else None,
     )
     supported = retrieve.is_supported(hits, config.SIMILARITY_THRESHOLD)
 
