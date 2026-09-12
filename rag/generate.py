@@ -88,8 +88,9 @@ def answer(
     """
     if config.SIMILARITY_THRESHOLD is None:
         raise RuntimeError(
-            "config.SIMILARITY_THRESHOLD is unset. Run the Task 11 calibration and "
-            "record the measured value; the brief forbids an untested preset."
+            "config.SIMILARITY_THRESHOLD is unset. Run Task 11 of the Part 1 plan, "
+            "the threshold calibration, and record the measured value; "
+            "the brief forbids an untested preset."
         )
 
     # The gate of spec section 8.5 runs before retrieval, because D-46 measured
