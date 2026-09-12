@@ -42,6 +42,7 @@ Outcome = Literal["answered", "refused_gate", "refused_threshold"]
 
 @dataclass(frozen=True)
 class GroundedAnswer:
+    """The answer and its metadata."""
     query: str
     text: str
     citations: tuple[str, ...]
