@@ -351,7 +351,7 @@ The gate case-folds the query to match, so "suggest me a good sip" and "Suggest 
 Part 2 prints this string straight into a sentence a customer reads, so a lower-cased echo of the user's typing would surface as "Meridian Bank does not offer sip".
 Part 1 Task 18's step **Write `rag/scope.py`** owns that behaviour; the assertions in Tasks 2, 9 and 10 below are what catch it if it ever drifts.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/test_tools.py`:
 
@@ -437,12 +437,12 @@ def test_policy_tool_refuses_an_adjacent_product_at_the_gate(built_index):
     assert result.supported is False
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `.venv/bin/python -m pytest tests/test_tools.py -q`
 Expected: FAIL, `ImportError: cannot import name 'tools' from 'agent'`.
 
-- [ ] **Step 3: Write the module**
+- [x] **Step 3: Write the module**
 
 Create `agent/tools.py`:
 
@@ -525,17 +525,17 @@ def answer_policy_question(query_text: str) -> generate.GroundedAnswer:
     return generate.answer(query_text, strategy=config.STRATEGY_SENTENCES)
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_tools.py -q`
 Expected: PASS, 9 tests.
 
-- [ ] **Step 5: Run the full suite**
+- [x] **Step 5: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
 Expected: PASS. Task 2 adds 9 tests, so the suite is now **baseline + 18**.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add agent/tools.py tests/test_tools.py
