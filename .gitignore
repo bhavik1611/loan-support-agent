@@ -24,6 +24,9 @@ logs/
 # Generated relational store. Rebuild with: .venv/bin/python -m db.build
 data/meridian_bank.db
 
+# Runtime conversation store. The graded threads are copied into transcripts/.
+data/conversations/
+
 # Local editor and tooling config. Regenerable per machine, so it is not part
 # of the repository.
 .claude/
