@@ -3786,7 +3786,9 @@ Expected: PASS. Task 11 adds 6 tests, so the suite is now **baseline + 133**.
 - [ ] **Step 9: Prove the offline claim**
 
 Run: `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 .venv/bin/python -m pytest -q`
-Expected: PASS, the same **baseline + 132**. Every Part 2 acceptance criterion holds with the network hard-disabled.
+Expected: PASS, **the same total the step above printed**. Every Part 2 acceptance criterion holds with the network hard-disabled.
+
+The number is deliberately not restated here. It was written out twice in this task and the two copies disagreed by one within a day of each other, which is the same drift the generated README block exists to prevent - a number repeated is a number that can fall out of step with itself.
 
 - [ ] **Step 10: Commit**
 
@@ -3825,7 +3827,7 @@ If `rag/scope.py` does not import, Part 1 Tasks 17 to 20 have not landed and eve
 Then run these four and read the output. None may be skipped.
 
 ```bash
-.venv/bin/python -m pytest -q                                    # baseline + 132
+.venv/bin/python -m pytest -q                                    # green; read the total, do not assume it
 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 .venv/bin/python -m pytest -q   # same, offline
 .venv/bin/python scripts/run_part1.py                            # Part 1 still reproduces
 .venv/bin/python scripts/run_part2.py                            # Part 2 transcripts regenerate
