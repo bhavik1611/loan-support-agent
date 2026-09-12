@@ -126,6 +126,43 @@ def test_no_golden_item_reuses_any_calibration_probe():
     assert not golden & fitting
 
 
+def test_no_golden_item_reuses_a_routing_probe_except_the_named_eq_11_case():
+    """The same boundary again, this time against eval/routing.py.
+
+    Nothing previously checked this: the calibration separation above only
+    ever compared eval/queries.py against eval/calibration.py, so a routing
+    probe set could quietly reuse golden text without any test noticing.
+
+    EQ-11 is the one deliberate exception. eval/routing.py::SELF_CONTAINED_PROBES
+    references it by id from eval.queries rather than retyping it, because it
+    is the literal regression probe for a named ellipsis-matcher defect (spec
+    18.4) and must be the exact query that exposed the defect, not a
+    paraphrase of it. One documented exception is a decision; a second one
+    found here would be a pattern, so this fails rather than growing a second
+    name into the exception if it ever finds one.
+
+    Probe texts are read off the module's own list/tuple collections rather
+    than retyped, so a probe set added to eval/routing.py later is covered
+    without this test being edited.
+    """
+    from eval import routing
+
+    probe_texts: set[str] = set()
+    for name, value in vars(routing).items():
+        if name.startswith("_") or not isinstance(value, (list, tuple)):
+            continue
+        for item in value:
+            if isinstance(item, str):
+                probe_texts.add(item)
+            elif isinstance(item, tuple) and item and isinstance(item[0], str):
+                probe_texts.add(item[0])
+
+    eq_11_text = next(item.text for item in queries.EVAL_QUERIES if item.item_id == "EQ-11")
+    golden_texts = {item.text for item in queries.GOLDEN_DATASET}
+
+    assert golden_texts & probe_texts == {eq_11_text}
+
+
 def test_the_inside_uncovered_items_are_the_residue_the_spec_names():
     """Spec 18.1 item 8, verbatim. These are what the gate is known to miss."""
     assert [i.text for i in queries.items_of_kind(queries.KIND_INSIDE_UNCOVERED)] == [

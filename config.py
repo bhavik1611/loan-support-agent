@@ -278,6 +278,29 @@ AADHAAR_DIGITS = 12
 # which is where committed evidence lives under D-12.
 CONVERSATION_DIR = DATA_DIR / "conversations"
 
+# A closed grammatical class, not a curated list: the determiners,
+# possessives and quantifiers that in English overwhelmingly introduce a noun
+# phrase. An earlier clause is a candidate antecedent for "it"/"them"/"those"
+# only if it contains one of these, because that is what carries "a noun
+# phrase starts here" - a word count or a hand-picked set of interjections
+# ("thanks", "sorry", "ok", ...) does not, and a first attempt at exactly that
+# ("thanks"/"sorry" and friends) scored 13/14 on its own probe set and could
+# only ever be as complete as the list of openers someone had thought to add
+# to it (see agent/memory.py::needs_resolution for the measured comparison).
+# This class is fixed by English grammar rather than fitted to any probe set,
+# and its own stated residue - a bare plural or mass noun with no determiner,
+# e.g. "Loans affect credit scores, do they not?" - is a named, checkable
+# weakness rather than an open-ended one.
+NOUN_PHRASE_MARKERS = frozenset(
+    {
+        "a", "an", "the",
+        "my", "your", "our", "his", "her", "their",
+        "this", "that", "these", "those",
+        "one", "two", "three", "four", "five",
+        "some", "several", "many", "few", "both", "all", "any", "each", "every", "no",
+    }
+)
+
 # --- Part 2 Task 9, the response envelope (D-36, D-38) --------------------
 
 # Committed, because it is what Part 3's FastAPI layer and the grader read.

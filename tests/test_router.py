@@ -41,6 +41,32 @@ def test_an_elliptical_question_with_no_entity_asks_for_clarification(built_inde
     assert decision.record_id is None
 
 
+def test_a_leading_filler_still_resolves_from_the_entity_slot(built_index):
+    """Ordinary second-turn phrasing must not skip resolution.
+
+    Without config.ELLIPSIS_FILLER_WORDS, "Thanks," reads as an antecedent
+    clause, the query is treated as self-contained, and the centroid stage
+    happens to land on "lookup" anyway - but with record_id=None, so the
+    entity slot is silently never consulted. That is the regression this
+    guards: the route must come from the entity slot, not a lucky centroid.
+    """
+    decision = intents.classify("Thanks, and is it approved?", {"last_record_id": "LN-1042"})
+    assert decision.route == "lookup"
+    assert decision.record_id == "LN-1042"
+
+
+def test_a_same_sentence_antecedent_is_not_treated_as_elliptical(built_index):
+    """EQ-11's shape must reach the centroids rather than clarify.
+
+    Spec 18.4: the ellipsis matcher used to fire on the bare word "it" and
+    route this query to clarify, though the corpus answers it.
+    """
+    query = "How do I report a fraudulent card transaction and will it affect my credit score?"
+    decision = intents.classify(query, {})
+    assert decision.route == "policy"
+    assert decision.record_id is None
+
+
 def test_a_policy_question_routes_to_policy(built_index):
     decision = intents.classify("What is the minimum credit score for a home loan?", {})
     assert decision.route == "policy"
