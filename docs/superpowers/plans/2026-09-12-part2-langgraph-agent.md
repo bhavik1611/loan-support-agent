@@ -4,16 +4,30 @@ Status: draft
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Amended 2026-09-12 for D-46 to D-57.**
+A review of the threshold calibration established that similarity cannot decide scope, and the fix is a product gate that runs before retrieval.
+Part 1 owns the gate; Part 2 owns the sentence a user reads when it fires, per D-54.
+The amendment touches Tasks 2, 5, 6, 9, 10 and 11, and every change it made carries the marker **[D-54]** so a reader can see exactly what moved and why.
+
+**Prerequisite: Part 1 Tasks 17 to 20 land first.**
+D-57 requires two separate regenerations, the threshold retune first and the gate second, and both are written as Tasks 17 to 20 of [`2026-09-11-part1-dataset-and-rag.md`](2026-09-11-part1-dataset-and-rag.md).
+Starting Part 2 before they land builds `agent/` against a retrieval layer that is about to change underneath it, and every transcript Task 11 writes would have to be regenerated anyway.
+`T` moves from 0.2818 to a value only the run knows, and `rag.generate.answer` grows a refusal path that Tasks 2, 5, 6, 9, 10 and 11 all read.
+
 **Goal:** Build the orchestration layer over Part 1's RAG core: a LangGraph agent with a second tool, a designed escalation score, persisted memory, a structured response schema, and three guardrails, all deterministic under `MOCK_LLM`.
 
 **Architecture:** One new package, `agent/`, holding nine single-responsibility modules.
 Nothing existing moves.
 The graph has nine nodes and two conditional edges; the second edge routes to `policy_answer`, `lookup_status`, both of them, or `clarify`.
 Every path, including the refusal, converges on one `compose` node that validates the response against a committed JSON Schema and persists the turn.
+**[D-54]** There are three ways a turn can refuse and the envelope keeps them distinguishable: the injection guardrail refuses before anything runs, the product gate of spec section 8.5 refuses before retrieval, and the groundedness check refuses after it.
+Flattening the second into the third would make the agent claim a guardrail fired that never ran.
 
 **Tech Stack:** Python 3.12.13, `langgraph` 1.2.11, `pydantic` 2.13.5, `jsonschema` 4.26.0, pytest. No new dependency: every one of these is already in `requirements.txt` and installed.
 
-**Spec:** [`docs/superpowers/specs/2026-09-10-loan-support-agent-design.md`](../specs/2026-09-10-loan-support-agent-design.md), sections 10 to 14 and decisions D-33 to D-45.
+**Spec:** [`docs/superpowers/specs/2026-09-10-loan-support-agent-design.md`](../specs/2026-09-10-loan-support-agent-design.md).
+Sections 10 to 14 and decisions D-33 to D-45 specify the agent itself.
+Section 8.5 specifies the product gate and section 9.4 the decision-level evaluation behind it; D-46, D-51 and D-54 are the three of D-46 to D-57 that reach into `agent/`.
 
 ## Global Constraints
 
@@ -26,12 +40,19 @@ Copied from spec section 2. Every task's requirements implicitly include these.
 - All names, PAN numbers, Aadhaar numbers, account numbers and incomes are fabricated.
 - No screenshots, PDFs, slides or images. Every deliverable is code or text in the repository.
 - The knowledge base is the authority over `config.py`. If the two disagree, the document wins.
+- **[D-54]** Scope is decided before retrieval, not by the similarity threshold. `rag.generate.answer` can refuse at the product gate having retrieved nothing, and `agent/` carries that refusal through the envelope rather than folding it into the groundedness one.
 - Never hand-edit `transcripts/` or the number tables in `README.md`; `scripts/run_part2.py` writes them.
 - Commits: no `Co-Authored-By` trailer, no agent name, no "Generated with" line.
 
-**Run the full suite with `.venv/bin/python -m pytest -q`.** It stands at 170 passing before this plan starts. Every task must leave it green.
+**Run the full suite with `.venv/bin/python -m pytest -q`.** Every task must leave it green.
 
-**A note on the working tree.** At the time of writing, `rag/index.py`, `rag/kb.py`, `scripts/run_part1.py` and `eval/calibration.py` carry uncommitted Part 1 changes belonging to Bhavik. Do not stage, commit, revert or reformat them. Stage only the files each task names.
+**[D-54] The absolute total is deliberately not written down.**
+It stood at 170 before Part 1 Tasks 17 to 20 were written, and those four tasks move it by an amount only the run knows.
+So each task below states how many tests it **adds**, and the running Part 2 delta beside it; Part 2 adds 133 tests in total.
+Read the baseline out of the suite once, immediately before Task 1, write it at the top of your notes, and check every task against it.
+A task whose delta is wrong has either skipped a test or added one nobody asked for, and both are worth stopping for.
+
+**A note on the working tree.** Updated 2026-09-12. The Part 1 source changes this paragraph originally named were committed in `f9ae786`. What is uncommitted now is the spec amendment carrying D-46 to D-57 and the Part 1 plan carrying Tasks 17 to 20, both belonging to Bhavik. Do not stage, commit, revert or reformat them. Stage only the files each task names.
 
 ---
 
@@ -232,7 +253,7 @@ The weights or the saturation point have drifted from D-33 and D-34; fix `config
 - [ ] **Step 6: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS, 179 tests.
+Expected: PASS. Task 1 adds 9 tests, so the suite is now **baseline + 9**.
 
 - [ ] **Step 7: Commit**
 
@@ -267,6 +288,27 @@ It wraps Task 1's score and Part 1's two read paths, and it returns rather than 
   - `agent.tools.check_loan_application_status(record_id: str, conn=None) -> dict`
   - `agent.tools.answer_policy_question(query: str) -> rag.generate.GroundedAnswer`
   - `agent.tools.LOOKUP_FIELDS: tuple[str, ...]`
+
+**[D-54] Two new fields on `GroundedAnswer`, and they are the contract between the two plans.**
+Part 1 Task 18 step 6 wires the product gate into `rag/generate.py`.
+Part 2 never calls the gate and never imports `rag/scope.py`; it reads two fields off the dataclass `answer()` already returns:
+
+| field | type | meaning |
+|---|---|---|
+| `outcome` | `"answered"`, `"refused_gate"` or `"refused_threshold"` | which mechanism decided |
+| `product` | `str` | the product the gate matched, `""` when it matched none |
+
+`outcome` uses the exact vocabulary spec section 9.4 defines for the decision table, so this is a field Part 1 needs for `rag/evaluate.py` whether or not Part 2 exists.
+Part 2 only reads it, which is what D-54's split means in practice.
+
+**Nothing that reads `supported` has to change.**
+A gate refusal still sets `supported=False` and still carries the Part 1 fallback text, so every existing call site keeps working and `outcome` is the field that says *which* refusal it was.
+A gate refusal also carries `hits=()`, because the gate decides before retrieval runs.
+
+**`product` is spelled the way the list spells it, not the way the query did.**
+The gate case-folds the query to match, so "suggest me a good sip" and "Suggest me a good SIP" both match, and both return `"SIP"`.
+Part 2 prints this string straight into a sentence a customer reads, so a lower-cased echo of the user's typing would surface as "Meridian Bank does not offer sip".
+Part 1 Task 18 step 3 owns that behaviour; the assertions in Tasks 2, 9 and 10 below are what catch it if it ever drifts.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -333,6 +375,20 @@ def test_policy_tool_answers_an_in_scope_question(built_index):
 
 def test_policy_tool_refuses_an_out_of_scope_question(built_index):
     result = tools.answer_policy_question("What is the best pizza topping?")
+    assert result.supported is False
+    # Names no product in KNOWN_ADJACENT, so it falls past the gate and is
+    # refused on the threshold. That is the distinction the next test makes.
+    assert result.outcome == "refused_threshold"
+
+
+def test_policy_tool_refuses_an_adjacent_product_at_the_gate(built_index):
+    """[D-54] Spec 8.5. The gate decides before retrieval, so nothing comes back."""
+    result = tools.answer_policy_question(
+        "What is the interest rate on a fixed deposit for 5 years?"
+    )
+    assert result.outcome == "refused_gate"
+    assert result.product == "fixed deposit"
+    assert result.hits == ()
     assert result.supported is False
 ```
 
@@ -427,12 +483,12 @@ def answer_policy_question(query_text: str) -> generate.GroundedAnswer:
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_tools.py -q`
-Expected: PASS, 8 tests.
+Expected: PASS, 9 tests.
 
 - [ ] **Step 5: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS, 187 tests.
+Expected: PASS. Task 2 adds 9 tests, so the suite is now **baseline + 18**.
 
 - [ ] **Step 6: Commit**
 
@@ -690,7 +746,7 @@ Expected: PASS, 12 tests.
 - [ ] **Step 7: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS, 199 tests.
+Expected: PASS. Task 3 adds 12 tests, so the suite is now **baseline + 30**.
 
 The database manifest test must still pass. `is_valid_aadhaar` reads the Verhoeff tables and writes nothing, so no generated value moves. If `tests/test_database.py` fails here, you changed generation rather than adding a reader; revert and add only the function above.
 
@@ -878,7 +934,7 @@ Never delete a benign probe to make a rule pass; a false positive on an ordinary
 - [ ] **Step 5: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS, 219 tests.
+Expected: PASS. Task 4 adds 20 tests, so the suite is now **baseline + 50**.
 
 - [ ] **Step 6: Commit**
 
@@ -912,6 +968,18 @@ Two rules per D-39.
 **Interfaces:**
 - Consumes: `rag.generate.GroundedAnswer`, `rag.retrieve.parent_documents`
 - Produces: `agent.guardrails.check_grounded(answer) -> str | None`
+
+**[D-54] This check is unchanged, and the reason is worth stating.**
+After the product gate lands there are two out-of-scope failures, not one, and only the second reaches this code:
+
+| query | what stops it | spec |
+|---|---|---|
+| "What is the interest rate on a fixed deposit for 5 years?" | names an adjacent product, so the gate refuses before retrieval | 8.5, criterion 24a |
+| "What is the best pizza topping?" | names no product at all, so it reaches retrieval and fails `T` | 8.3, criterion 24b |
+
+The probe in the tests below is the second kind on purpose.
+By inspection of the `KNOWN_ADJACENT` list in Part 1 Task 18 step 3 - fixed deposit, recurring deposit, mutual fund, SIP, ELSS, demat, shares, stock market, insurance, gold, cryptocurrency, income tax, GST, tax return - nothing in it matches "pizza topping", so this probe still exercises the groundedness path and these tests do not need rewriting.
+If a later edit adds a food word to that list, this test starts asserting the wrong mechanism and the fix is a new probe here, not a smaller list there.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1027,7 +1095,7 @@ Expected: PASS, 7 tests.
 - [ ] **Step 5: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS, 226 tests.
+Expected: PASS. Task 5 adds 7 tests, so the suite is now **baseline + 57**.
 
 - [ ] **Step 6: Commit**
 
@@ -1175,6 +1243,38 @@ def test_a_refusal_is_a_valid_response():
     assert payload["guardrails"]["injection_rule"] == "instruction_override"
 
 
+def test_a_gate_refusal_is_distinguishable_from_a_threshold_refusal():
+    """[D-54] Criterion 24a against 24b. `supported` is False for both."""
+    gated = _response(
+        "policy",
+        policy=schema.PolicyBlock(
+            citations=[], top1_similarity=0.0, supported=False,
+            strategy="sentences", outcome="refused_gate", product="fixed deposit",
+        ),
+        guardrails=_guardrails(grounded=None),
+    )
+    ungrounded = _response(
+        "policy",
+        policy=schema.PolicyBlock(
+            citations=[], top1_similarity=0.19, supported=False,
+            strategy="sentences", outcome="refused_threshold",
+        ),
+        guardrails=_guardrails(grounded=False),
+    )
+    assert schema.validate_response(gated)["policy"]["product"] == "fixed deposit"
+    assert schema.validate_response(ungrounded)["policy"]["product"] == ""
+    assert gated.policy.outcome != ungrounded.policy.outcome
+
+
+def test_an_unknown_outcome_is_rejected():
+    """The Literal is the whole guard; spec 9.4 names exactly three values."""
+    with pytest.raises(Exception):
+        schema.PolicyBlock(
+            citations=[], top1_similarity=0.0, supported=False,
+            strategy="sentences", outcome="refused_because_i_felt_like_it",
+        )
+
+
 def test_the_committed_schema_file_is_current():
     """A drifted schema file would validate against nothing the code produces."""
     committed = json.loads(config.RESPONSE_SCHEMA_PATH.read_text(encoding="utf-8"))
@@ -1242,7 +1342,18 @@ TRACE_ID_LENGTH = 16
 
 
 class PolicyBlock(BaseModel):
-    """What the RAG route produced. Absent on every other route."""
+    """What the RAG route produced. Absent on every other route.
+
+    `outcome` is the field that keeps the two out-of-scope refusals apart
+    (D-54). "refused_gate" means the product gate of spec 8.5 stopped the
+    query before retrieval and `top1_similarity` is 0.0 because nothing was
+    searched; "refused_threshold" means retrieval ran and T or the support
+    rule refused. Reading `supported` alone cannot tell them apart, and a
+    grader checking criterion 24a against 24b needs to.
+
+    The names are spec section 9.4's, not new ones, so the agent's envelope
+    and Part 1's evaluation table say the same word for the same event.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -1250,6 +1361,8 @@ class PolicyBlock(BaseModel):
     top1_similarity: float
     supported: bool
     strategy: str
+    outcome: Literal["answered", "refused_gate", "refused_threshold"] = "answered"
+    product: str = ""
 
 
 class LookupBlock(BaseModel):
@@ -1330,7 +1443,7 @@ Expected: prints the path to `agent/response.schema.json`.
 - [ ] **Step 6: Run the tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_response_schema.py -q`
-Expected: PASS, 11 tests.
+Expected: PASS, 13 tests.
 
 `test_the_committed_schema_file_is_current` compares the file against `model_json_schema()`.
 If it fails after a later model change, re-run Step 5 and commit the regenerated file; never hand-edit the JSON.
@@ -1338,7 +1451,7 @@ If it fails after a later model change, re-run Step 5 and commit the regenerated
 - [ ] **Step 7: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS, 237 tests.
+Expected: PASS. Task 6 adds 13 tests, so the suite is now **baseline + 70**.
 
 - [ ] **Step 8: Commit**
 
@@ -1636,7 +1749,7 @@ Expected: PASS, 10 tests.
 - [ ] **Step 7: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS, 247 tests.
+Expected: PASS. Task 7 adds 10 tests, so the suite is now **baseline + 80**.
 
 - [ ] **Step 8: Commit**
 
@@ -2053,7 +2166,7 @@ If `test_no_real_repository_query_is_swallowed_by_the_vague_centroid` fails, the
 - [ ] **Step 6: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS, 261 tests.
+Expected: PASS. Task 8 adds 14 tests, so the suite is now **baseline + 94**.
 
 - [ ] **Step 7: Commit**
 
@@ -2103,6 +2216,7 @@ Do not add a tenth node without amending D-43.
   - `agent.nodes.NODE_NAMES: tuple[str, ...]` of length 9
   - `agent.nodes.pick_branch(state) -> str | list[str]`
   - `agent.nodes.CLARIFY_QUESTION: str`
+  - **[D-54]** `agent.nodes.OUT_OF_SCOPE_TEXT: str`, the one place the product-gate refusal is worded
 
 - [ ] **Step 1: Write the state module**
 
@@ -2171,6 +2285,7 @@ Create `tests/test_nodes.py`:
 """The nine nodes, each tested as a pure function without building a graph."""
 
 from agent import memory, nodes, state
+from rag import generate as rag_generate
 
 
 def _state(query, **kwargs):
@@ -2258,6 +2373,40 @@ def test_policy_answer_writes_only_the_policy_key(built_index):
     result = nodes.policy_answer(_state("q", masked_query="What is the minimum credit score?"))
     assert set(result) == {"policy"}
     assert result["policy"]["supported"] is True
+    assert result["policy"]["outcome"] == "answered"
+
+
+def test_policy_answer_carries_the_gate_verdict(built_index):
+    """[D-54] The node reads the gate's decision; it never calls the gate."""
+    result = nodes.policy_answer(
+        _state("q", masked_query="Suggest me a good SIP to invest in.")
+    )
+    assert result["policy"]["outcome"] == "refused_gate"
+    assert result["policy"]["product"] == "SIP"
+    assert result["policy"]["retrieved_doc_ids"] == []
+
+
+def test_verify_does_not_claim_the_groundedness_check_ran_on_a_gate_refusal():
+    """[D-54] None means did not run. False would be a guardrail lying."""
+    gated = _state("q", policy={
+        "text": "x", "citations": [], "top1_similarity": 0.0, "supported": False,
+        "strategy": "sentences", "outcome": "refused_gate", "product": "SIP",
+        "retrieved_doc_ids": [],
+    })
+    assert nodes.verify(gated) == {"grounded": None, "output_rule": None}
+
+
+def test_the_gate_refusal_names_the_product_instead_of_the_part_1_fallback():
+    """[D-54] Criterion 24a. The sentence is Part 2's, per the split in D-54."""
+    gated = _state("q", policy={
+        "text": rag_generate.FALLBACK_TEXT, "citations": [], "top1_similarity": 0.0,
+        "supported": False, "strategy": "sentences", "outcome": "refused_gate",
+        "product": "fixed deposit", "retrieved_doc_ids": [],
+    })
+    spoken = nodes._answer_text(gated)
+    assert "fixed deposit" in spoken
+    assert "does not offer" in spoken
+    assert rag_generate.FALLBACK_TEXT not in spoken
 
 
 def test_lookup_status_writes_only_the_lookup_key(db_conn, monkeypatch):
@@ -2353,6 +2502,20 @@ REFUSAL_TEXT = (
     "not run any retrieval or looked up any record."
 )
 
+# D-54. The product gate lives in rag/scope.py and decides; the sentence a
+# support agent reads is Part 2's, and this is it. Part 1 deliberately returns
+# the structured verdict and the product name rather than prose, because only
+# the agent knows it is talking to a person.
+#
+# It names the product and says what Meridian does cover, because "I cannot
+# help with that" sends the asker back to a queue, and the one fact that
+# actually redirects them is that we do not sell the thing they asked about.
+OUT_OF_SCOPE_TEXT = (
+    "Meridian Bank does not offer {product}, so I have nothing on file about "
+    "it and did not search the knowledge base. I can help with loans, cards, "
+    "accounts, KYC and credit scores."
+)
+
 
 def guard_input(state: AgentState) -> dict:
     """Mask fixed-format PII, then look for an injection attempt."""
@@ -2411,6 +2574,11 @@ def policy_answer(state: AgentState) -> dict:
             "top1_similarity": answer.top1_similarity,
             "supported": answer.supported,
             "strategy": answer.strategy,
+            # D-54. Which mechanism decided, and what it matched. On a gate
+            # refusal hits is empty, so retrieved_doc_ids is [] and nothing
+            # downstream has to special-case a missing key.
+            "outcome": answer.outcome,
+            "product": answer.product,
             # Plain doc ids, not Hit objects. Everything in state has to
             # survive the SQLite checkpointer Part 4 Task 15 attaches.
             "retrieved_doc_ids": retrieve.parent_documents(list(answer.hits)),
@@ -2440,6 +2608,14 @@ def verify(state: AgentState) -> dict:
     """The output side. Only a retrieved answer can be ungrounded."""
     policy = state.get("policy")
     if not policy:
+        return {"grounded": None, "output_rule": None}
+    if policy["outcome"] == "refused_gate":
+        # D-54. The gate refused before retrieval, so there is no answer to
+        # check the grounding of. Reporting grounded=False here would have the
+        # agent claim a guardrail fired that never ran, which is exactly the
+        # thing the brief asks us to demonstrate and therefore the thing we
+        # must not fake. None means "did not run", the same value refuse()
+        # writes for the same reason.
         return {"grounded": None, "output_rule": None}
     rule = guardrails.check_grounded(
         policy["supported"], policy["citations"], policy["retrieved_doc_ids"]
@@ -2489,10 +2665,17 @@ def _answer_text(state: AgentState) -> str:
     if lookup:
         pieces.append(_lookup_sentence(lookup))
     if policy:
-        # When the answer is ungrounded, rag.generate.answer has already put
-        # the Part 1 fallback text in here, so there is one refusal wording in
-        # the repository rather than two that can drift apart.
-        pieces.append(policy["text"])
+        if policy["outcome"] == "refused_gate":
+            # D-54. The one case where Part 2 overrides Part 1's wording, and
+            # the only one: Part 1's fallback says the knowledge base holds
+            # nothing, which is true but misleading here. The knowledge base
+            # will never hold it, because Meridian does not sell it.
+            pieces.append(OUT_OF_SCOPE_TEXT.format(product=policy["product"]))
+        else:
+            # When the answer is ungrounded, rag.generate.answer has already
+            # put the Part 1 fallback text in here, so there is one refusal
+            # wording in the repository rather than two that can drift apart.
+            pieces.append(policy["text"])
     return "\n\n".join(pieces) if pieces else CLARIFY_QUESTION
 
 
@@ -2510,6 +2693,8 @@ def compose(state: AgentState) -> dict:
             top1_similarity=policy["top1_similarity"],
             supported=policy["supported"],
             strategy=policy["strategy"],
+            outcome=policy["outcome"],
+            product=policy["product"],
         )
 
     lookup_block = None
@@ -2551,12 +2736,12 @@ def compose(state: AgentState) -> dict:
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_nodes.py -q`
-Expected: PASS, 18 tests.
+Expected: PASS, 21 tests.
 
 - [ ] **Step 6: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS, 279 tests.
+Expected: PASS. Task 9 adds 21 tests, so the suite is now **baseline + 115**.
 
 - [ ] **Step 7: Commit**
 
@@ -2677,9 +2862,31 @@ def test_an_injection_attempt_is_refused_before_any_retrieval(built_index):
 
 
 def test_an_out_of_scope_question_is_refused_on_groundedness(built_index):
+    """Criterion 24b. Names no product, so it reaches retrieval and fails T."""
     response = graph.ask("What is the best pizza topping?", thread_id="e")
     assert response["guardrails"]["grounded"] is False
     assert "do not know" in response["answer"].lower()
+    assert response["policy"]["outcome"] == "refused_threshold"
+
+
+def test_an_adjacent_product_is_refused_at_the_gate(built_index):
+    """[D-54] Criterion 24a, end to end. A different refusal from the one above.
+
+    The route stays `policy`: the router sent the query to the RAG tool and
+    the tool declined to search. Adding a sixth route for this would give the
+    envelope two ways to say "the policy branch ran", which is why D-54 put
+    the distinction in PolicyBlock.outcome instead.
+    """
+    response = graph.ask(
+        "What is the interest rate on a fixed deposit for 5 years?", thread_id="g"
+    )
+    assert response["route"] == "policy"
+    assert response["policy"]["outcome"] == "refused_gate"
+    assert response["policy"]["product"] == "fixed deposit"
+    assert response["policy"]["citations"] == []
+    assert "fixed deposit" in response["answer"]
+    # The groundedness check never ran, so it must not report a verdict.
+    assert response["guardrails"]["grounded"] is None
 
 
 def test_pii_is_masked_before_it_reaches_the_response(built_index):
@@ -2837,14 +3044,14 @@ def ask(query: str, thread_id: str = "default") -> dict:
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_graph.py -q`
-Expected: PASS, 12 tests.
+Expected: PASS, 13 tests.
 
 If `test_the_graph_has_nine_nodes` reports 11, the `__start__`/`__end__` filter is wrong; do not change the expected count.
 
 - [ ] **Step 5: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS, 291 tests.
+Expected: PASS. Task 10 adds 13 tests, so the suite is now **baseline + 128**.
 
 - [ ] **Step 6: Commit**
 
@@ -2930,6 +3137,19 @@ def test_the_guardrail_transcript_names_every_rule():
         assert name in body, name
     for label in config.PII_PLACEHOLDERS:
         assert label in body, label
+
+
+def test_the_guardrail_transcript_separates_the_two_out_of_scope_refusals():
+    """[D-54] Criteria 24a and 24b are different events and must read as two.
+
+    A transcript that showed only one refusal would let a grader conclude the
+    threshold is still deciding scope, which is precisely what D-46 disproved.
+    """
+    body = (config.TRANSCRIPT_DIR / "part2-guardrails.txt").read_text(encoding="utf-8")
+    assert "refused_gate" in body
+    assert "refused_threshold" in body
+    assert "fixed deposit" in body
+    assert body.index("THE PRODUCT GATE") < body.index("OUTPUT SIDE, GROUNDEDNESS")
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
@@ -3216,11 +3436,45 @@ def guardrail_transcript() -> str:
             f"  answer  : {response['answer']}",
             "",
         ]
-    lines.append("OUTPUT SIDE, GROUNDEDNESS")
+    # D-54. Two refusals that look identical in Part 1's output and are not
+    # the same event. Printing them side by side is the whole point of this
+    # block: a grader checking criterion 24a against 24b needs to see that
+    # the system knows which mechanism spoke.
+    lines += [
+        "SCOPE, THE PRODUCT GATE (spec 8.5, criterion 24a)",
+        "",
+        "  The gate runs before retrieval. Similarity cannot decide scope:",
+        "  swapping only the product noun in one sentence frame scores 0.6805",
+        "  between a fixed deposit and a car insurance policy, while the",
+        "  lowest genuine in-scope probe scores 0.3263 against the document",
+        "  that answers it. Spec 18.1 item 6 carries the measurement.",
+        "",
+    ]
+    for probe in (
+        "What is the interest rate on a fixed deposit for 5 years?",
+        "Suggest me a good SIP to invest in.",
+    ):
+        response = graph.ask(probe, thread_id=f"guard-gate-{len(lines)}")
+        policy = response["policy"]
+        lines += [
+            f"  probe    : {probe}",
+            f"  outcome  : {policy['outcome']}",
+            f"  product  : {policy['product']}",
+            f"  retrieved: {policy['citations']}  (the gate decided first)",
+            f"  grounded : {response['guardrails']['grounded']}  "
+            f"(None, because the groundedness check never ran)",
+            f"  answer   : {response['answer']}",
+            "",
+        ]
+
+    lines.append("OUTPUT SIDE, GROUNDEDNESS (spec 8.3, criterion 24b)")
     response = graph.ask("What is the best pizza topping?", thread_id="guard-grounded")
     lines += [
         "  rule    : unsupported",
         "  probe   : What is the best pizza topping?",
+        "  note    : names no product, so it passes the gate, reaches",
+        "            retrieval, and is refused on the threshold instead",
+        f"  outcome : {response['policy']['outcome']}",
         f"  grounded: {response['guardrails']['grounded']}",
         f"  answer  : {response['answer']}",
     ]
@@ -3306,17 +3560,17 @@ Do not retype any number.
 - [ ] **Step 7: Run the tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_part2_transcripts.py -q`
-Expected: PASS, 4 tests.
+Expected: PASS, 5 tests.
 
 - [ ] **Step 8: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS, 295 tests.
+Expected: PASS. Task 11 adds 5 tests, so the suite is now **baseline + 133**.
 
 - [ ] **Step 9: Prove the offline claim**
 
 Run: `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 .venv/bin/python -m pytest -q`
-Expected: PASS, 295 tests. Every Part 2 acceptance criterion holds with the network hard-disabled.
+Expected: PASS, the same **baseline + 133**. Every Part 2 acceptance criterion holds with the network hard-disabled.
 
 - [ ] **Step 10: Commit**
 
@@ -3339,10 +3593,21 @@ merely asserted."
 
 ## Verification before calling Part 2 done
 
-Run these four and read the output. None may be skipped.
+**[D-54] First, confirm the prerequisite actually landed.**
+Part 2 is built against a retuned `T` and a retrieval layer with a product gate in front of it, and neither is visible from inside `agent/`.
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 295 passing
+git log --oneline | grep -i "scope gate\|regenerate part 1 evidence"   # Part 1 Tasks 18 and 20
+.venv/bin/python -c "import config; print(config.SIMILARITY_THRESHOLD)"  # not 0.2818
+.venv/bin/python -c "from rag import scope; print(len(scope.KNOWN_ADJACENT))"
+```
+
+If `rag/scope.py` does not import, Part 1 Tasks 17 to 20 have not landed and every out-of-scope number below is measuring the old system.
+
+Then run these four and read the output. None may be skipped.
+
+```bash
+.venv/bin/python -m pytest -q                                    # baseline + 133
 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 .venv/bin/python -m pytest -q   # same, offline
 .venv/bin/python scripts/run_part1.py                            # Part 1 still reproduces
 .venv/bin/python scripts/run_part2.py                            # Part 2 transcripts regenerate
@@ -3365,4 +3630,12 @@ If one moved, something in `agent/` reached into the generator, which is a defec
 | Every response validates against the declared schema | 6, 10, 11 |
 | Input guardrail: PII masking fires | 3, 11 |
 | Input guardrail: prompt-injection detection fires | 4, 11 |
-| Output guardrail: groundedness check refuses | 5, 11 |
+| Output guardrail: groundedness check refuses (24b) | 5, 10, 11 |
+| **[D-54]** Out-of-scope product refused before retrieval, naming the product (24a) | 2, 6, 9, 10, 11 |
+
+**[D-54] Criteria 24a and 24b are one brief requirement split by D-51, and Part 2 owns half of each.**
+Spec section 16 numbers them separately because the mechanisms are separate.
+Criterion 24a is asserted on the Part 1 side too, by `tests/test_scope.py` in Part 1 Task 18 step 7, which checks that every `outside_boundary` golden item is refused at the gate.
+What the tasks above add is the other half: that the agent *says* which product, rather than reciting Part 1's "the knowledge base does not contain enough supporting material", which would be true and useless.
+
+Criteria 28 to 31 of spec section 16 are Part 1's alone and appear in no task here.
