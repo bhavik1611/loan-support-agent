@@ -3572,7 +3572,9 @@ Nothing about retrieval moves in this task, so every number that shifts in the t
 
 - [ ] **Step 1: Rename the constant and state what the file now is**
 
-Rename `OUT_OF_SCOPE_PROBES` to `FAR_OUT_OF_SCOPE_PROBES` at all five call sites: `eval/calibration.py` lines 32, 54 and 105, `tests/test_queries.py` lines 43 and 45, and `scripts/run_part1.py` line 242.
+Rename `OUT_OF_SCOPE_PROBES` to `FAR_OUT_OF_SCOPE_PROBES` at all five call sites.
+They are in three files: `eval/calibration.py` (the definition, the loop in `measure`, and the header line in `format_report`), `tests/test_queries.py` (the length and uniqueness assertions in `test_probe_counts_oversample_the_brief_floors`), and `scripts/run_part1.py` (the slice that feeds the out-of-scope demonstration).
+Find them with `grep -rn OUT_OF_SCOPE_PROBES --include='*.py' .` rather than trusting a line number written here.
 The rename is the point, not cosmetic: after D-48 there are two kinds of out-of-scope probe and only one of them belongs here.
 
 Rewrite the module docstring to say that this file is the **fitting set**, that it derives `T` and is never scored against, and that near-domain probes live in `eval/queries.py` because scoring a threshold on the strings that set it measures nothing.
@@ -3627,30 +3629,43 @@ Commit: `Grow the far probe tier to 17 and retune the threshold`
 
 ---
 
-## Task 18: The product catalogue and the scope gate
+## Task 18: The product catalogue, the scope gate and the golden dataset
 
 Spec section 8.5, D-47, D-51, D-52 and D-53.
 This is the fix for the root cause recorded as item 6 in spec section 18.1.
+
+This task also **authors the golden dataset**, because the gate's two tests read it and a task cannot end with failing tests.
+Task 19 owns the evaluation machinery that scores it.
 
 **Files:**
 - Modify: `knowledge_base/catalogue.json`
 - Modify: `rag/kb.py` (parse and validate the new fields)
 - Create: `rag/scope.py`
-- Modify: `rag/index.py` (write the product metadata)
 - Modify: `rag/retrieve.py` (the conditional filter)
 - Modify: `rag/generate.py` (the gate refusal path)
+- Modify: `eval/queries.py` (the four-class golden dataset)
 - Modify: `config.py`
 - Create: `tests/test_scope.py`
-- Modify: `tests/test_kb.py`
+- Modify: `tests/test_kb.py`, `tests/test_queries.py`
+
+`rag/index.py` is deliberately **not** in that list, and neither collection is rebuilt.
+Step 5 explains why.
 
 **Interfaces:**
 - Consumes: `knowledge_base/catalogue.json`.
 - Produces: `scope.classify(query) -> ScopeVerdict` with fields `product`, `in_catalogue`, `known_adjacent`, carrying enough for `rag/generate.py` to name the product in its refusal.
+- Produces: `GOLDEN_DATASET: list[GoldenItem]`, with `EVAL_QUERIES` kept as its `answerable` subset so every existing caller keeps working.
 
 - [ ] **Step 1: Extend `catalogue.json`**
 
-Add a top-level `products` list naming what Meridian Bank sells, per D-47: Home Loan, Auto Loan, Education Loan, Personal Loan, Business Loan, Meridian Rewards Card, savings account, current account, joint account, NRE account, NRO account.
-Read the names out of the documents rather than inventing them; `kb-07` alone names five loan products and the card.
+Add a top-level `products` list naming what Meridian Bank sells, per D-47.
+Read the names out of the documents rather than inventing them.
+Counted across `knowledge_base/*.txt` on 2026-09-12: Personal Loan 15, Meridian Rewards Card 13, Home Loan 13, NRO account 12, NRE account 12, joint account 7, Business Loan 6, savings account 5, Auto Loan 5, Education Loan 3, salary account 1.
+
+That is the list, and it is eleven entries.
+**"Current account" is not one of them.**
+An earlier draft of this task listed it; no document mentions one, and inventing a product would make `catalogue.json` disagree with the corpus it describes.
+`joint account` is a mode of holding rather than a distinct product, and it stays in anyway, because the gate only needs to know the phrase is something Meridian does.
 
 Add a `products` tag to each of the 18 document entries, listing which of those products that document covers.
 A document covering all loan products lists all five, not a shorthand.
@@ -3674,21 +3689,23 @@ The catalogue side is read from `catalogue.json`, never duplicated here.
 Deterministic string matching only.
 Do not embed anything here: D-51 records that an embedding router loses to the same measurement the threshold lost to.
 
-- [ ] **Step 4: Carry the product into the index**
-
-`rag/index.py` writes `doc_id`, `title` and `chunk_index` into chunk metadata today.
-Add `products`, taken from the document's catalogue tag, as a delimited string because ChromaDB metadata values are scalars.
-This rebuilds both collections, which is expected and is why this task sits after Task 17 rather than before it.
-
-- [ ] **Step 5: Filter conditionally in `rag/retrieve.py`**
+- [ ] **Step 4: Filter conditionally in `rag/retrieve.py`**
 
 Add an optional `product` argument to `retrieve`.
-When it is set, pass a ChromaDB `where` clause restricting to chunks whose `products` contains it; when it is not, query exactly as today.
+When it is set, ask the catalogue which `doc_id` values carry that product and pass `where={"doc_id": {"$in": [...]}}`.
+When it is not set, query exactly as today with no `where` clause at all.
 
 **The filter must be conditional.**
 Measured during review: 9 of the 12 in-scope calibration probes name no product at all, so an unconditional filter would search an empty subset for three quarters of real questions.
 
-- [ ] **Step 6: Wire the gate into `rag/generate.py`**
+**Do not add a product field to chunk metadata, and do not reindex.**
+An earlier draft of this task did exactly that and it does not work.
+Verified against ChromaDB 1.5.9 on 2026-09-12: `$in` and `$eq` on `doc_id` both filter correctly, but `$contains` on a string metadata field returns an **empty result rather than raising**.
+A delimited `products` string filtered with `$contains` would therefore have made every product-named query retrieve nothing, silently, and the tests in Step 7 would have failed with no clue why.
+The `doc_id` `$in` clause uses a supported operator, keeps `catalogue.json` the single authority, and leaves both collections untouched.
+This is recorded in D-53.
+
+- [ ] **Step 5: Wire the gate into `rag/generate.py`**
 
 Call `scope.classify` before retrieval.
 On `known_adjacent`, return the refusal without retrieving anything, carrying the product name so Part 2 can say which product was asked about.
@@ -3698,43 +3715,13 @@ Otherwise retrieve unfiltered and let `T` and the support rule decide, exactly a
 Per D-54 the sentence a user reads is Part 2's job.
 Part 1 produces the structured refusal and the product name, not prose.
 
-- [ ] **Step 7: Test both directions**
-
-`tests/test_scope.py` asserts acceptance criteria 24a and 28, and they pull in opposite directions on purpose:
-
-- every `outside_boundary` golden item yields a gate refusal
-- **no `answerable` golden item is refused by the gate**
-
-The second is the one that protects users, and a curated list can drift into violating it.
-Neither is tautological as long as the item strings and `KNOWN_ADJACENT` stay separate data, so never generate one from the other.
-
-Task 19 authors the golden items these tests read, so write the tests here and expect them to fail until Task 19 lands, or author the two lists together and split the commits.
-
-Commit: `Add the product catalogue and the pre-retrieval scope gate`
-
----
-
-## Task 19: The golden dataset and decision-level evaluation
-
-Spec sections 9.1 and 9.4, D-50, D-55 and D-56.
-
-**Files:**
-- Modify: `eval/queries.py`
-- Modify: `rag/evaluate.py`
-- Modify: `tests/test_queries.py`
-- Modify: `tests/test_evaluate.py`
-- Modify: `scripts/run_part1.py`
-
-**Interfaces:**
-- Produces: `GOLDEN_DATASET: list[GoldenItem]`, and `EVAL_QUERIES` kept as the `answerable` subset so `rag/evaluate.py` and every existing caller keep working.
-
-- [ ] **Step 1: Restructure `eval/queries.py`**
+- [ ] **Step 6: Restructure `eval/queries.py` into the golden dataset**
 
 Introduce `GoldenItem` with `item_id`, `text`, `kind`, `gold_doc_ids` and `product`, per spec 9.1.
 Keep `EVAL_QUERIES` as a derived list of the 12 `answerable` items so nothing downstream breaks, and keep their ids `EQ-01` to `EQ-12` and their text byte-identical.
 Stable ids are what keep every Precision@3 number already in `README.md` comparable across this amendment.
 
-- [ ] **Step 2: Author the three new classes**
+- [ ] **Step 7: Author the three new classes**
 
 Thirteen `outside_boundary` items, `OB-01` to `OB-13`, each naming a product in `KNOWN_ADJACENT`.
 The review measured these, and they are the set the gate was sized against.
@@ -3745,7 +3732,45 @@ Five `far_out_of_scope` items, `FO-01` to `FO-05`, written fresh.
 **They must not reuse any of the 17 far probes from Task 17.**
 That is acceptance criterion 30, and it is the property that lets this be called a golden dataset at all.
 
-- [ ] **Step 3: Add the decision table to `rag/evaluate.py`**
+Add criterion 30's test here, checked in both directions, because the dataset it guards exists as of this step.
+
+- [ ] **Step 8: Test the gate in both directions**
+
+`tests/test_scope.py` asserts acceptance criteria 24a and 28, and they pull in opposite directions on purpose:
+
+- every `outside_boundary` golden item yields a gate refusal
+- **no `answerable` golden item is refused by the gate**
+
+The second is the one that protects users, and a curated list can drift into violating it.
+Neither is tautological as long as the item strings and `KNOWN_ADJACENT` stay separate data, so never generate one from the other.
+
+Both tests pass within this task, because Steps 6 and 7 authored the items they read.
+
+- [ ] **Step 9: Verify and commit**
+
+Run the full suite with `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 .venv/bin/python -m pytest`.
+Confirm neither collection was rebuilt: `chroma/` should be untouched by this task.
+
+Commit: `Add the product catalogue, the scope gate and the golden dataset`
+
+---
+
+## Task 19: Decision-level evaluation
+
+Spec sections 9.1 and 9.4, D-50, D-55 and D-56.
+Task 18 authored the golden dataset; this task scores it.
+
+**Files:**
+- Modify: `rag/evaluate.py`
+- Modify: `tests/test_evaluate.py`
+- Modify: `scripts/run_part1.py`
+- Modify: `README.md` (the transcript list only)
+
+**Interfaces:**
+- Consumes: `GOLDEN_DATASET` from `eval/queries.py`, authored in Task 18.
+- Produces: the decision table, and `transcripts/part1-golden-dataset.txt`.
+
+- [ ] **Step 1: Add the decision table to `rag/evaluate.py`**
 
 Keep Precision@3 and Recall@3 exactly as they are, scored over the `answerable` items only.
 Add a second pass over all 32 items recording `answered`, `refused_gate` or `refused_threshold`, and a per-class summary.
@@ -3753,20 +3778,20 @@ Add a second pass over all 32 items recording `answered`, `refused_gate` or `ref
 Report the near-domain false-answer rate explicitly.
 Before the gate it was 14 of 30 readings answered outright, and printing the after figure beside it is the evidence the fix worked.
 
-- [ ] **Step 4: Assert only what D-56 allows**
+- [ ] **Step 2: Assert only what D-56 allows**
 
 Add criterion 29: every `far_out_of_scope` item is refused, by either mechanism.
-Add criterion 30: no calibration probe string appears in the golden dataset, checked in both directions.
+Criterion 30 was already added in Task 18 Step 7, alongside the dataset it guards.
 
 Do **not** assert on Precision@3, Recall@3, the `inside_uncovered` count, or any aggregate decision accuracy.
 D-13 settled this shape of question for this repository and D-56 extends it: those numbers move legitimately when chunk parameters are tuned, and a test that fights tuning gets deleted.
 
-- [ ] **Step 5: Give it a transcript**
+- [ ] **Step 3: Give it a transcript**
 
 `scripts/run_part1.py` writes the decision table to `transcripts/part1-golden-dataset.txt`, listing every item with its class, its outcome and its top-1 similarity.
 Add it to the transcript list in `README.md`.
 
-Commit: `Build the four-class golden dataset and decision-level evaluation`
+Commit: `Add decision-level evaluation over the golden dataset`
 
 ---
 
@@ -3795,6 +3820,9 @@ A grader reading only `README.md` should learn both that the system refuses corr
 
 Three facts in it go stale in this amendment: the acceptance-criteria count rises from twenty-seven to thirty-two, the test count changes, and the threshold sentence naming 0.2818 needs the new value.
 Read the actual numbers out of the run and the suite rather than computing them here.
+
+**`CLAUDE.md` is gitignored** (`.gitignore:34`) and untracked, so this step changes a local file only and nothing about it reaches a commit or a reviewer.
+Do it anyway, because the next agent in this repository reads it as fact.
 
 - [ ] **Step 4: Full verification**
 
