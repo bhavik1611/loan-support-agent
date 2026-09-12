@@ -3629,6 +3629,87 @@ Commit: `Grow the far probe tier to 17 and retune the threshold`
 
 ---
 
+## Task 17b: Pin the search breadth and re-derive `T`
+
+Spec section 7.3 and the determinism ground rule in section 2.
+Added 2026-09-12 during execution, after Task 17's review found that the committed
+calibration transcript does not reproduce.
+
+**Why this exists.**
+`scripts/run_part1.py` line 178 calls `index.build_index(rebuild=True)`, so both
+collections are deleted and rebuilt on every run.
+At ChromaDB's default search breadth the HNSW query sometimes misses its true nearest
+neighbour, so one probe lands on a different parent document from one run to the next.
+That makes the repository's "same input, same seed, same bytes" claim false.
+
+Measured on 2026-09-12, 215 sentence chunks embedded once and reused, five rebuilds per
+configuration, probe "What is the offside rule in football?":
+
+| configuration | result |
+|---|---|
+| `hnsw:space` cosine only, as shipped | **unstable**: 3/5 gave 0.1619 kb-07, 2/5 gave 0.1611 kb-02 |
+| `hnsw:num_threads` 1 | **unstable**: same 3/5 and 2/5 split |
+| `hnsw:search_ef` 200 | **stable**: 5/5 gave 0.1619 kb-07 |
+| both | **stable**: 5/5 gave 0.1619 kb-07 |
+
+`hnsw:random_seed` is rejected outright by chromadb 1.5.9, so seeding is not available.
+Threading is not the cause; search breadth is.
+0.1611 is the approximation missing the true neighbour and 0.1619 is the correct answer,
+so this fix makes retrieval more accurate as well as reproducible.
+
+**Files:**
+- Modify: `config.py` (one new constant in the Task 3 chunking and indexing section)
+- Modify: `rag/index.py` (the collection metadata, in both places it is written)
+- Modify: `config.py` comment above `SIMILARITY_THRESHOLD`, and its value
+- Regenerate: `transcripts/`, and the generated blocks in `README.md`
+
+**Interfaces:**
+- Produces: `config.SEARCH_EF`, consumed only by `rag/index.py`.
+
+- [ ] **Step 1: Add the constant**
+
+`SEARCH_EF = 200` goes in `config.py` beside `CHUNK_SIZE` and `MIN_CHUNKS_PER_DOCUMENT`, in the Task 3 section.
+It is an index parameter, and `config.py` is the only place one is defined.
+Append inside that existing section; do not touch the Part 2 section at the end of the file, which another session is editing concurrently.
+
+Comment it with what it buys, in one line: the default breadth returns a non-nearest neighbour on some rebuilds, which breaks byte-identical reruns.
+
+- [ ] **Step 2: Wire it into both collection-metadata sites**
+
+`rag/index.py` writes `metadata={"hnsw:space": "cosine"}` in two places inside `build_index`.
+Both become `{"hnsw:space": "cosine", "hnsw:search_ef": config.SEARCH_EF}`.
+Miss one and the collection it creates stays unstable, which is the whole defect.
+
+**Do not add `hnsw:num_threads`.**
+It was measured and it does not help, so it would be a constant carrying no effect.
+
+- [ ] **Step 3: Prove the fix, do not assume it**
+
+Run `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 .venv/bin/python scripts/run_part1.py` **five** times.
+After each run, check `git status --short transcripts/`.
+The tree must be clean after every run from the second onwards.
+Two runs are not enough evidence here: the defect showed up 2 times in 5, so a two-run check passes by luck more often than not.
+
+Paste all five results into the report.
+
+- [ ] **Step 4: Re-derive `T`**
+
+Retrieval just became more accurate, and `T` is the midpoint between two retrieval measurements, so the threshold set in Task 17 is now derived from superseded numbers.
+Repeat Task 17's measure-then-set dance exactly: run the script, read the new midpoint out of `transcripts/part1-calibration.txt`, write it into `config.SIMILARITY_THRESHOLD` with an updated comment, then run the script again.
+
+`T` may stay at 0.3066 or it may move.
+Either is correct; what is not acceptable is leaving a threshold whose derivation no longer matches the printed table.
+
+- [ ] **Step 5: Verify and commit**
+
+Full suite with the network hard-disabled.
+Test 6 must still pass: the in-scope minimum must clear the far-tier maximum.
+If it does not, stop and report rather than adjusting anything - that would mean the accuracy fix changed the cluster separation, which is a finding, not a nuisance.
+
+Commit: `Pin the HNSW search breadth so retrieval reproduces`
+
+---
+
 ## Task 18: The product catalogue, the scope gate and the golden dataset
 
 Spec section 8.5, D-47, D-51, D-52 and D-53.
@@ -3644,12 +3725,16 @@ Task 19 owns the evaluation machinery that scores it.
 - Modify: `rag/retrieve.py` (the conditional filter)
 - Modify: `rag/generate.py` (the gate refusal path)
 - Modify: `eval/queries.py` (the four-class golden dataset)
-- Modify: `config.py`
 - Create: `tests/test_scope.py`
 - Modify: `tests/test_kb.py`, `tests/test_queries.py`
 
 `rag/index.py` is deliberately **not** in that list, and neither collection is rebuilt.
-Step 5 explains why.
+Step 4 explains why.
+
+`config.py` is deliberately not in that list either.
+`KNOWN_ADJACENT` is a vocabulary, and `config.py` owns paths, weights, bands, chunk parameters, collection names and thresholds, none of which it is.
+The closest precedents both sit outside `config.py`: `IN_SCOPE_PROBES` in `eval/calibration.py` and `SYSTEM_PROMPT` in `rag/generate.py`.
+This also keeps `config.py` free for the Part 2 session, which is appending to it concurrently.
 
 **Interfaces:**
 - Consumes: `knowledge_base/catalogue.json`.
