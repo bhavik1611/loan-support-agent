@@ -1,10 +1,3 @@
----
-doc_id: kb-01-loan-eligibility
-title: Loan eligibility criteria by loan type
-topic: loan_eligibility
-required: true
----
-
 Meridian Bank offers five loan products, a Personal Loan, an Auto Loan, an Education Loan, a Business Loan and a Home Loan.
 Meridian Bank assesses eligibility separately for each loan product, because the risk profile of an unsecured personal advance differs from that of a secured home loan.
 For a salaried applicant, Meridian Bank sets the eligible age band from 21 to 60 years.

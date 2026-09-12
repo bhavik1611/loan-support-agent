@@ -1,10 +1,3 @@
----
-doc_id: kb-02-emi-calculation
-title: EMI calculation rules
-topic: emi_calculation
-required: true
----
-
 EMI stands for equated monthly instalment, and the equated monthly instalment on a Meridian Bank loan stays level for the entire repayment tenure.
 Meridian Bank calculates the equated monthly instalment using the formula EMI = P * r * (1 + r)^n / ((1 + r)^n - 1).
 In this formula, P is the principal amount borrowed, r is the monthly interest rate, and n is the tenure expressed in months.

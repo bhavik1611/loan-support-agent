@@ -234,8 +234,8 @@ def main() -> int:
         f"(largest deviation {worst:.4f} rupees)",
     )
 
-    kb04 = (config.KB_DIR / "kb-04-kyc-documents.md").read_text(encoding="utf-8").lower()
-    kb12 = (config.KB_DIR / "kb-12-nri-account-eligibility.md").read_text(encoding="utf-8").lower()
+    kb04 = (config.KB_DIR / "kb-04-kyc-documents.txt").read_text(encoding="utf-8").lower()
+    kb12 = (config.KB_DIR / "kb-12-nri-account-eligibility.txt").read_text(encoding="utf-8").lower()
     unknown = [
         r["doc_type"]
         for r in conn.execute("SELECT DISTINCT doc_type FROM kyc_documents")
@@ -243,7 +243,7 @@ def main() -> int:
     ]
     check(not unknown, f"every doc_type appears in kb-04 or kb-12 (unknown: {unknown})")
 
-    kb05 = (config.KB_DIR / "kb-05-fraud-dispute.md").read_text(encoding="utf-8").lower()
+    kb05 = (config.KB_DIR / "kb-05-fraud-dispute.txt").read_text(encoding="utf-8").lower()
     unknown = [
         r["channel"]
         for r in conn.execute("SELECT DISTINCT channel FROM support_tickets")

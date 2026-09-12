@@ -1,10 +1,3 @@
----
-doc_id: kb-08-prepayment-penalty
-title: Prepayment-penalty rules
-topic: prepayment_penalty
-required: true
----
-
 Meridian Bank charges no prepayment penalty on a floating-rate loan taken by an individual borrower.
 Meridian Bank charges a prepayment penalty of 2 percent of the amount prepaid on a fixed-rate loan.
 Meridian Bank charges a prepayment penalty of 3 percent of the amount prepaid on a Business Loan, regardless of whether the Business Loan carries a fixed or a floating rate.

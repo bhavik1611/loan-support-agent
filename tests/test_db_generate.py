@@ -12,7 +12,7 @@ from db import generate, schema
 
 # --- vocabularies transcribed straight out of the knowledge base ----------
 
-# kb-04-kyc-documents.md: "Meridian Bank accepts a passport, a voter identity
+# kb-04-kyc-documents.txt: "Meridian Bank accepts a passport, a voter identity
 # card, a driving licence, an Aadhaar card, or a job card issued under NREGA
 # as proof of identity" and "a passport, a utility bill no older than two
 # months, a property tax receipt, or a bank statement as proof of address."
@@ -29,12 +29,12 @@ KB04_ADDRESS_DOC_TYPES = {
     "Property Tax Receipt",
     "Bank Statement",
 }
-# kb-12-nri-account-eligibility.md: a non-resident additionally submits a
+# kb-12-nri-account-eligibility.txt: a non-resident additionally submits a
 # passport and a valid visa.
 KB12_NRI_EXTRA_DOC_TYPES = {"Passport", "Visa"}
 PERMITTED_DOC_TYPES = KB04_IDENTITY_DOC_TYPES | KB04_ADDRESS_DOC_TYPES | KB12_NRI_EXTRA_DOC_TYPES
 
-# kb-05-fraud-dispute.md: "report an unauthorised transaction through the
+# kb-05-fraud-dispute.txt: "report an unauthorised transaction through the
 # 24-hour helpline, net banking, the mobile app, or any branch."
 PERMITTED_CHANNELS = {"Helpline", "Net Banking", "Mobile App", "Branch"}
 

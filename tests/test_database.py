@@ -26,7 +26,7 @@ CHILD_FOREIGN_KEYS = [
 
 
 def _kb_text(stem: str) -> str:
-    return (config.KB_DIR / f"{stem}.md").read_text(encoding="utf-8").lower()
+    return (config.KB_DIR / f"{stem}.txt").read_text(encoding="utf-8").lower()
 
 
 RATE_SENTENCE = re.compile(

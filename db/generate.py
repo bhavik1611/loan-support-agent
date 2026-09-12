@@ -7,11 +7,11 @@ deterministic and calling one generator twice cannot perturb another's draws.
 
 Every controlled vocabulary here is transcribed from the knowledge base, not
 invented:
-- kyc_documents.doc_type: identity and address proofs from kb-04-kyc-documents.md,
-  plus the passport-and-visa pair kb-12-nri-account-eligibility.md requires of a
+- kyc_documents.doc_type: identity and address proofs from kb-04-kyc-documents.txt,
+  plus the passport-and-visa pair kb-12-nri-account-eligibility.txt requires of a
   non-resident.
-- support_tickets.channel: the reporting channels kb-05-fraud-dispute.md names.
-- The EMI arithmetic in _emi()/_schedule() is kb-02-emi-calculation.md's formula
+- support_tickets.channel: the reporting channels kb-05-fraud-dispute.txt names.
+- The EMI arithmetic in _emi()/_schedule() is kb-02-emi-calculation.txt's formula
   and nothing else in this repository computes an EMI.
 """
 

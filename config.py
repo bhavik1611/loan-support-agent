@@ -141,7 +141,7 @@ PRODUCT_CODES = {
 
 SECURED_CATEGORIES = {"Home Loan", "Auto Loan"}
 
-# Read straight out of knowledge_base/kb-07-interest-rate-slabs.md. If a rate
+# Read straight out of knowledge_base/kb-07-interest-rate-slabs.txt. If a rate
 # here disagrees with that document, the document wins and this is the bug.
 RATE_BANDS = {
     "Home Loan": (8.40, 9.85),

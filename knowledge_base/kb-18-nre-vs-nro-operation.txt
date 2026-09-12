@@ -1,10 +1,3 @@
----
-doc_id: kb-18-nre-vs-nro-operation
-title: NRE versus NRO account operation rules
-topic: nre_vs_nro
-required: false
----
-
 Meridian Bank operates the NRE account and the NRO account under different rules for what money can enter each account.
 A Meridian NRE account accepts only foreign-earned income that is remitted into it from overseas.
 A Meridian NRO account accepts Indian-sourced income such as rent, dividends and pension credited from within India.

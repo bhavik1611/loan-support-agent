@@ -197,7 +197,9 @@ Indian bank holidays are deliberately out of scope: weekends are computable from
 
 ## Part 1 Task 2 - the knowledge base
 
-18 documents in [`knowledge_base/`](knowledge_base/), one markdown file each with YAML front matter, all written from scratch for this brief.
+18 documents in [`knowledge_base/`](knowledge_base/), one plain-text file each, all written from scratch for this brief.
+A document is prose and nothing else; its `title`, `topic` and `required` flag live beside it in [`knowledge_base/catalogue.json`](knowledge_base/catalogue.json), the way a document store keeps its index separate from its content.
+`rag/kb.py` reads both and refuses to load if they describe different sets, in either direction.
 
 - **12 required topics**, one per topic the brief names, marked `required: true`.
 - **6 deliberately confusable neighbours**, marked `required: false`.
@@ -395,7 +397,7 @@ They move legitimately when chunk parameters are tuned, so a test that pinned th
 dataset.py                  Task 1. Seeded generator, LOAN_APPLICATIONS, lookup, validation report.
 config.py                   Paths, weights, bands, chunk parameters, the measured threshold.
 llm.py                      Provider seam. MOCK_LLM default, real provider behind LLM_PROVIDER.
-knowledge_base/             Task 2. 18 markdown documents with YAML front matter.
+knowledge_base/             Task 2. 18 plain-text documents plus catalogue.json.
 rag/
   kb.py                     Load and parse knowledge_base/ into Document objects.
   chunking.py               Task 3. chunk_fixed and chunk_sentences.

@@ -1,10 +1,3 @@
----
-doc_id: kb-17-foreclosure-vs-part-prepayment
-title: Foreclosure versus part-prepayment
-topic: foreclosure_vs_prepayment
-required: false
----
-
 Meridian Bank distinguishes foreclosure from part-prepayment as two different ways a borrower can pay down a loan ahead of schedule.
 Foreclosure at Meridian Bank means repaying the entire outstanding balance in one payment, and foreclosure closes the loan account completely.
 Part-prepayment at Meridian Bank means repaying only a portion of the outstanding balance, and the loan account continues after a part-prepayment.

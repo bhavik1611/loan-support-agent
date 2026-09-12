@@ -111,6 +111,7 @@ def content_hash(path=None) -> str:
 
 
 def manifest_text(path=None) -> str:
+    """Generate the manifest text for the given path."""
     path = Path(config.DB_PATH if path is None else path)
     conn = schema.connect(path)
     try:
@@ -176,6 +177,7 @@ def manifest_text(path=None) -> str:
 
 
 def write_manifest(path=None) -> Path:
+    """Write the manifest to the target path."""
     target = Path(config.DB_MANIFEST)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(manifest_text(path), encoding="utf-8")
@@ -183,6 +185,7 @@ def write_manifest(path=None) -> Path:
 
 
 def main() -> None:
+    """Build the database and write the manifest."""
     counts = build_database()
     print(f"built {config.DB_PATH}")
     for table, n in counts.items():

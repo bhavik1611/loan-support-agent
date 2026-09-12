@@ -1,10 +1,3 @@
----
-doc_id: kb-03-credit-card-fees
-title: Credit-card fee structure
-topic: credit_card_fees
-required: true
----
-
 Meridian Bank issues the Meridian Rewards Card, and the Meridian Rewards Card carries a joining fee of 499 rupees.
 The Meridian Rewards Card also carries an annual fee of 999 rupees.
 Meridian Bank waives the annual fee on the Meridian Rewards Card once the cardholder's annual spend crosses 2 lakh rupees.

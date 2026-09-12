@@ -1,10 +1,3 @@
----
-doc_id: kb-16-kyc-reverification
-title: KYC re-verification and periodic update rules
-topic: kyc_reverification
-required: false
----
-
 Meridian Bank treats KYC as a periodically refreshed record rather than a one-time check completed only when an account opens.
 Meridian refreshes KYC for a high-risk customer every 2 years, for a medium-risk customer every 8 years, and for a low-risk customer every 10 years.
 A change of address or a change of name on a Meridian account triggers a KYC refresh immediately, regardless of where the customer sits in the normal refresh cycle.

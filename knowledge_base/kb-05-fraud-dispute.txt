@@ -1,10 +1,3 @@
----
-doc_id: kb-05-fraud-dispute
-title: Fraud-dispute resolution process
-topic: fraud_dispute
-required: true
----
-
 A Meridian Bank customer can report an unauthorised transaction through the 24-hour helpline, net banking, the mobile app, or any branch.
 Reporting an unauthorised transaction to Meridian Bank within 3 working days preserves zero liability for the customer.
 Reporting an unauthorised transaction between 4 and 7 working days carries limited liability capped at 25,000 rupees.

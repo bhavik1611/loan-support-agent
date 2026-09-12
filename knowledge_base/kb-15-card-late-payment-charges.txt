@@ -1,10 +1,3 @@
----
-doc_id: kb-15-card-late-payment-charges
-title: Credit-card late-payment and overlimit charges
-topic: card_late_payment
-required: false
----
-
 Meridian Bank levies a late-payment fee on a credit card whenever the total amount due is not paid by the due date, and the late-payment fee is tiered by the size of that outstanding amount.
 A Meridian cardholder with a total amount due up to 5,000 rupees is charged a late-payment fee of 400 rupees.
 A Meridian cardholder with a total amount due between 5,001 and 20,000 rupees is charged a late-payment fee of 700 rupees.

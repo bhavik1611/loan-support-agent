@@ -1,10 +1,3 @@
----
-doc_id: kb-14-home-loan-ltv
-title: Home Loan eligibility and loan-to-value rules
-topic: home_loan_ltv
-required: false
----
-
 Meridian Bank finances a Home Loan against a loan-to-value ratio that steps down as the property value rises.
 For a property valued up to 30 lakh rupees, Meridian Bank lends up to 90 percent of the property value.
 For a property valued above 30 lakh rupees and up to 75 lakh rupees, Meridian Bank lends up to 80 percent of the property value.

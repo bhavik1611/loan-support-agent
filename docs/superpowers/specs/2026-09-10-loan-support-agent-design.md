@@ -65,6 +65,7 @@ Decisions marked "overrode recommendation" were taken by Bhavik against the reco
 | D-28 | Where the clock's randomness comes from | A new seeded stream, `config.stream("clock")`, at the first free offset | Drawing hours and minutes from each table's own stream lost because it reshuffles every row of all four tables, moving days, amounts and notes for a cosmetic gain. A fixed derived time with no randomness lost because every event would land at the same clock time, which is visibly synthetic. This is the case D-18's offset scheme was built for, and it is the reason a full timestamp costs nothing beyond the manifest rebuild D-26 already requires. |
 | D-29 | Working days and business hours | Bank-side transitions move forward to the next working day; `Submitted` never moves; every timestamp falls between 09:30 and 18:00 | Anchoring the existing offsets showed 99 of 393 events on a Saturday or Sunday, against five knowledge-base sentences written in working days (`kb-01`, `kb-05`, `kb-06`), and the knowledge base is the authority. Shifting backwards lost because it says the bank acted before it could have; nearest lost because it mixes both stories with no per-row reason; forward is a monotone map, which is why it produces no order inversions. `Submitted` is exempt because the generator's own note calls it an online submission, and an online form takes a Sunday one; the exemption is also load-bearing, because `Submitted` is `created_at` and moving it would break D-26's derivation. EMI due dates are exempt for the opposite reason: a due date is a contractual date, not an action, and shifting it would distort the amortisation schedule. Bank holidays lost because no document in this repository carries a holiday calendar, and inventing one contradicts the rule that the knowledge base is the authority. Overrode recommendation on the hours: the recommendation was two windows, 24 hours for customer-side rows and 09:30 to 18:00 for the bank, and Bhavik chose one window for one rule. |
 | D-30 | Stored or derived, for facts the trail already carries | `updated_at` and `paid` are stored, each pinned by a test asserting it equals what the trail says | Deriving them in `db/query.py` lost because it costs a correlated subquery on every read and hides the column Part 2 wants to quote; storing without a test lost because the two copies can then disagree and nothing notices. The uniqueness invariant on an application's events moves from distinct days to distinct instants, which is what the timestamp in D-26 was for: two events on one Monday morning and afternoon are a working day, not a defect. |
+| D-32 | What a knowledge-base document is | Plain `.txt` prose, with `title`, `topic` and `required` in a sidecar `catalogue.json` | Markdown with YAML front matter lost because it makes a document carry claims about itself that a real policy document does not: an ingestion pipeline reads files a business already has, and those files are prose. Renaming the extension while keeping the front matter lost too, and lost for the worse reason, because it relabels the format without changing anything. Deriving the metadata instead of storing it lost because `required` records which of the brief's topics a document covers, which is a fact about the corpus rather than about any one file, and `rag/index.py` writes `topic` and `required` into every chunk's metadata, so the retrieval layer needs them as much as evaluation does. The catalogue is the one place they live, and the loader fails rather than defaults if it and the directory disagree. Bodies were migrated programmatically and verified byte-identical, so no measured number moved. |
 | D-31 | Whether the snapshot carries the new fields | `data/loan_applications.json` gains `created_at` and `updated_at`, appended after the brief's six in the brief's order | Overrode recommendation. Keeping the projection at six fields lost, although it was recommended: it would have left the committed snapshot byte-identical and the hash test untouched. Bhavik chose to carry the timestamps through to the projection, so acceptance criterion 7 is restated rather than deleted, and the fields are appended rather than interleaved so that `PROJECTED_FIELDS`' promise to hold "the brief's six fields, in the brief's order" stays literally true. |
 
 ## 4. Repository layout
@@ -74,7 +75,7 @@ loan-support-agent/
   dataset.py                  Task 1. Seeded generator, LOAN_APPLICATIONS, lookup, validation report.
   config.py                   Paths, chunk parameters, calibrated threshold, environment flags.
   llm.py                      Provider seam. MOCK_LLM default, real provider behind LLM_PROVIDER.
-  knowledge_base/             Task 2. 18 markdown documents with YAML front matter.
+  knowledge_base/             Task 2. 18 plain-text documents plus catalogue.json.
   rag/
     kb.py                     Load and parse knowledge_base/ into Document objects.
     chunking.py               Task 3. chunk_fixed and chunk_sentences.
@@ -235,19 +236,23 @@ It is written by the same script that builds the database, so the two cannot dri
 
 ## 6. Part 1 Task 2 - knowledge base
 
-18 documents in `knowledge_base/`, one markdown file each, 10 to 15 sentences targeting 12, written from scratch for this brief.
+18 documents in `knowledge_base/`, one plain-text file each, 10 to 15 sentences targeting 12, written from scratch for this brief.
 
-Each file carries YAML front matter that `rag/kb.py` parses:
+A document carries no metadata of its own.
+It is the prose a support team would write, and nothing else.
+What each one is about lives beside it in `knowledge_base/catalogue.json`, keyed by `doc_id`, which is the filename stem (D-32):
 
 ```
----
-doc_id: kb-01-loan-eligibility
-title: Loan eligibility criteria by loan type
-topic: loan_eligibility
-required: true
----
+{
+  "kb-01-loan-eligibility": {
+    "title": "Loan eligibility criteria by loan type",
+    "topic": "loan_eligibility",
+    "required": true
+  }
+}
 ```
 
+`rag/kb.py` parses both sides strictly and refuses to load if they describe different sets, in either direction.
 `doc_id` is the unit that Precision@3 and Recall@3 score against, and the unit the support rule in D-07 groups by.
 
 ### 6.1 The twelve required topics
@@ -278,7 +283,7 @@ They are not padding: without them every query has one relevant document and D-0
 
 `chunk_fixed(text, size=400, overlap=80) -> list[str]` walks the character stream in steps of `size - overlap`.
 `chunk_sentences(text) -> list[str]` splits on terminal punctuation followed by whitespace, with a guard list for common abbreviations so "Rs. 5,000" does not become a boundary.
-Both take the document body only, never the front matter.
+Both take the document body, which since D-32 is the whole file.
 
 Parameters are D-14.
 They are starting values and get re-tuned once real retrieval numbers exist; `README.md` records both the starting and the final values.

@@ -1,10 +1,3 @@
----
-doc_id: kb-07-interest-rate-slabs
-title: Interest-rate slabs
-topic: interest_rate_slabs
-required: true
----
-
 Meridian Bank prices every loan product off an internal benchmark, the Meridian Reference Rate, plus a spread.
 The Home Loan at Meridian Bank carries an interest rate between 8.40 and 9.85 percent per annum.
 The Auto Loan at Meridian Bank carries an interest rate between 9.10 and 11.50 percent per annum.

@@ -1,10 +1,3 @@
----
-doc_id: kb-06-account-closure
-title: Account-closure process
-topic: account_closure
-required: true
----
-
 A Meridian Bank customer requests account closure either in branch or in writing.
 Meridian Bank requires the account balance to be nil, or Meridian Bank pays out the remaining balance by demand draft or transfer.
 Meridian Bank requires the customer to surrender any unused cheque leaves and the debit card before closing the account.
