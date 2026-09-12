@@ -115,6 +115,18 @@ Tasks 6 to 10. Approved 2026-09-12 off the review artifact of that date.
 | D-43 | How far past the brief Part 2 goes | Nine nodes, two conditional edges and four route outcomes, against the brief's floor of four nodes and one conditional edge | A brief-tight graph of four nodes lost because the conditional edge would then be a binary with nothing to demonstrate beyond itself. A supervisor delegating to specialist sub-agents lost because under `MOCK_LLM` a supervisor is template matching delegating to template matching, and the brief names multi-agent orchestration in its preamble without requiring it in any Part 2 task. Section 18 lists what this deliberately does not build. |
 | D-44 | How intent is routed | A record-id regex decides outright; otherwise the query is embedded with the model already loaded and scored against **three** exemplar centroids, `policy`, `lookup` and `vague`, and the highest wins | A scored keyword table lost because it is a second vocabulary to keep in sync with the knowledge base, and it is brittle under paraphrase. A `MOCK_LLM` classifier node lost because under mock the classifier is template matching anyway, so it adds a layer without adding signal. **Two centroids plus a calibrated margin lost on measurement**, and this is the decision's whole history: with only `policy` and `lookup`, the margin is a measure of which way a query leans, not of how confident the router is, so a vague query still leans one way by chance. Measured over 12 labelled and 5 ambiguous probes, the minimum labelled margin was 0.0009 against a maximum ambiguous margin of 0.2069, a gap of **minus 0.2060**. An absolute floor on the top score failed the same way. Adding a third `vague` centroid, which models the thing being detected instead of inferring it, routes 12 of 12 labelled probes correctly and catches 4 of the 5 ambiguous ones. |
 | D-45 | What happens when the router cannot commit | The `vague` centroid winning **is** the signal; the route is `clarify`, capped at one per thread | Defaulting to the RAG route lost because the router would silently guess and the groundedness fallback would absorb the mistake, which hides it. Treating the case as the `both` route lost because it wastes a lookup on queries carrying no record id and blurs what `both` means. Uncapped clarification lost because two ambiguous turns in a row would loop. A calibrated margin lost with D-44, and its removal is a simplification rather than a loss: there is now no router constant to preset, so nothing here needs the calibration discipline the brief imposes on the similarity threshold. |
+| D-46 | What the similarity threshold decides | Groundedness only: whether the knowledge base holds a passage that supports an answer. Topicality is not its job | Topicality lost on measurement. Holding one sentence frame fixed and swapping only the product noun, "fixed deposit" against "car insurance policy" scores **0.6805**, while the lowest genuine in-scope probe scores 0.3263 against the document that actually answers it. The embedding encodes the question's shape, not the product, so no cut on that signal can separate a deposit from a loan, and a larger probe set only measures the failure more precisely. |
+| D-47 | Meridian Bank's product boundary | Loans, cards, accounts, KYC and credit score. Deposits, investments, insurance and tax sit outside it | Leaving the boundary undeclared lost because "What is the interest rate on a fixed deposit for 5 years" then has no defensible label, and at 0.5694 it is the single worst near-domain reading. Widening it to everything a retail bank sells lost because that converts a scope question into a coverage gap and demands documents Part 1 does not need. |
+| D-48 | How out-of-scope probes are tiered | Two tiers. A **far** tier derives `T`; a **near-domain** tier is measured and reported and fits nothing | One pooled tier lost on measurement: 18 of 30 near-domain readings sit above the in-scope minimum, so the clusters do not narrow, they invert, and no threshold separates them. Keeping only the far tier lost because the system's real failure mode would then never be measured. |
+| D-49 | The threshold estimator, and the far tier's size | Min-max midpoint kept. The far tier grows from 5 probes to 17 | A percentile midpoint lost because a grader cannot redo it by eye from the printed table, and across 24 and 34 points it is not measurably more robust, only less legible. A maximum-margin sweep lost as machinery disproportionate to a 34-point sample. Keeping 5 probes lost because the sample was genuinely thin. The price is recorded rather than hidden: one probe, "Which vaccine schedule applies to a newborn in the first year?" at 0.2870, moves `T` on its own, and that sensitivity is item 7 in section 18.1. |
+| D-50 | How near-domain probes are labelled | Two labels, `outside_boundary` and `inside_uncovered` | A single label lost because "How do I transfer money to an account in another country" sits inside the boundary of D-47 with no document covering it. Scoring that as a correct out-of-scope refusal counts a coverage gap as a scope win, which flatters the system. A third ambiguous class lost because it is a judgement call per probe with no rule to settle it. |
+| D-51 | What decides scope | A product-catalogue gate that runs **before** retrieval. The threshold is demoted to a floor against gibberish | Deciding scope with similarity lost to D-46's measurement. Deciding it with an embedding router against product-name centroids lost to the same measurement, since the product nouns do not separate. Deciding it with an LLM reader over the retrieved passages is what a production system does in 2026 and is forbidden by the `MOCK_LLM` ground rule in section 2. Growing the corpus lost because coverage is not the cause: a 500-document knowledge base has the identical fixed-deposit problem. |
+| D-52 | Where the catalogue lives, and how the gate recognises a product | `knowledge_base/catalogue.json` gains a `products` list and per-document product tags. The gate holds that catalogue plus an explicit **known-adjacent** list of products Meridian does not sell | A positive catalogue alone lost on measurement: "Suggest me a good SIP" names no Meridian product, so a membership test sees nothing and falls through to the search that answers it wrongly. It fails on 13 of the 15 near-domain probes. A new `kb-19` scope document lost because a 19th document changes chunk counts and moves every measured number in Part 1, and `catalogue.json` is already the sidecar authority `rag/kb.py` parses strictly. The weakness is named rather than engineered around: the adjacent list does not generalise to an unseen product. |
+| D-53 | Whether retrieval filters by product | Conditionally, and only when the query names one | Filtering always lost on measurement: 9 of the 12 in-scope probes name no product at all and would be filtered to an empty subset. Dropping the filter lost narrowly, and the claim that carried it was corrected mid-review: the filter reaches 3 of 12 in-scope probes, not most of them. Where it does apply it is the difference between "which product is this about" and "what is this vaguely like", at the cost of one metadata field in `rag/index.py` and one branch in `rag/retrieve.py`. |
+| D-54 | Which part owns the fix | Split. The catalogue, the product metadata and the gate are Part 1 `rag/`; the refusal wording is Part 2 `agent/` | Part 2 owning all of it lost because only `rag/` can filter the search. Part 1 owning all of it lost because only `agent/` composes a sentence a support agent reads. This revises the first answer given in review, which assigned the whole fix to Part 2 before the root cause in D-46 had been measured. |
+| D-55 | What the golden dataset contains | `EVAL_QUERIES` and the near-domain tier absorbed into one four-class set in `eval/queries.py`. The calibration probes stay out | A separate `eval/golden.py` lost because two files would then describe one corpus and the single dataset asked for would not exist as one object. Absorbing the calibration probes too lost outright: `T` would be fit and scored on the same strings, and `tests/test_queries.py::test_probes_do_not_reuse_the_evaluation_query_strings` exists to prevent exactly that. A committed JSON file with a SHA-256 test lost narrowly: that pattern guards **generated** data against regeneration drift, and a hand-authored set changes only when someone edits it, which git already records. |
+| D-56 | Which evaluation numbers a test may pin | Only `outside_boundary` and `far_out_of_scope` refusals. `answerable` and `inside_uncovered` are reported and never asserted | An aggregate decision-accuracy number lost because it blends a robust signal with a fragile one, so a legitimate retune breaks it. Pinning nothing lost because the gate could then stop working silently. This is D-13 applied to a second family of numbers: Precision@3 and Recall@3 move when chunk parameters are tuned, and so does `inside_uncovered`. |
+| D-57 | How the two number-moving changes land | Two changes, two regenerations, threshold first | One combined regeneration lost because two independent causes move Part 1's numbers, and conflating them destroys the only property the transcripts exist for, which is that a grader can trace a number to a cause. Landing the gate first lost because `T` would then be calibrated against a retrieval layer about to change again. |
 
 ## 4. Repository layout
 
@@ -377,22 +389,29 @@ The assertion is also test 5 in section 16.
 ### 8.2 Threshold calibration
 
 The brief forbids a preset threshold and requires measurement.
-`eval/calibration.py` holds 12 in-scope probe queries, one per required topic, and 5 deliberately out-of-scope probes.
+`eval/calibration.py` holds the **fitting set**: 12 in-scope probe queries, one per required topic, and 17 deliberately far out-of-scope probes.
 This oversamples the brief's floors of 3 and 2, which makes the gap between the two clusters far more convincing.
+Per D-48 the fitting set contains only far out-of-scope probes.
+Near-domain probes live in the golden dataset of section 9 and never touch `T`.
 
 The procedure, run once and recorded:
 
-1. Measure top-1 cosine similarity for all 17 probes against both collections.
+1. Measure top-1 cosine similarity for all 29 probes against both collections.
 2. Print every measured value, clustered.
-3. Set `T` at the midpoint between the minimum in-scope value and the maximum out-of-scope value.
+3. Set `T` at the midpoint between the minimum in-scope value and the maximum out-of-scope value, per D-49.
 4. Record the measured values, the gap, and the chosen `T` in `README.md`.
 
 If the clusters overlap, `T` cannot be set honestly and the chunking parameters are wrong.
 That is test 6 in section 16, not a footnote.
 
+`T` is a floor, not a scope gate.
+D-46 records why: the signal it cuts does not carry product identity, so `T` cannot tell a fixed deposit from an education loan however it is calibrated.
+Scope is decided before retrieval, in section 8.5.
+
 ### 8.3 The answer decision
 
-An answer is produced only when both conditions hold, per D-07 and D-08:
+The product gate of section 8.5 runs first, and a query it refuses never reaches retrieval.
+For every query that passes it, an answer is produced only when both conditions hold, per D-07 and D-08:
 
 1. `top1.similarity >= T`
 2. At least 2 of the top 3 chunks share the same `doc_id`
@@ -415,12 +434,63 @@ The mock provider is deterministic template synthesis, per D-06:
 Template selection can pick wrong, which is deliberate.
 It means Part 3's context relevance and answer relevance vary across the 15 queries instead of being 1.0 by construction, so the RAG triad measures something.
 
+### 8.5 The product gate
+
+This subsection is numbered last and runs **first**, before section 8.1.
+It exists because of D-46: similarity cannot decide whether a question is about a product Meridian Bank sells.
+
+`knowledge_base/catalogue.json` gains two things, per D-52:
+
+- a top-level `products` list, the authority on what Meridian Bank sells
+- a `products` tag on each document entry, naming the products that document covers
+
+`rag/scope.py` holds the gate and one additional list, `KNOWN_ADJACENT`, naming products Meridian does not sell that people nonetheless ask about: fixed deposits, mutual funds, SIPs, ELSS, demat accounts, insurance, gold, cryptocurrency, income tax and GST.
+The gate is case-folded phrase matching over both lists, longest match first, and it is entirely deterministic.
+
+Three outcomes, and only three:
+
+| The query | Outcome |
+|---|---|
+| names a product in `KNOWN_ADJACENT` | refuse before retrieval, naming the product |
+| names a product in `products` | retrieve with the collection filtered to that product, per D-53 |
+| names no product | retrieve unfiltered, and let `T` and the support rule decide |
+
+Measured on the near-domain tier, the gate catches 13 of 15.
+The two it misses are the two the labels of D-50 already anticipate, and they fall through to the threshold as `inside_uncovered`.
+
+**The weakness is stated, not solved.**
+`KNOWN_ADJACENT` is a curated list, so it does not generalise to an adjacent product nobody thought to add.
+That is item 8 in section 18.1, and it is what a real support desk maintains rather than a defect peculiar to this build.
+
 ## 9. Part 1 Task 5 - evaluation
 
-### 9.1 Queries and gold labels
+### 9.1 The golden dataset
 
-`eval/queries.py` holds the same 12 queries used in Task 4, each with a hand-authored set of relevant `doc_id` values.
-Per D-11 the sizes are mixed: 4 queries with 1 relevant document, 5 with 2, and 3 with 3.
+`eval/queries.py` holds one golden dataset of 32 hand-authored items in four classes, per D-55.
+It is the **scored** half of the corpus and it fits nothing.
+The calibration probes of section 8.2 are the fitting half, and no string appears in both.
+`tests/test_queries.py::test_probes_do_not_reuse_the_evaluation_query_strings` enforces that boundary, and it is the reason the dataset can be called golden at all.
+
+```python
+@dataclass(frozen=True)
+class GoldenItem:
+    item_id: str
+    text: str
+    kind: str                       # one of the four classes below
+    gold_doc_ids: tuple[str, ...]   # non-empty only when kind == "answerable"
+    product: str                    # the product the text names, "" when none
+```
+
+| class | ids | count | what it is | correct behaviour |
+|---|---|---|---|---|
+| `answerable` | `EQ-01` to `EQ-12` | 12 | a real question with a supporting document | answer, citing its parent |
+| `outside_boundary` | `OB-01` to `OB-13` | 13 | names a product Meridian does not sell, per D-47 | refuse at the gate, before retrieval |
+| `inside_uncovered` | `IU-01` to `IU-02` | 2 | inside the boundary, no document covers it | refuse on the threshold and the support rule |
+| `far_out_of_scope` | `FO-01` to `FO-05` | 5 | not banking at all, and distinct from the fitting probes | refuse on the threshold |
+
+The 12 `answerable` items are the original `EVAL_QUERIES`, unchanged in text and id.
+Per D-11 their gold-set sizes stay mixed: 4 items with 1 relevant document, 5 with 2, and 3 with 3.
+Keeping the ids stable means every Precision@3 and Recall@3 number already in `README.md` remains comparable across the amendment.
 
 Labels are authored and committed **before** any retrieval is run.
 That ordering is stated in `README.md`, because a label set written after seeing the results is not a label set.
@@ -442,6 +512,33 @@ Therefore `|R|` is printed per query alongside the two metrics, and the Task 5 r
 ### 9.3 Output
 
 Per-query arithmetic is printed as fractions, not decimals, for both collections, followed by the averages and a 2 to 3 sentence recommendation citing both sets of numbers.
+Only the 12 `answerable` items carry gold documents, so only they are scored this way.
+
+### 9.4 Decision-level evaluation
+
+Precision@3 and Recall@3 answer "did retrieval find the right document".
+They cannot answer "should the system have spoken at all", which after D-51 is a separate decision made by a separate mechanism.
+`rag/evaluate.py` therefore reports a second table over all 32 items, recording which of three outcomes each produced:
+
+| outcome | meaning |
+|---|---|
+| `answered` | the gate passed, `T` cleared, and the support rule agreed |
+| `refused_gate` | the product gate of section 8.5 refused before retrieval |
+| `refused_threshold` | retrieval ran, and `T` or the support rule refused |
+
+Per D-56, exactly two of the four classes are asserted by a test:
+
+| class | asserted | why |
+|---|---|---|
+| `outside_boundary` | every item yields `refused_gate` | a genuine invariant the data can violate, and non-tautological because the item strings and `KNOWN_ADJACENT` are separate data |
+| `far_out_of_scope` | every item is refused, by either mechanism | robust; these are not close to anything |
+| `answerable` | reported only | Precision@3 and Recall@3 move legitimately when chunk parameters are tuned, per D-13 |
+| `inside_uncovered` | reported only | the most fragile number in the repository, and the one a Part 2 fix should be free to improve |
+
+A third assertion runs in the opposite direction and is the one that protects users: **no `answerable` item may yield `refused_gate`**.
+A gate that refuses a real question is worse than the failure it was built to fix, and a curated list can drift into doing exactly that.
+
+The transcript records the full table for both collections, so the `inside_uncovered` count and the near-domain false-answer rate are visible even though nothing asserts them.
 
 ## 10. Part 2 Task 6 - the lookup tool and the escalation score
 
@@ -700,10 +797,15 @@ Part 2 continues the numbering.
 | 21 | Every response from every route validates against `agent/response.schema.json` | "every agent response validates against the declared schema" |
 | 22 | A PAN, an Aadhaar and a 14-digit account number are each masked, and no raw value appears anywhere in the emitted state | "PII masking demonstrated firing on the fixed-format fields" |
 | 23 | Each of the four injection rules fires on its own probe and yields `route = refused` with the rule named | "prompt-injection detection demonstrated firing" |
-| 24 | An out-of-scope query yields the groundedness refusal rather than an answer | "an output-side groundedness check that refuses" |
+| 24a | An `outside_boundary` query is refused by the product gate before retrieval, naming the product | D-51 and D-52, and the brief's out-of-scope requirement |
+| 24b | An `inside_uncovered` query yields the groundedness refusal rather than an answer | "an output-side groundedness check that refuses" |
 | 25 | Every labelled probe routes to its label, and every vague probe routes to `clarify` except the one named in 18.2 | D-44 and D-45, the router decides rather than guesses |
 | 26 | The same thread and turn yields the same `trace_id` twice | D-38, and the determinism ground rule in section 2 |
 | 27 | The `both` route writes `policy` and `lookup` from different nodes, and no key twice | Section 11.2, the claim that the fan-out cannot reorder |
+| 28 | No `answerable` golden item is refused by the product gate | D-56, the false-refusal guard; a gate that blocks real questions is worse than the failure it fixes |
+| 29 | Every `far_out_of_scope` golden item is refused | Section 9.4, and the brief's out-of-scope requirement |
+| 30 | No calibration probe string appears in the golden dataset, in either direction | D-55, the property that lets the dataset be called golden |
+| 31 | Every `products` tag in `catalogue.json` names a product in the top-level `products` list | D-52, the catalogue is the authority over the gate and cannot disagree with itself |
 
 Precision@3 and Recall@3 are deliberately not pinned.
 They move legitimately when chunk parameters are tuned, and a test that fights tuning is a test that gets deleted.
@@ -751,12 +853,30 @@ These are recorded rather than resolved, and each is a task.
 4. ~~Which collection Part 2 consumes depends on Task 5's measured numbers.~~ Closed 2026-09-11.
    `kb_sentences`. Precision@3 0.8750 against 0.7917 and Recall@3 0.6528 against 0.5972, won while carrying the higher mean |R| of 1.33 against 1.25, so the asymmetry documented in section 9.2 runs against the winner rather than for it.
 
-A fifth item opened during implementation and is recorded here rather than fixed.
+Four further items opened during implementation and review, and are recorded here rather than fixed.
 
 5. The support rule in D-07 has a false-refusal mode on broad questions that span documents.
    "What documents are needed for KYC?" scores 0.5124 top-1, far above T, but its top three sentence chunks land on three different parents, so no two agree and the system refuses.
    None of the 12 labelled evaluation queries is affected, and `tests/test_generate.py` pins the behaviour so it cannot regress unnoticed.
    The two-signal fallback in section 19 is the V2 upgrade that removes it.
+
+6. **The embedding does not carry product identity, and this is the root cause behind D-46 and D-51.**
+   Holding one sentence frame fixed and swapping only the product noun, "What is the interest rate on a fixed deposit for 5 years" and the same sentence with "car insurance policy" score 0.6805 against each other, and with "home loan" 0.7605.
+   For comparison, the lowest genuine in-scope probe scores 0.3263 against the document that answers it, so two unrelated products in one frame sit twice as close as a real question sits to its own answer.
+   The consequence is not a tuning problem: before the gate, 20 of 30 near-domain readings cleared `T` and 14 of 30 were answered outright.
+   The gate of section 8.5 removes 13 of the 15; the residue is item 8.
+
+7. **`T` is set by exactly two readings, and one probe can move it.**
+   Min-max midpoint is legible, which is why D-49 kept it, and it means the minimum in-scope value and the maximum out-of-scope value decide the threshold alone.
+   Measured: adding 12 ordinary far-out probes raised the maximum out-of-scope reading from 0.2374 to 0.2870 on one probe, "Which vaccine schedule applies to a newborn in the first year?", which moves `T` and halves the gap.
+   Decision: leave it, and print every measured value so the sensitivity is visible in the transcript rather than inferred.
+   A percentile estimator would blunt it and lost in D-49 for being unreadable.
+
+8. **The known-adjacent list does not generalise.**
+   `KNOWN_ADJACENT` in `rag/scope.py` is curated, so an adjacent product nobody thought to add still falls through to the threshold.
+   Two probes already sit in that residue and are labelled `inside_uncovered` per D-50: "Can I get a credit card from another bank with a low limit?", which names an in-catalogue product but asks about a competitor, and "How do I transfer money to an account in another country?", which is inside the boundary with no document covering it.
+   Decision: leave it, and measure it.
+   This is what a real support desk maintains, and the alternative that would generalise is the LLM reader forbidden by section 2.
 
 6. ~~The relational store in section 5.4 is specified but not built.~~ Closed 2026-09-11.
    Built: 1,076 rows over seven tables, `loan_products` 5, `customers` 66, `loan_applications` 100, `application_events` 393, `repayments` 276, `support_tickets` 40, `kyc_documents` 196.

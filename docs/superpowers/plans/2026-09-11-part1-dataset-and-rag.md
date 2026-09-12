@@ -1,8 +1,14 @@
 # Part 1 - Dataset and RAG Core - Implementation Plan
 
-Status: implemented
+Status: approved
 
 > Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Amended 2026-09-12.**
+Tasks 1 to 16 are **implemented** and their checkboxes are historical.
+Tasks 17 to 20 are **approved and not implemented**.
+They exist because a review of the threshold calibration found that the threshold is not the mechanism that can decide scope, and the fix reaches the catalogue, the retrieval layer and the evaluation.
+The twelve decisions behind them are D-46 to D-57 in the spec's decision log, and every alternative they beat is recorded there.
 
 **Goal:** Build the brief-compliant Part 1 of the loan-support-agent capstone - a seeded loan-application dataset, an 18-document knowledge base, two chunking strategies indexed into two ChromaDB collections, empirically calibrated grounded generation, and a document-level Precision@3/Recall@3 comparison - all deterministic and offline under `MOCK_LLM`.
 
@@ -3543,6 +3549,261 @@ git push -u origin part-1-dataset-and-rag
 
 Merging is Bhavik's call.
 Do not open or merge a pull request without being asked.
+
+---
+
+
+## Task 17: Grow the far tier and retune `T`
+
+Spec section 8.2, D-48 and D-49.
+This is the first of the two regenerations D-57 requires, and it changes **only** the calibration.
+Nothing about retrieval moves in this task, so every number that shifts in the transcripts is attributable to the probe set alone.
+
+**Files:**
+- Modify: `eval/calibration.py`
+- Modify: `config.py` (the `SIMILARITY_THRESHOLD` value and its comment)
+- Modify: `tests/test_queries.py` (the probe-count test)
+- Modify: `scripts/run_part1.py` (the renamed constant at its one call site)
+- Regenerate: `transcripts/`, and the generated blocks in `README.md`
+
+**Interfaces:**
+- Consumes: `rag/retrieve.py`, unchanged.
+- Produces: `FAR_OUT_OF_SCOPE_PROBES`, replacing `OUT_OF_SCOPE_PROBES`.
+
+- [ ] **Step 1: Rename the constant and state what the file now is**
+
+Rename `OUT_OF_SCOPE_PROBES` to `FAR_OUT_OF_SCOPE_PROBES` at all five call sites: `eval/calibration.py` lines 32, 54 and 105, `tests/test_queries.py` lines 43 and 45, and `scripts/run_part1.py` line 242.
+The rename is the point, not cosmetic: after D-48 there are two kinds of out-of-scope probe and only one of them belongs here.
+
+Rewrite the module docstring to say that this file is the **fitting set**, that it derives `T` and is never scored against, and that near-domain probes live in `eval/queries.py` because scoring a threshold on the strings that set it measures nothing.
+
+- [ ] **Step 2: Add the twelve far probes**
+
+Append these to `FAR_OUT_OF_SCOPE_PROBES`, bringing it from 5 to 17.
+They were measured during review on 2026-09-12; the values are recorded here as the expectation the run must reproduce, not as numbers to type into any output.
+
+| probe | highest measured top-1 |
+|---|---|
+| How do I train a puppy to stop chewing furniture? | below 0.19 |
+| What is the tallest mountain in South America? | below 0.19 |
+| Write me a haiku about monsoon rain. | below 0.19 |
+| Which vaccine schedule applies to a newborn in the first year? | **0.2870** |
+| How do I fix a leaking kitchen tap? | below 0.19 |
+| What is the plot of the novel Midnight's Children? | 0.1845 |
+| How long should I bake sourdough at 220 degrees? | 0.2025 |
+| Explain how photosynthesis converts light into sugar. | below 0.19 |
+| What is the best time of year to visit Iceland? | 0.2005 |
+| How do I change a flat tyre on a bicycle? | 0.1960 |
+| Who composed the Four Seasons? | below 0.19 |
+| What is the offside rule in football? | below 0.19 |
+
+The vaccine probe is the one that moves `T`, and it stays.
+Dropping it would be cherry-picking, which is the outcome D-49 rejected by name.
+
+- [ ] **Step 3: Update the probe-count test**
+
+`tests/test_queries.py::test_probe_counts_oversample_the_brief_floors` asserts 12 and 5.
+Change the second to 17, in both the length and the uniqueness assertion.
+Do not add an assertion on the new `T`; the threshold is measured, and a test that pins it would make retuning look like a regression.
+
+- [ ] **Step 4: Measure, then set**
+
+Mirror the two-pass dance Task 11 established, because `config.SIMILARITY_THRESHOLD` is read by the thing that measures it.
+
+1. Run `.venv/bin/python scripts/run_part1.py` and read the new midpoint out of `transcripts/part1-calibration.txt`.
+2. Write that value into `config.SIMILARITY_THRESHOLD` and rewrite the comment above it to state the new date, the new probe counts, the new minimum in-scope and maximum out-of-scope readings, and the new gap.
+3. Run `scripts/run_part1.py` again so every transcript reflects the committed threshold.
+
+Expected from the review measurement: minimum in-scope 0.3263, maximum far out-of-scope 0.2870, `T` 0.3066, gap 0.0393, down from 0.0889.
+If the run disagrees, the run is right and this table is stale.
+
+- [ ] **Step 5: Verify and commit**
+
+Run the full suite with `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 .venv/bin/python -m pytest`.
+Test 6 must still pass: 0.3263 clears 0.2870, so the clusters still separate, but by less.
+Never hand-edit `transcripts/` or the generated blocks in `README.md`; both are written by the run script.
+
+Commit: `Grow the far probe tier to 17 and retune the threshold`
+
+---
+
+## Task 18: The product catalogue and the scope gate
+
+Spec section 8.5, D-47, D-51, D-52 and D-53.
+This is the fix for the root cause recorded as item 6 in spec section 18.1.
+
+**Files:**
+- Modify: `knowledge_base/catalogue.json`
+- Modify: `rag/kb.py` (parse and validate the new fields)
+- Create: `rag/scope.py`
+- Modify: `rag/index.py` (write the product metadata)
+- Modify: `rag/retrieve.py` (the conditional filter)
+- Modify: `rag/generate.py` (the gate refusal path)
+- Modify: `config.py`
+- Create: `tests/test_scope.py`
+- Modify: `tests/test_kb.py`
+
+**Interfaces:**
+- Consumes: `knowledge_base/catalogue.json`.
+- Produces: `scope.classify(query) -> ScopeVerdict` with fields `product`, `in_catalogue`, `known_adjacent`, carrying enough for `rag/generate.py` to name the product in its refusal.
+
+- [ ] **Step 1: Extend `catalogue.json`**
+
+Add a top-level `products` list naming what Meridian Bank sells, per D-47: Home Loan, Auto Loan, Education Loan, Personal Loan, Business Loan, Meridian Rewards Card, savings account, current account, joint account, NRE account, NRO account.
+Read the names out of the documents rather than inventing them; `kb-07` alone names five loan products and the card.
+
+Add a `products` tag to each of the 18 document entries, listing which of those products that document covers.
+A document covering all loan products lists all five, not a shorthand.
+
+**The knowledge base stays the authority.**
+If a product appears in a document and not in `products`, `catalogue.json` is the bug, exactly as `RATE_BANDS` yields to `kb-07` today.
+
+- [ ] **Step 2: Validate it in `rag/kb.py`**
+
+`rag/kb.py` already refuses to load when the documents and the catalogue describe different sets.
+Extend that strictness: every name in a document's `products` tag must appear in the top-level `products` list, and the loader raises otherwise.
+That is acceptance criterion 31.
+
+- [ ] **Step 3: Write `rag/scope.py`**
+
+Hold two lists and one function.
+`KNOWN_ADJACENT` names products Meridian does not sell that people ask about anyway: fixed deposit, recurring deposit, mutual fund, SIP, ELSS, demat, shares, stock market, insurance, gold, cryptocurrency, income tax, GST, tax return.
+The catalogue side is read from `catalogue.json`, never duplicated here.
+
+`classify(query)` case-folds the query and matches both lists by phrase, longest match first, and returns a verdict.
+Deterministic string matching only.
+Do not embed anything here: D-51 records that an embedding router loses to the same measurement the threshold lost to.
+
+- [ ] **Step 4: Carry the product into the index**
+
+`rag/index.py` writes `doc_id`, `title` and `chunk_index` into chunk metadata today.
+Add `products`, taken from the document's catalogue tag, as a delimited string because ChromaDB metadata values are scalars.
+This rebuilds both collections, which is expected and is why this task sits after Task 17 rather than before it.
+
+- [ ] **Step 5: Filter conditionally in `rag/retrieve.py`**
+
+Add an optional `product` argument to `retrieve`.
+When it is set, pass a ChromaDB `where` clause restricting to chunks whose `products` contains it; when it is not, query exactly as today.
+
+**The filter must be conditional.**
+Measured during review: 9 of the 12 in-scope calibration probes name no product at all, so an unconditional filter would search an empty subset for three quarters of real questions.
+
+- [ ] **Step 6: Wire the gate into `rag/generate.py`**
+
+Call `scope.classify` before retrieval.
+On `known_adjacent`, return the refusal without retrieving anything, carrying the product name so Part 2 can say which product was asked about.
+On `in_catalogue`, retrieve with the filter.
+Otherwise retrieve unfiltered and let `T` and the support rule decide, exactly as today.
+
+Per D-54 the sentence a user reads is Part 2's job.
+Part 1 produces the structured refusal and the product name, not prose.
+
+- [ ] **Step 7: Test both directions**
+
+`tests/test_scope.py` asserts acceptance criteria 24a and 28, and they pull in opposite directions on purpose:
+
+- every `outside_boundary` golden item yields a gate refusal
+- **no `answerable` golden item is refused by the gate**
+
+The second is the one that protects users, and a curated list can drift into violating it.
+Neither is tautological as long as the item strings and `KNOWN_ADJACENT` stay separate data, so never generate one from the other.
+
+Task 19 authors the golden items these tests read, so write the tests here and expect them to fail until Task 19 lands, or author the two lists together and split the commits.
+
+Commit: `Add the product catalogue and the pre-retrieval scope gate`
+
+---
+
+## Task 19: The golden dataset and decision-level evaluation
+
+Spec sections 9.1 and 9.4, D-50, D-55 and D-56.
+
+**Files:**
+- Modify: `eval/queries.py`
+- Modify: `rag/evaluate.py`
+- Modify: `tests/test_queries.py`
+- Modify: `tests/test_evaluate.py`
+- Modify: `scripts/run_part1.py`
+
+**Interfaces:**
+- Produces: `GOLDEN_DATASET: list[GoldenItem]`, and `EVAL_QUERIES` kept as the `answerable` subset so `rag/evaluate.py` and every existing caller keep working.
+
+- [ ] **Step 1: Restructure `eval/queries.py`**
+
+Introduce `GoldenItem` with `item_id`, `text`, `kind`, `gold_doc_ids` and `product`, per spec 9.1.
+Keep `EVAL_QUERIES` as a derived list of the 12 `answerable` items so nothing downstream breaks, and keep their ids `EQ-01` to `EQ-12` and their text byte-identical.
+Stable ids are what keep every Precision@3 number already in `README.md` comparable across this amendment.
+
+- [ ] **Step 2: Author the three new classes**
+
+Thirteen `outside_boundary` items, `OB-01` to `OB-13`, each naming a product in `KNOWN_ADJACENT`.
+The review measured these, and they are the set the gate was sized against.
+
+Two `inside_uncovered` items, `IU-01` and `IU-02`, being exactly the residue named in spec 18.1 item 8: "Can I get a credit card from another bank with a low limit?" and "How do I transfer money to an account in another country?".
+
+Five `far_out_of_scope` items, `FO-01` to `FO-05`, written fresh.
+**They must not reuse any of the 17 far probes from Task 17.**
+That is acceptance criterion 30, and it is the property that lets this be called a golden dataset at all.
+
+- [ ] **Step 3: Add the decision table to `rag/evaluate.py`**
+
+Keep Precision@3 and Recall@3 exactly as they are, scored over the `answerable` items only.
+Add a second pass over all 32 items recording `answered`, `refused_gate` or `refused_threshold`, and a per-class summary.
+
+Report the near-domain false-answer rate explicitly.
+Before the gate it was 14 of 30 readings answered outright, and printing the after figure beside it is the evidence the fix worked.
+
+- [ ] **Step 4: Assert only what D-56 allows**
+
+Add criterion 29: every `far_out_of_scope` item is refused, by either mechanism.
+Add criterion 30: no calibration probe string appears in the golden dataset, checked in both directions.
+
+Do **not** assert on Precision@3, Recall@3, the `inside_uncovered` count, or any aggregate decision accuracy.
+D-13 settled this shape of question for this repository and D-56 extends it: those numbers move legitimately when chunk parameters are tuned, and a test that fights tuning gets deleted.
+
+- [ ] **Step 5: Give it a transcript**
+
+`scripts/run_part1.py` writes the decision table to `transcripts/part1-golden-dataset.txt`, listing every item with its class, its outcome and its top-1 similarity.
+Add it to the transcript list in `README.md`.
+
+Commit: `Build the four-class golden dataset and decision-level evaluation`
+
+---
+
+## Task 20: Regenerate, and close the loop
+
+D-57's second regeneration.
+
+**Files:**
+- Regenerate: `transcripts/`, and the generated blocks in `README.md`
+- Modify: `README.md` (prose sections only)
+- Modify: `CLAUDE.md`
+
+- [ ] **Step 1: Regenerate**
+
+Run `.venv/bin/python scripts/run_part1.py`.
+Every number that moves in this pass is attributable to the gate and the product filter, because Task 17 already absorbed the threshold change.
+That separation is the whole reason D-57 asked for two passes, so do not collapse them even if the diff looks small.
+
+- [ ] **Step 2: Update the README prose**
+
+Add a short section explaining that scope is decided before retrieval and why similarity cannot decide it, citing the product-swap measurement: "fixed deposit" against "car insurance policy" at 0.6805 in one frame, against a lowest in-scope reading of 0.3263.
+State the known-adjacent list's weakness in the same breath.
+A grader reading only `README.md` should learn both that the system refuses correctly and why a threshold alone could not.
+
+- [ ] **Step 3: Update `CLAUDE.md`**
+
+Three facts in it go stale in this amendment: the acceptance-criteria count rises from twenty-seven to thirty-two, the test count changes, and the threshold sentence naming 0.2818 needs the new value.
+Read the actual numbers out of the run and the suite rather than computing them here.
+
+- [ ] **Step 4: Full verification**
+
+- `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 .venv/bin/python -m pytest` passes with the network hard-disabled.
+- Two consecutive `scripts/run_part1.py` runs produce byte-identical transcripts.
+- `.venv/bin/python scripts/check_database.py` still exits zero.
+- Every figure in `README.md` traces to a transcript, with no number typed by hand.
+
+Commit: `Regenerate Part 1 evidence after the scope gate`
 
 ---
 
