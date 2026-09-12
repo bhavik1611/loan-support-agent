@@ -85,15 +85,17 @@ def test_an_injection_attempt_is_refused_before_any_retrieval(built_index):
 def test_an_out_of_scope_question_is_refused_on_groundedness(built_index):
     """The brief's output-side guardrail, and criterion 24b as reworded.
 
-    The probe is IU-01, an `inside_uncovered` item, and the class is the
-    instrument rather than a convenience. A question has to route to `policy`
-    before it can reach retrieval at all, and only an in-scope-sounding one
-    reliably does: measured end to end this refuses at 0.3931 with
-    `grounded=False`, which is a different refusal from the gate's.
+    A probe has to clear two bars here, and they pull against each other. It
+    must route to `policy`, or it never reaches the check at all; and it must
+    be refused by the **threshold**, not by chunk disagreement, or the test
+    pins a coin flip. FO-04 clears both: it routes `policy` and reads 0.1927
+    against `T` 0.3066, refused with 0.114 to spare.
+
+    The route is the fragile half, won by 0.0647 over `lookup`, which is why
+    `route` is asserted first. If the router moves, this fails as a routing
+    error naming the real cause rather than as a confusing `None is False`.
     """
-    response = graph.ask(
-        "Can I get a credit card from another bank with a low limit?", thread_id="e"
-    )
+    response = graph.ask("How often should I water a snake plant indoors?", thread_id="e")
     assert response["route"] == "policy"
     assert response["guardrails"]["grounded"] is False
     assert "do not know" in response["answer"].lower()

@@ -2959,17 +2959,19 @@ def test_an_injection_attempt_is_refused_before_any_retrieval(built_index):
 
 
 def test_an_out_of_scope_question_is_refused_on_groundedness(built_index):
-    """The brief's output-side guardrail, and criterion 24b as reworded.
+    """The brief's output-side guardrail. FO-04, and both halves are measured.
 
-    The probe is IU-01, an `inside_uncovered` item, and the class is the
-    instrument rather than a convenience. A question has to route to `policy`
-    before it can reach retrieval at all, and only an in-scope-sounding one
-    reliably does: measured end to end this refuses at 0.3931 with
-    `grounded=False`, which is a different refusal from the gate's.
+    A probe has to clear two bars here, and they pull against each other. It
+    must route to `policy`, or it never reaches the check at all; and it must
+    be refused by the **threshold**, not by chunk disagreement, or the test
+    pins a coin flip. FO-04 clears both: it routes `policy` and reads 0.1927
+    against `T` 0.3066, refused with 0.114 to spare.
+
+    The route is the fragile half, won by 0.0647 over `lookup`, which is why
+    `route` is asserted first. If the router moves, this fails as a routing
+    error naming the real cause rather than as a confusing `None is False`.
     """
-    response = graph.ask(
-        "Can I get a credit card from another bank with a low limit?", thread_id="e"
-    )
+    response = graph.ask("How often should I water a snake plant indoors?", thread_id="e")
     assert response["route"] == "policy"
     assert response["guardrails"]["grounded"] is False
     assert "do not know" in response["answer"].lower()
@@ -3064,9 +3066,23 @@ Measured across the golden dataset's five `far_out_of_scope` items on 2026-09-12
 The winning margins are noise-sized - "In which year did the Berlin Wall come down?" wins on `lookup` by 0.0369 - because `eval/routing.py` calibrated the three centroids on 6 policy and 6 lookup probes plus a vague set, with **no out-of-scope query in the labelled set at all**.
 The router's behaviour on far probes is therefore undefined by construction, not regressed, and D-44 having rejected a margin and a floor is what leaves the winner to noise.
 
-An `inside_uncovered` item is the right instrument because it is the only class that is in-scope enough to route to `policy` and uncovered enough to fail the support rule.
-Both IU items route `policy`; IU-01 refuses at 0.3931 and IU-02 answers at 0.4645, the carried risk in spec 18.2 item 5.
-This is not probe-shopping: where the route itself is what a test asserts, the class is the subject and swapping across classes would be.
+**The replacement is FO-04, and the first candidate was wrong for a reason worth recording.**
+IU-01 was tried first: it routes `policy` comfortably, wins by 0.2004, and refuses end to end at `grounded=False`.
+It is still the wrong instrument, and the acceptance-criteria section below already said so in rules 1 and 2 - assert nothing about the `inside_uncovered` class, and never use IU-01 as a groundedness demonstration, because at 0.3931 it sits **above** `T` and is refused only by its three chunks landing on three parents.
+That is chunk disagreement pinned as an invariant, and one chunk moving would turn the test green on a wrong answer.
+
+FO-04, "How often should I water a snake plant indoors?", clears both bars instead:
+
+| probe | routes | top-1 vs `T` 0.3066 | refused by | route margin |
+|---|---|---|---|---|
+| FO-04 | `policy` | 0.1927, **under** | the threshold, 0.114 to spare | 0.0647 |
+| IU-01 | `policy` | 0.3931, over | chunk disagreement alone | 0.2004 |
+| pizza | `clarify` | never retrieved | nothing, the check never runs | 0.0525 |
+
+Each candidate is fragile somewhere, so the question is which failure is visible.
+FO-04's fragile half is its route, and the test asserts `route == "policy"` first, so a router change fails loudly and names its own cause.
+IU-01's fragile half is its refusal, which would fail by asserting a wrong answer is right.
+Prefer the instrument whose weak half fails noisily.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -3587,14 +3603,20 @@ def guardrail_transcript() -> str:
             "",
         ]
 
-    lines.append("OUTPUT SIDE, GROUNDEDNESS (spec 8.3)")
-    response = graph.ask("What is the best pizza topping?", thread_id="guard-grounded")
+    lines.append("OUTPUT SIDE, GROUNDEDNESS (spec 8.3, criterion 24b)")
+    probe = "How often should I water a snake plant indoors?"
+    response = graph.ask(probe, thread_id="guard-grounded")
     lines += [
         "  rule    : unsupported",
-        "  probe   : What is the best pizza topping?",
-        "  note    : names no product, so it passes the gate, reaches",
-        "            retrieval, and is refused on the threshold instead",
+        f"  probe   : {probe}",
+        "  note    : FO-04. It names no adjacent product, so it passes the",
+        "            gate, routes to policy, reaches retrieval, and is",
+        "            refused on the threshold - 0.1927 against T 0.3066,",
+        "            with 0.114 to spare, so the refusal rests on the",
+        "            threshold rather than on chunk disagreement.",
+        f"  route   : {response['route']}",
         f"  outcome : {response['policy']['outcome']}",
+        f"  top-1   : {response['policy']['top1_similarity']}",
         f"  grounded: {response['guardrails']['grounded']}",
         f"  answer  : {response['answer']}",
     ]
@@ -3777,7 +3799,7 @@ That criterion is satisfied by Part 1's `rag/evaluate.py`, not by anything here.
 
 1. Assert nothing about the `inside_uncovered` class - not an outcome, not a count.
 2. Never use IU-01 as a groundedness-refusal demonstration. It passes today for a reason you cannot rely on: one of three chunks happening to land on a third document. That is a coin flip pinned as an invariant.
-3. Keep "What is the best pizza topping?" as the far-out-of-scope demonstration. It is honest at that job, and it is the probe these tasks use.
+3. The far-out-of-scope class is the right demonstration, but **"What is the best pizza topping?" only works below the router**. Measured on 2026-09-12 it routes to `clarify`, so through `graph.ask` it never reaches retrieval and `grounded` is correctly `None`. It stays valid where the policy path is called directly - `tools.answer_policy_question` and `nodes.policy_answer` - and those uses are correct. Above the router the probe is **FO-04**, "How often should I water a snake plant indoors?", the one far item that routes `policy`, refused on the threshold at 0.1927 against `T` 0.3066.
 Criterion 24a is asserted on the Part 1 side too, by `tests/test_scope.py` in Part 1 Task 18's step **Test the gate in both directions**, which checks that every `outside_boundary` golden item is refused at the gate and, pulling the other way, that no `answerable` one is.
 What the tasks above add is the other half: that the agent *says* which product, rather than reciting Part 1's "the knowledge base does not contain enough supporting material", which would be true and useless.
 
