@@ -669,7 +669,11 @@ def test_a_record_id_is_not_mistaken_for_pii():
 - [ ] **Step 3: Run the tests to verify they fail**
 
 Run: `.venv/bin/python -m pytest tests/test_guardrails_pii.py -q`
-Expected: FAIL, `AttributeError: module 'db.generate' has no attribute 'is_valid_aadhaar'`.
+Expected: FAIL at collection, `ImportError: cannot import name 'guardrails' from 'agent'`.
+
+The test module's first line is `from agent import guardrails`, and Step 5 is what creates that file, so the import fails before Python reaches anything to do with `is_valid_aadhaar`.
+An earlier draft of this step predicted `AttributeError: module 'db.generate' has no attribute 'is_valid_aadhaar'`, which is the failure you get only once `agent/guardrails.py` already exists - it anchored on what makes this task distinctive rather than on what actually fails first.
+You will see that AttributeError after Step 5 and before Step 4, if you happen to run the tests between them; both are the same red.
 
 - [ ] **Step 4: Add the public validator to `db/generate.py`**
 
