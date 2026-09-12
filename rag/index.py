@@ -124,8 +124,7 @@ def build_index(rebuild: bool = False) -> dict[str, int]:
             except Exception:
                 pass
         collection = client.get_or_create_collection(
-            name=name,
-            metadata={"hnsw:space": "cosine", "hnsw:search_ef": config.SEARCH_EF},
+            name=name, metadata={"hnsw:space": "cosine"}
         )
 
         chunks = build_chunks(strategy)
@@ -133,11 +132,7 @@ def build_index(rebuild: bool = False) -> dict[str, int]:
             if collection.count():
                 client.delete_collection(name=name)
                 collection = client.get_or_create_collection(
-                    name=name,
-                    metadata={
-                        "hnsw:space": "cosine",
-                        "hnsw:search_ef": config.SEARCH_EF,
-                    },
+                    name=name, metadata={"hnsw:space": "cosine"}
                 )
             collection.add(
                 ids=[c.chunk_id for c in chunks],

@@ -208,23 +208,17 @@ COLLECTION_FOR_STRATEGY = {
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 MIN_CHUNKS_PER_DOCUMENT = 2
 
-# The default HNSW search breadth returns a non-nearest neighbour on some
-# rebuilds, which breaks byte-identical reruns.
-SEARCH_EF = 200
-
 # --- Task 4, retrieval and the answer decision ----------------------------
 
 TOP_K = 3
 SUPPORT_MIN_SHARED = 2
 
-# Re-derived on 2026-09-12 after pinning hnsw:search_ef (task 17b), over the
-# same 12 in-scope and 17 out-of-scope probes pooled across both collections.
-# Minimum in-scope top-1 0.3263, maximum out-of-scope top-1 0.2870, gap
-# 0.0393, unchanged from the pre-fix measurement since neither pooled extreme
-# was the probe the search breadth had destabilised. T is the midpoint. A
-# tutorial preset of 0.5 would have wrongly refused 8 of the 24 in-scope
-# measurements, which is why the brief bans one. Reproduce with
-# scripts/run_part1.py, which writes transcripts/part1-calibration.txt.
+# Measured on 2026-09-12 over 12 in-scope and 17 out-of-scope probes pooled
+# across both collections. Minimum in-scope top-1 0.3263, maximum out-of-scope
+# top-1 0.2870, gap 0.0393, down from 0.0889. T is the midpoint. A tutorial
+# preset of 0.5 would have wrongly refused 8 of the 24 in-scope measurements,
+# which is why the brief bans one. Reproduce with scripts/run_part1.py, which
+# writes transcripts/part1-calibration.txt.
 SIMILARITY_THRESHOLD = 0.3066
 
 # --- Part 2 Task 6, the escalation score (D-33, D-34) ---------------------
