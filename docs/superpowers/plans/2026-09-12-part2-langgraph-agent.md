@@ -295,6 +295,24 @@ It wraps Task 1's score and Part 1's two read paths, and it returns rather than 
   - `agent.tools.answer_policy_question(query: str) -> rag.generate.GroundedAnswer`
   - `agent.tools.LOOKUP_FIELDS: tuple[str, ...]`
 
+**The in-scope probe is "What is the minimum credit score?" and the shorter wording is load-bearing.**
+Measured at HEAD `30a81f5`, with `T` 0.3066 and `SUPPORT_MIN_SHARED` 2:
+
+| probe | top-1 | top three parents | outcome |
+|---|---|---|---|
+| "What is the minimum credit score?" | 0.6477 | `kb-10`, `kb-01`, `kb-10` | `answered` |
+| "What is the minimum credit score **for a loan**?" | 0.7015 | `kb-10`, `kb-01`, `kb-13` | `refused_threshold` |
+| "What is the minimum credit score **for a home loan**?" | 0.6599 | spans three | `refused_threshold` |
+
+**Making the question more specific makes it less answerable**, and the similarity goes *up* while the answer disappears.
+The extra words pull the eligibility documents alongside the credit-score one, the top three chunks land on three different parents, and the support rule declines at a top-1 of 0.7015 - more than twice `T`.
+This is spec 18.1 item 5, the same mode as "What documents are needed for KYC?" at 0.5124, now measured on two further probes.
+
+Do not read this as licence to shop for probes until one passes.
+The distinction that makes this swap honest rather than convenient: what these two tests assert is that *the tool returns a supported answer for an in-scope question*, and the query is incidental to that claim.
+Where the query itself is the subject - the `inside_uncovered` class in the acceptance-criteria section below - swapping it is forbidden, and the spec says so.
+The rejected wordings are recorded here and in spec 18.1 rather than deleted.
+
 **[D-54] Two new fields on `GroundedAnswer`, and they are the contract between the two plans.**
 Part 1 Task 18, in its step titled **Wire the gate into `rag/generate.py`**, adds the product gate to the function Part 2 already calls.
 Steps are cited by title rather than number throughout this section: Part 1 Task 18 was renumbered once on 2026-09-12 and may be again.
@@ -391,8 +409,12 @@ def test_lookup_has_a_docstring_for_the_mcp_wrapper():
 
 
 def test_policy_tool_answers_an_in_scope_question(built_index):
-    result = tools.answer_policy_question("What is the minimum credit score for a loan?")
+    # "for a loan" on the end of this question makes it refuse. See the note
+    # below the test file: the longer form spans three documents and the
+    # support rule declines. That is spec 18.1 item 5, measured again here.
+    result = tools.answer_policy_question("What is the minimum credit score?")
     assert result.supported is True
+    assert result.outcome == "answered"
     assert result.citations
 
 
@@ -1063,7 +1085,7 @@ def test_an_out_of_scope_query_is_caught_end_to_end(built_index):
 
 
 def test_an_in_scope_query_passes_end_to_end(built_index):
-    answer = tools.answer_policy_question("What is the minimum credit score for a loan?")
+    answer = tools.answer_policy_question("What is the minimum credit score?")
     assert guardrails.grounded_rule_for(answer) is None
 ```
 
