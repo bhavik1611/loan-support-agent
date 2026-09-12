@@ -2,6 +2,7 @@
 
 Status: approved design for Part 1, declared interfaces for Parts 2 to 4, roadmap only for V2.
 Written 2026-09-10 after two grilling rounds.
+Amended 2026-09-12 after three more, adding the time axis in D-26 to D-31.
 Authority: `reference/problem-statement.md` is the brief; where this document and the brief disagree, the brief wins and this document is wrong.
 
 ## 1. Scope
@@ -59,6 +60,12 @@ Decisions marked "overrode recommendation" were taken by Bhavik against the reco
 | D-23 | How this lands in the documents | Amend this spec, keep the Part 1 plan marked implemented, write a new dated plan | Reopening the Part 1 plan lost because its `implemented` status and self-review are accurate for the work it actually covered. A second spec lost because two specs describing one dataset is precisely the drift the one-spec rule prevents. |
 | D-24 | How a fabricated PAN is built | The Income Tax Department's structure, `AAAAA9999A`: three random series letters, holder type `P`, the surname initial, a 0001-9999 serial, then a check letter derived from the first nine characters | Ten independent random characters lost because the PAN could then contradict the name beside it, and Part 2's masking demo is more convincing on data that is wrong only in being fabricated. Reproducing the real check-character formula lost because the department does not publish it; the derivation here is a documented stand-in, deterministic and recomputable, and `tests/test_db_generate.py` recomputes it rather than calling the generator's helper. |
 | D-25 | How a fabricated Aadhaar is built | Twelve digits, the first drawn from 2-9, the twelfth a Verhoeff check digit over the other eleven | Twelve independent random digits lost because the number would fail any real validator, which is the wrong thing to demonstrate in a masking exercise. Unlike PAN's check character (D-24), Verhoeff is the published algorithm UIDAI actually uses, so the check digit here is real rather than a stand-in and the tests pin Verhoeff's own worked examples. Storing the 4-4-4 display grouping lost because the grouping is presentation, and a stored separator would break the masking Part 2 Task 10 applies to the raw value. |
+| D-26 | How time is represented | `days_since_created` stays the drawn integer; every calendar value in the repository is derived from it against a fixed anchor | Drawing a date and deriving the integer lost because it changes the draw shape inside stream 0, which moves every `record_id` the transcripts quote. Storing only the integer lost because relative offsets are unfalsifiable: nothing can contradict "13 days ago", and anchoring the same data exposed a defect within minutes (D-29). The four child tables keep no integer at all, because nothing outside this repository asks for one; `days_since_created` alone survives because the brief names it and Part 2 Task 6 scores on it, which is the only honest reason to hold two representations of one fact. |
+| D-27 | The anchor | `config.AS_OF_DATETIME = 2026-09-30T18:00:00+05:30`, frozen, in IST, not announced in the README | A rolling anchor lost outright: it breaks the determinism ground rule and the manifest hash would change daily. Midnight lost because a day-0 event exists in the committed data and would land in the future. UTC lost because 09:30 IST business hours render as 04:00Z and stop looking like business hours to a reader; a naive timestamp lost because it invites a guess, and the guess is usually UTC. Overrode recommendation on announcing it: the recommendation was to state the as-of date in `README.md` and the manifest so the data's ageing is explicit rather than discovered, and Bhavik chose to keep the constant silent. |
+| D-28 | Where the clock's randomness comes from | A new seeded stream, `config.stream("clock")`, at the first free offset | Drawing hours and minutes from each table's own stream lost because it reshuffles every row of all four tables, moving days, amounts and notes for a cosmetic gain. A fixed derived time with no randomness lost because every event would land at the same clock time, which is visibly synthetic. This is the case D-18's offset scheme was built for, and it is the reason a full timestamp costs nothing beyond the manifest rebuild D-26 already requires. |
+| D-29 | Working days and business hours | Bank-side transitions move forward to the next working day; `Submitted` never moves; every timestamp falls between 09:30 and 18:00 | Anchoring the existing offsets showed 99 of 393 events on a Saturday or Sunday, against five knowledge-base sentences written in working days (`kb-01`, `kb-05`, `kb-06`), and the knowledge base is the authority. Shifting backwards lost because it says the bank acted before it could have; nearest lost because it mixes both stories with no per-row reason; forward is a monotone map, which is why it produces no order inversions. `Submitted` is exempt because the generator's own note calls it an online submission, and an online form takes a Sunday one; the exemption is also load-bearing, because `Submitted` is `created_at` and moving it would break D-26's derivation. EMI due dates are exempt for the opposite reason: a due date is a contractual date, not an action, and shifting it would distort the amortisation schedule. Bank holidays lost because no document in this repository carries a holiday calendar, and inventing one contradicts the rule that the knowledge base is the authority. Overrode recommendation on the hours: the recommendation was two windows, 24 hours for customer-side rows and 09:30 to 18:00 for the bank, and Bhavik chose one window for one rule. |
+| D-30 | Stored or derived, for facts the trail already carries | `updated_at` and `paid` are stored, each pinned by a test asserting it equals what the trail says | Deriving them in `db/query.py` lost because it costs a correlated subquery on every read and hides the column Part 2 wants to quote; storing without a test lost because the two copies can then disagree and nothing notices. The uniqueness invariant on an application's events moves from distinct days to distinct instants, which is what the timestamp in D-26 was for: two events on one Monday morning and afternoon are a working day, not a defect. |
+| D-31 | Whether the snapshot carries the new fields | `data/loan_applications.json` gains `created_at` and `updated_at`, appended after the brief's six in the brief's order | Overrode recommendation. Keeping the projection at six fields lost, although it was recommended: it would have left the committed snapshot byte-identical and the hash test untouched. Bhavik chose to carry the timestamps through to the projection, so acceptance criterion 7 is restated rather than deleted, and the fields are appended rather than interleaved so that `PROJECTED_FIELDS`' promise to hold "the brief's six fields, in the brief's order" stays literally true. |
 
 ## 4. Repository layout
 
@@ -114,11 +121,15 @@ Every record is a flat dictionary with exactly these keys.
 | `loan_amount_inr` | int | Per-category band, rounded to the nearest 1000 |
 | `days_since_created` | int | 0 to 30 inclusive |
 | `flagged_for_fraud_review` | bool | Category-dependent Bernoulli draw |
+| `created_at` | str | ISO 8601 in IST, derived from `days_since_created` against D-27's anchor |
+| `updated_at` | str | ISO 8601 in IST, the instant of the application's most recent event |
 
-Those six are what `LOAN_APPLICATIONS` carries, because the brief names them as an acceptance criterion.
+Those six are what the brief names as an acceptance criterion.
+Per D-31 `LOAN_APPLICATIONS` carries them plus the two timestamps, appended after the six in the brief's order.
 They are not the whole record.
-Per D-15 and D-19 the generator builds a richer row - adding `customer_id`, `product_code`, `tenure_months` and `interest_rate_pct` - writes all of it to the database in section 5.4, and exposes the six above as a projection.
-The projection is what `data/loan_applications.json` snapshots, so the hash test in section 11 is unaffected by the database work.
+Per D-15 and D-19 the generator builds a richer row - adding `customer_id`, `product_code`, `tenure_months` and `interest_rate_pct` - writes all of it to the database in section 5.4, and exposes the eight above as a projection.
+The projection is what `data/loan_applications.json` snapshots.
+The database work of D-15 to D-22 left that snapshot byte-identical; D-31 deliberately does not, and acceptance criterion 7 in section 11 is restated to say so.
 
 An earlier version of this section said no field is added beyond the brief's six, on the grounds that extra fields would need justifying to a grader for no gain.
 That was wrong twice over.
@@ -192,11 +203,13 @@ A table added later takes the next free offset and disturbs nothing.
 |---|---|---|---|
 | `loan_products` | 5 | The catalogue every amount, rate and tenure is drawn inside. Seeded from `config.CATEGORY_BANDS`, not duplicated from it. | `kb-01`, `kb-07` |
 | `customers` | about 66 | Identity, contact, employment, income, credit score, KYC status, residency. Carries fabricated PAN, Aadhaar and account numbers; the PAN and the Aadhaar follow the real structures (D-24, D-25). | `kb-10`, `kb-12` |
-| `loan_applications` | 100 | The six brief fields plus `customer_id`, `product_code`, `tenure_months`, `interest_rate_pct`. | `kb-01` |
-| `application_events` | 2 to 5 per application | The status audit trail that makes `days_since_created` derived rather than asserted. | `kb-06` |
-| `repayments` | instalments for disbursed loans | The EMI schedule, with the principal and interest split. | `kb-02`, `kb-08`, `kb-17` |
-| `support_tickets` | about 40 | Channel, category, status, linked application. | `kb-05` |
-| `kyc_documents` | 2 to 4 per customer | Identity and address proofs with verification state. | `kb-04`, `kb-16` |
+| `loan_applications` | 100 | The six brief fields plus `created_at`, `updated_at`, `customer_id`, `product_code`, `tenure_months`, `interest_rate_pct`. | `kb-01` |
+| `application_events` | 2 to 5 per application | The status audit trail, each transition carrying `occurred_at` under D-26 and the working-day rule of D-29. | `kb-06` |
+| `repayments` | instalments for disbursed loans | The EMI schedule, with the principal and interest split. `due_at` is exempt from D-29's working-day shift. | `kb-02`, `kb-08`, `kb-17` |
+| `support_tickets` | about 40 | Channel, category, status, linked application, `opened_at`. | `kb-05` |
+| `kyc_documents` | 2 to 4 per customer | Identity and address proofs with verification state and `submitted_at`. Verification carries no timestamp of its own; that is a known gap, not an oversight. | `kb-04`, `kb-16` |
+
+Every calendar column in those tables is an ISO 8601 string in IST, and no `_days_ago` integer survives anywhere below `loan_applications` (D-26).
 
 **The consistency rule, which is the price of seven tables.**
 Every generated row must satisfy the knowledge-base document that describes it.
@@ -394,7 +407,11 @@ Per D-13, one test per acceptance criterion, and no more.
 | 4 | The fraud rate is inside 10 to 30 percent | "flagged_for_fraud_review percentage band" |
 | 5 | Every knowledge-base document yields at least 2 chunks in both collections | Section 7.3, and the support rule's viability |
 | 6 | The minimum in-scope top-1 similarity exceeds the maximum out-of-scope top-1 similarity | Section 8.2, and the brief's ban on an untested preset threshold |
-| 7 | `LOAN_APPLICATIONS` is byte-identical to the pre-database snapshot | D-18 and D-19, the promise that adding the store changed no existing record |
+| 7 | Every one of the brief's six fields is byte-identical to the pre-database snapshot, value for value across all 100 records | D-18, D-19 and D-31. Adding the store changed no existing record, and adding the time axis changed no existing *value*; it appended two fields |
+| 13 | Every timestamp parses as ISO 8601 with an offset, and none is later than the anchor | D-26 and D-27, the derivation is total and nothing is dated in the future |
+| 14 | `created_at` equals the anchor minus `days_since_created`, for all 100 records | D-26, the derivation that everything else rests on |
+| 15 | No bank-side event falls on a Saturday or a Sunday, and every timestamp falls inside business hours | D-29, the rule stated as something a grader can watch fail |
+| 16 | `updated_at` equals the instant of the application's most recent event, and `paid` equals `due_at <= anchor` | D-30, the two stored facts agree with the trail they were written from |
 | 8 | Every foreign key in the six child tables resolves, with no orphans | Section 5.4, the joins are real |
 | 9 | Every `loan_applications` amount, rate and tenure sits inside its `loan_products` row | Section 5.4, the data obeys its own catalogue |
 | 10 | Every `repayments` row reproduces `kb-02`'s EMI formula to the rupee | Section 5.4 consistency rule 1 |
