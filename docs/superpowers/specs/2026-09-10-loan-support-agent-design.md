@@ -943,6 +943,18 @@ Four further items opened during implementation and review, and are recorded her
    The knowledge-base agreement tests found a real drift on their first run - the generator had written "Voter ID Card" and "NREGA Job Card" where `kb-04` says "a voter identity card" and "a job card issued under NREGA" - which is what those tests exist for.
    Largest EMI deviation from `kb-02`'s formula across all 276 instalments: 0.0047 rupees.
 
+10. **The two session fixtures in `tests/conftest.py` disagree, and the vector one is the shared mutable state.**
+    `built_db` builds the relational store into a `tmp_path_factory` directory, and its docstring gives the reason: the suite must never depend on a developer having run `python -m db.build` first.
+    `built_index` has the identical requirement and meets it with `index.build_index(rebuild=True)` against the shared `config.CHROMA_DIR`, so every suite run deletes and recreates both collections in the one store every process opens.
+    Twelve test files request `built_index` against two that request `built_db`, and `scripts/run_part1.py:178` is the only other rebuild site in the repository, so the dominant churn source is the suite rather than the runner.
+
+    Measured on 2026-09-12 with two agents working this branch at once: `chroma/` accumulated 317 collection directories, a handle taken by `get_collection` died mid-query with `NotFoundError: Collection [<uuid>] does not exist`, and two suite runs failed with 39 and 45 errors in the fixture, both clearing on a re-run.
+
+    This is **correct and deferred, not out of scope.**
+    The repository already contains the pattern and applies it to one of its two stores, so the case rests on the inconsistency rather than on anything about how it was found.
+    `build_index` would need a store path parameter, `tests/conftest.py` belongs to no task in either plan, and a shared fixture is the wrong thing to change while implementers are running against it.
+    A single-process run is unaffected either way, which is why it was invisible until now.
+
 ### 18.2 Part 2
 
 Recorded here rather than resolved, at Bhavik's instruction on the review artifact of 2026-09-12, so that implementation acts on them deliberately.
