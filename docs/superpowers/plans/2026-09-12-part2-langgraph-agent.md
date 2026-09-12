@@ -1030,8 +1030,17 @@ After the product gate lands there are two out-of-scope failures, not one, and o
 | "What is the best pizza topping?" | names no product at all, so it reaches retrieval and fails `T` | 8.3, and the brief's output-guardrail requirement |
 
 The probe in the tests below is the second kind on purpose.
-By inspection of the `KNOWN_ADJACENT` list in Part 1 Task 18's step **Write `rag/scope.py`** - fixed deposit, recurring deposit, mutual fund, SIP, ELSS, demat, shares, stock market, insurance, gold, cryptocurrency, income tax, GST, tax return - nothing in it matches "pizza topping", so this probe still exercises the groundedness path and these tests do not need rewriting.
-If a later edit adds a food word to that list, this test starts asserting the wrong mechanism and the fix is a new probe here, not a smaller list there.
+What the probe needs is a property, not a particular list: **no entry in `rag.scope.KNOWN_ADJACENT` may match "What is the best pizza topping?"**.
+Do not copy the list into this plan to check that.
+The list is curated and it moves - it was fourteen phrases on 2026-09-12 and ten by the end of the same day, as `GST`, `shares`, `tax return` and `income tax` each turned out to refuse a question the corpus answers - so a transcribed copy here is a second source of truth that goes stale silently, which is the drift the catalogue rule in `rag/scope.py` exists to prevent.
+Ask the code instead:
+
+```bash
+.venv/bin/python -c "from rag import scope; print(scope.classify('What is the best pizza topping?'))"
+```
+
+Expected: `known_adjacent=False` and `product=''`, so the probe falls past the gate and is refused on the threshold, which is the mechanism these tests assert.
+If that ever comes back `known_adjacent=True`, a food word has entered the list and the fix is a new probe here, not a smaller list there.
 
 - [x] **Step 1: Write the failing tests**
 
