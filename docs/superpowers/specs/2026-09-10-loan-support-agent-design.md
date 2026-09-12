@@ -897,8 +897,27 @@ Four further items opened during implementation and review, and are recorded her
    Decision: leave it, and print every measured value so the sensitivity is visible in the transcript rather than inferred.
    A percentile estimator would blunt it and lost in D-49 for being unreadable.
 
-8. **The known-adjacent list does not generalise.**
+8. **The known-adjacent list has two weaknesses, and the measured one is not the one this item was opened for.**
    `KNOWN_ADJACENT` in `rag/scope.py` is curated, so an adjacent product nobody thought to add still falls through to the threshold.
+   That was the anticipated weakness, and it is real but unmeasured.
+
+   The weakness that actually fired, four times out of fourteen entries, is the opposite shape: **the list was not incomplete, its entries matched things they did not mean.**
+   `shares` matched the verb, so "My wife shares the account with me, can she operate it?" was refused before retrieval although `kb-11` answers it at 0.3619 with its chunks in agreement.
+   `tax return` matched inside the compound noun "income-tax returns", which is an accepted proof of income named in `kb-01` and `kb-04`.
+   `GST` matched an abbreviation the corpus never uses, so "Does GST apply to the late payment fee on my credit card?" was refused while "Is goods and services tax charged on the prepayment penalty?" passed and answered at 0.8680.
+   `income tax` matched across a spelling variant, so the same question refused with a space and passed with a hyphen.
+
+   That is D-46's finding one layer down.
+   The embedding decides on a signal that does not carry the product; the matcher decided on a token that does not carry the meaning.
+   Neither layer fails by being badly tuned, and in both cases the fix was to stop asking that signal to decide something it does not encode.
+
+   All four are removed, and the rule they violated is now stated in `rag/scope.py`: the list names products and instruments Meridian does not sell, never topics.
+   The four surviving-question tests are pinned in `tests/test_scope.py` as an extension of criterion 28, because criterion 28 guards only the 12 `answerable` items, none of which names a tax topic, which is exactly how all four defects passed it.
+
+   Removing `income tax` has a measured price, recorded rather than hidden.
+   "How much income tax will I owe on my salary this year?" now falls through to retrieval and is **answered** under `kb_fixed_400_80` at 0.3200 from `kb-13`, with two chunks agreeing.
+   Under `kb_sentences`, the recommended collection and Part 2's fixed input, it is refused at 0.3466 with no two chunks agreeing.
+   The trade taken: a correct refusal of an answerable question, against one false answer on the collection this repository does not ship.
    Two probes already sit in that residue and are labelled `inside_uncovered` per D-50: "Can I get a credit card from another bank with a low limit?", which names an in-catalogue product but asks about a competitor, and "How do I transfer money to an account in another country?", which is inside the boundary with no document covering it.
    Measured 2026-09-12 against `kb_sentences` at `T` 0.3066, and the two do not behave alike.
    IU-01 reads 0.3931 top-1, clears `T`, and is refused only because its top three chunks land on `kb-01`, `kb-15` and `kb-12`, so the support rule finds no two in agreement.
