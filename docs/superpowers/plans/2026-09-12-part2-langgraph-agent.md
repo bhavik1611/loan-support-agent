@@ -297,14 +297,30 @@ Part 2 never calls the gate and never imports `rag/scope.py`; it reads two field
 | field | type | meaning |
 |---|---|---|
 | `outcome` | `"answered"`, `"refused_gate"` or `"refused_threshold"` | which mechanism decided |
-| `product` | `str` | the product the gate matched, `""` when it matched none |
+| `product` | `str` | the product the query named, `""` when it named none |
+
+**`product` is populated on every outcome, not only on a refusal.**
+Confirmed with Part 1 Review on 2026-09-12, and it is wider than this plan first assumed.
+The gate has to return an in-catalogue product name too, because Task 18's retrieval filter is a `doc_id` `$in` clause built by asking the catalogue which documents carry that product.
+So "What rate of interest applies to an education loan?" comes back `outcome="answered"`, `product="Education Loan"`, and `outcome` is the only field that separates that from a refusal.
+
+| what the query named | `outcome` | `product` |
+|---|---|---|
+| a product in `KNOWN_ADJACENT` | `refused_gate` | that product, e.g. `"SIP"` |
+| a product in the catalogue, and the filtered search answered | `answered` | that product, e.g. `"Education Loan"` |
+| a product in the catalogue, and the filtered search still failed `T` | `refused_threshold` | that product |
+| no product at all | `answered` or `refused_threshold` | `""` |
+
+For Part 2 this means `PolicyBlock.product` is not a refusal field.
+On a successful answer it records which product the search was narrowed to, which is worth having in the envelope: it is the difference between "the system found this" and "the system found this after deciding the question was about education loans".
 
 `outcome` uses the exact vocabulary spec section 9.4 defines for the decision table, so this is a field Part 1 needs for `rag/evaluate.py` whether or not Part 2 exists.
 Part 2 only reads it, which is what D-54's split means in practice.
 
 **Nothing that reads `supported` has to change.**
 A gate refusal still sets `supported=False` and still carries the Part 1 fallback text, so every existing call site keeps working and `outcome` is the field that says *which* refusal it was.
-A gate refusal also carries `hits=()`, because the gate decides before retrieval runs.
+A gate refusal also carries `hits=()` and `top1_similarity=0.0`, because the gate decides before retrieval runs.
+The zero is a real measurement of nothing rather than a missing value, and Task 5's output guardrail reads it, so it is asserted rather than assumed.
 
 **`product` is spelled the way the list spells it, not the way the query did.**
 The gate case-folds the query to match, so "suggest me a good sip" and "Suggest me a good SIP" both match, and both return `"SIP"`.
