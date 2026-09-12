@@ -286,18 +286,26 @@ An out-of-catalogue question can therefore sit more than twice as high as a real
 Those two readings are recorded in decision D-46 of [the design spec](docs/superpowers/specs/2026-09-10-loan-support-agent-design.md); 0.3263 is the calibration transcript's own minimum.
 
 So topicality is decided first, by [`rag/scope.py`](rag/scope.py), before any vector search runs.
-It is deterministic string matching over two lists and nothing else: the product catalogue read out of [`knowledge_base/catalogue.json`](knowledge_base/catalogue.json), and ten `KNOWN_ADJACENT` phrases naming products Meridian does not sell.
-Longest phrase wins, and the catalogue wins an exact tie.
+It is deterministic string matching over two lists and nothing else: the product catalogue read out of [`knowledge_base/catalogue.json`](knowledge_base/catalogue.json), and thirteen `KNOWN_ADJACENT` phrases naming products Meridian does not sell.
+The longest phrase wins among equals, but **the catalogue wins outright whenever a query names both**, at any length.
+That rule is not cosmetic: `kb-18` states that an NRE or NRO account can be opened as a term deposit, so "Can I open a fixed deposit in my NRE account?" is an in-scope question that the longest-phrase rule alone refused.
 A query naming an adjacent product is refused by name before retrieval, which is why every `refused_gate` row in the decision table reports top-1 similarity 0.0000: no search ran.
 
 It works, on the evidence of [`transcripts/part1-golden-dataset.txt`](transcripts/part1-golden-dataset.txt).
-All 10 `outside_boundary` items refuse at the gate on both collections, all 12 `answerable` items still answer on both, and the near-domain false-answer rate over the `outside_boundary` and `inside_uncovered` tiers falls from **14 of 30 readings answered outright to 3 of 24**.
+All 10 `outside_boundary` items refuse at the gate on both collections, all 12 `answerable` items still answer on both, and the near-domain false-answer rate over the `outside_boundary` and `inside_uncovered` tiers falls from **15 of 24 readings answered outright to 3 of 24**.
+Both halves of that comparison are computed live over the same 12 items on every run, because an earlier version quoted a before figure measured on a retired 15-item tier and printed it beside a 24-reading after figure.
 
 **And the list is curated, which is its weakness, stated in the same breath as the success.**
 An adjacent product nobody thought to add still falls through to the threshold that D-46 just showed cannot catch it.
 That was the anticipated weakness and it remains real and unmeasured.
-The weakness that actually fired was the opposite shape: four of the original fourteen entries matched things they did not mean, so `shares` caught the verb in "my wife shares the account with me", `income tax` and `GST` caught topics the corpus discusses where it touches banking, and each refused a question the knowledge base answers.
-All four are removed, the admission rule is now written into `rag/scope.py` (the list names products and instruments, never topics), and `tests/test_scope.py` pins the four recovered questions.
+The weakness that actually fired was the opposite shape: entries matched things they did not mean.
+`shares` caught the verb in "my wife shares the account with me", `income tax` and `GST` and `tax return` caught topics the corpus discusses where it touches banking, and the bare noun `insurance` caught the industry rather than the cover, so "An insurance company debited my card twice" was refused although `kb-05` answers it.
+Each refused a question the knowledge base answers.
+
+Four entries are removed and one is narrowed to the phrases that name the product, and the admission rule is now written into `rag/scope.py`: the list names products and instruments, never topics and never industries.
+Six recovered questions are pinned in `tests/test_scope.py`, and the two findings from the branch review carry their own named tests.
+Deleting a phrase was the wrong instinct twice over, and that is the part worth reading: removing `insurance` outright makes "Does the bank sell term life insurance cover?" answer confidently out of the account-closure document, and removing `fixed deposit` makes "What is the interest rate on a fixed deposit for 5 years?" answer out of the loan interest-rate slabs.
+A gate entry can be wrong and load-bearing at once.
 The full account, including the one false answer removing `income tax` costs on the collection this repository does not ship, is item 8 of spec section 18.1.
 
 ### The answer decision
