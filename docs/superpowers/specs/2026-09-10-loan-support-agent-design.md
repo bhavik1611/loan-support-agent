@@ -1037,6 +1037,19 @@ The actionable form, and it is a checkable property rather than a style preferen
 Every set in this repository should carry the cases its mechanism must reject, and four of the five did not.
 This is recorded rather than acted on, because widening `LABELLED_PROBES` and calibrating `ELLIPSIS_CUES` are Part 2 changes that would move Part 2's measured numbers, and both are flagged to Bhavik.
 
+The same shape appears one layer up, in how the four were found and twice in how they were nearly mis-fixed.
+A written constraint is also a signal, and a measurement in front of you does not carry it.
+On 2026-09-12 a probe was swapped into a groundedness test on a measurement showing it was refused, while the rule forbidding exactly that probe sat three hundred lines lower in the same plan file, unread.
+Independently, a phrase was kept in `KNOWN_ADJACENT` on the grounds that every in-scope tax sentence in the corpus names a product beside it, which was true of the corpus and irrelevant to the gate, because the gate matches queries.
+Both were caught by the other session rather than by the one that made them, which is the only reason either is in this document.
+
+The practical form: when a measurement and a written constraint bear on the same choice, the measurement is the easier thing to consult and the constraint is the one that was written down because it was hard to see.
+
+A second rule earned the same day, about test instruments rather than calibration sets.
+Every candidate probe for a refusal test is fragile somewhere, so the question is not which is robust but **which half fails visibly**.
+An instrument whose weak half is its refusal fails silently, by asserting that a wrong answer is right.
+An instrument whose weak half is a precondition the test checks first fails loudly and names its own cause.
+
 ## 19. V2 roadmap
 
 None of this is built in V1.
