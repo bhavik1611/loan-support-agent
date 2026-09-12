@@ -48,7 +48,7 @@ Copied from spec section 2. Every task's requirements implicitly include these.
 
 **[D-54] The absolute total is deliberately not written down.**
 It stood at 170 before Part 1 Tasks 17 to 20 were written, and those four tasks move it by an amount only the run knows.
-So each task below states how many tests it **adds**, and the running Part 2 delta beside it; Part 2 adds 133 tests in total.
+So each task below states how many tests it **adds**, and the running Part 2 delta beside it; Part 2 adds 132 tests in total.
 Read the baseline out of the suite once, immediately before Task 1, write it at the top of your notes, and check every task against it.
 A task whose delta is wrong has either skipped a test or added one nobody asked for, and both are worth stopping for.
 
@@ -947,7 +947,10 @@ def detect_injection(text: str) -> str | None:
 - [x] **Step 4: Run the tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_guardrails_injection.py -q`
-Expected: PASS, 20 tests.
+Expected: PASS, 19 tests.
+
+The count is the file's own arithmetic: 8 rule probes, 8 benign probes and 3 named tests.
+An earlier draft of this step said 20 and was simply wrong - nothing was dropped from the test code, the total was miscounted when it was written.
 
 If a benign probe trips a rule, widen the benign list only after confirming the rule is genuinely too broad, then tighten the pattern.
 Never delete a benign probe to make a rule pass; a false positive on an ordinary loan question is a real defect.
@@ -955,7 +958,7 @@ Never delete a benign probe to make a rule pass; a false positive on an ordinary
 - [x] **Step 5: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS. Task 4 adds 20 tests, so the suite is now **baseline + 50**.
+Expected: PASS. Task 4 adds 19 tests, so the suite is now **baseline + 49**.
 
 - [x] **Step 6: Commit**
 
@@ -1116,7 +1119,7 @@ Expected: PASS, 7 tests.
 - [ ] **Step 5: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS. Task 5 adds 7 tests, so the suite is now **baseline + 57**.
+Expected: PASS. Task 5 adds 7 tests, so the suite is now **baseline + 56**.
 
 - [ ] **Step 6: Commit**
 
@@ -1472,7 +1475,7 @@ If it fails after a later model change, re-run Step 5 and commit the regenerated
 - [ ] **Step 7: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS. Task 6 adds 13 tests, so the suite is now **baseline + 70**.
+Expected: PASS. Task 6 adds 13 tests, so the suite is now **baseline + 69**.
 
 - [ ] **Step 8: Commit**
 
@@ -1770,7 +1773,7 @@ Expected: PASS, 10 tests.
 - [ ] **Step 7: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS. Task 7 adds 10 tests, so the suite is now **baseline + 80**.
+Expected: PASS. Task 7 adds 10 tests, so the suite is now **baseline + 79**.
 
 - [ ] **Step 8: Commit**
 
@@ -2187,7 +2190,7 @@ If `test_no_real_repository_query_is_swallowed_by_the_vague_centroid` fails, the
 - [ ] **Step 6: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS. Task 8 adds 14 tests, so the suite is now **baseline + 94**.
+Expected: PASS. Task 8 adds 14 tests, so the suite is now **baseline + 93**.
 
 - [ ] **Step 7: Commit**
 
@@ -2762,7 +2765,7 @@ Expected: PASS, 21 tests.
 - [ ] **Step 6: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS. Task 9 adds 21 tests, so the suite is now **baseline + 115**.
+Expected: PASS. Task 9 adds 21 tests, so the suite is now **baseline + 114**.
 
 - [ ] **Step 7: Commit**
 
@@ -3072,7 +3075,7 @@ If `test_the_graph_has_nine_nodes` reports 11, the `__start__`/`__end__` filter 
 - [ ] **Step 5: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS. Task 10 adds 13 tests, so the suite is now **baseline + 128**.
+Expected: PASS. Task 10 adds 13 tests, so the suite is now **baseline + 127**.
 
 - [ ] **Step 6: Commit**
 
@@ -3586,12 +3589,12 @@ Expected: PASS, 5 tests.
 - [ ] **Step 8: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: PASS. Task 11 adds 5 tests, so the suite is now **baseline + 133**.
+Expected: PASS. Task 11 adds 5 tests, so the suite is now **baseline + 132**.
 
 - [ ] **Step 9: Prove the offline claim**
 
 Run: `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 .venv/bin/python -m pytest -q`
-Expected: PASS, the same **baseline + 133**. Every Part 2 acceptance criterion holds with the network hard-disabled.
+Expected: PASS, the same **baseline + 132**. Every Part 2 acceptance criterion holds with the network hard-disabled.
 
 - [ ] **Step 10: Commit**
 
@@ -3630,7 +3633,7 @@ If `rag/scope.py` does not import, Part 1 Tasks 17 to 20 have not landed and eve
 Then run these four and read the output. None may be skipped.
 
 ```bash
-.venv/bin/python -m pytest -q                                    # baseline + 133
+.venv/bin/python -m pytest -q                                    # baseline + 132
 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 .venv/bin/python -m pytest -q   # same, offline
 .venv/bin/python scripts/run_part1.py                            # Part 1 still reproduces
 .venv/bin/python scripts/run_part2.py                            # Part 2 transcripts regenerate
