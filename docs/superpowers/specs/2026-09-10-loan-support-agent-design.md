@@ -1012,6 +1012,31 @@ Each line is a thing the brief's preamble mentions or a reviewer might expect, a
 | Tool calling through a real language model | `llm.py` raises for any provider but mock, by design. The deterministic router of section 11.3 is the stand-in. |
 | Streaming or async nodes | Part 3 territory, and streaming needs a real model, so it follows the `llm.py` swap in section 19. |
 
+### 18.3 A pattern across both parts
+
+Five mechanisms in this repository decide something on a measured signal.
+Four of them were found, on 2026-09-12, to be deciding on a signal that does not carry the property they were asked to decide, and every one of the four was correct on its own calibration set.
+
+| mechanism | decides on | what the signal does not carry | where |
+|---|---|---|---|
+| the embedding | cosine similarity | the product a question names | item 6 |
+| the product gate | a matched phrase | the meaning of the token it matched | item 8 |
+| the ellipsis matcher | the presence of a cue word | whether the pronoun's antecedent is in an earlier turn | 18.2 |
+| the intent router | the winning centroid | whether the winner is confident | 18.2 |
+
+The common cause is not the mechanisms, which are all reasonable, and not tuning, because none of them is mistuned.
+It is the calibration sets.
+Counted on 2026-09-12: `eval/routing.py::LABELLED_PROBES` holds 6 `policy` and 6 `lookup` probes and **no out-of-scope query at all**, so far-probe routing is undefined by construction rather than regressed.
+`ELLIPSIS_CUES` in `agent/memory.py` has **no probe set of any kind**, so its cue list has never been measured against anything.
+`KNOWN_ADJACENT` had no set of phrases it must **not** match until fix round 1 added six corpus-drawn questions to `tests/test_scope.py`.
+
+The exception proves the rule and is worth naming.
+`eval/calibration.py` is the one set built with a negative class from the start, 12 in-scope probes against 17 far ones, and it is the only one of the five whose weakness was found by its own measurement rather than by a reader: growing the far tier from 5 probes to 17 moved `T` on a single reading, which is item 7.
+
+The actionable form, and it is a checkable property rather than a style preference: **a calibration set with no negative class cannot detect the failure its mechanism is most likely to have.**
+Every set in this repository should carry the cases its mechanism must reject, and four of the five did not.
+This is recorded rather than acted on, because widening `LABELLED_PROBES` and calibrating `ELLIPSIS_CUES` are Part 2 changes that would move Part 2's measured numbers, and both are flagged to Bhavik.
+
 ## 19. V2 roadmap
 
 None of this is built in V1.
