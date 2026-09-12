@@ -278,6 +278,12 @@ AADHAAR_DIGITS = 12
 # which is where committed evidence lives under D-12.
 CONVERSATION_DIR = DATA_DIR / "conversations"
 
+# --- Part 2 Task 9, the response envelope (D-36, D-38) --------------------
+
+# Committed, because it is what Part 3's FastAPI layer and the grader read.
+# agent/schema.py exports it and scripts/run_part2.py asserts it is current.
+RESPONSE_SCHEMA_PATH = REPO_ROOT / "agent" / "response.schema.json"
+
 # --- Environment ----------------------------------------------------------
 
 DEFAULT_PROVIDER = "mock"
