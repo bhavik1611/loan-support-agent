@@ -867,6 +867,22 @@ Four further items opened during implementation and review, and are recorded her
 5. The support rule in D-07 has a false-refusal mode on broad questions that span documents.
    "What documents are needed for KYC?" scores 0.5124 top-1, far above T, but its top three sentence chunks land on three different parents, so no two agree and the system refuses.
    None of the 12 labelled evaluation queries is affected, and `tests/test_generate.py` pins the behaviour so it cannot regress unnoticed.
+
+   Two further instances were measured on 2026-09-12 by the Part 2 session, and the pair is a sharper demonstration than the KYC probe alone because it isolates the cause:
+
+   | probe | top-1 | top three parents | outcome |
+   |---|---|---|---|
+   | "What is the minimum credit score?" | 0.6477 | kb-10, kb-01, kb-10 | answered |
+   | "What is the minimum credit score for a loan?" | 0.7015 | three different parents | refused |
+   | "What is the minimum credit score for a home loan?" | 0.6599 | three different parents | refused |
+
+   Making the question more specific makes it less answerable, and the similarity rises while the answer disappears.
+   "for a loan" pulls `kb-13` in beside `kb-10`, the top three land on three different parents, and the support rule declines at 0.7015, more than twice `T`.
+   Drop those two words and two of three chunks share `kb-10`, so it answers at the lower similarity of 0.6477.
+
+   Taken with item 8, the support rule now has a measured failure in both directions: here it fails to agree about the right documents, and in IU-02 it agrees with itself about the wrong one at 0.4645.
+   Every one of these readings, 0.5124 and 0.7015 and 0.4645, sits comfortably above `T`.
+   Chunk agreement is doing all of the deciding in all of them, and it is the only signal in the pipeline with no calibration behind it.
    The two-signal fallback in section 19 is the V2 upgrade that removes it.
 
 6. **The embedding does not carry product identity, and this is the root cause behind D-46 and D-51.**
