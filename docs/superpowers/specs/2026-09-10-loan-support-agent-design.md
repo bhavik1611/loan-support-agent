@@ -923,6 +923,27 @@ Recorded here rather than resolved, at Bhavik's instruction on the review artifa
 4. The `both` route's answer joins two texts whose tones differ, one grounded and cited, one a record template.
    No decision is needed before implementation, but the join is the first thing to read in `transcripts/part2-graph.txt`, and if it reads badly the fix is the template in D-41 rather than the graph.
 
+5. **Carried risk, and the one a user is most likely to be harmed by.** Part 2 will confidently answer a question the knowledge base does not cover.
+   Measured 2026-09-12 against `kb_sentences` at `T` 0.3066: IU-02, "How do I transfer money to an account in another country?", reads top-1 **0.4645** with all three of its top chunks drawn from `kb-12`, so the support rule is satisfied and the answer ships with `supported=True` and `outcome="answered"`.
+   `kb-12` is the NRI account eligibility document. It says nothing about international remittance.
+
+   **The support rule did not fail. It fired correctly and agreed with itself about the wrong document.**
+   This is the same mechanism as item 2 above, running in the opposite direction: there it refuses a question it should answer, here it answers a question it should refuse.
+   Chunk agreement measures that retrieval was *consistent*, never that it was *right*, and D-07 chose it knowing only the first half of that.
+
+   The sibling reading is why nothing asserts on this class.
+   IU-01, "Can I get a credit card from another bank with a low limit?", reads 0.3931 and is refused - but only because one of its three chunks happened to land on a third parent.
+   Two probes in one class, one answered and one refused on a coin flip, is why criterion 24b was reworded to report these outcomes rather than assert them.
+
+   **Options considered, and why the cheap one loses.**
+   Part 2 sits downstream of this and could act where Part 1 cannot: `outcome="answered"` with `product=""` and a top-1 in the 0.4 to 0.5 band is a recognisable shape, and the agent could hedge the wording or route to `clarify` instead of asserting.
+   Rejected for V1. That band is an uncalibrated threshold fitted to a single known data point, which is the practice the brief bans and the exact failure D-44's margin was retired for: a cut that separates the cases you measured and nothing else.
+   Suppressing one bad answer by inventing a constant is a worse trade than shipping the bad answer with its reading recorded.
+
+   Decision: **leave it, and measure it.**
+   Part 1's decision transcript carries IU-01 and IU-02 with their outcomes and similarities under criterion 24b, so the case is visible in committed evidence rather than discovered by a grader.
+   The fix is the two-signal fallback in section 19 - requiring agreement between the retriever and a second signal before the system speaks - which is the option that lost in D-07 and the reason it is first in the V2 roadmap.
+
 ### 18.3 What Part 2 deliberately does not build
 
 Each line is a thing the brief's preamble mentions or a reviewer might expect, and the reason it is absent.
