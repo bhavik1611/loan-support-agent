@@ -22,9 +22,12 @@ and because git cannot diff a binary. This manifest is the committed, readable r
 | `repayments` | 5 | 6 |
 | `support_tickets` | 6 | 7 |
 | `kyc_documents` | 7 | 8 |
+| `clock` | 8 | 9 |
 
 `loan_applications` keeps offset 0, which is the original `Random(SEED)`.
-That is what makes `data/loan_applications.json` byte-identical to its pre-database state.
+That is why every value of the brief's six fields in `data/loan_applications.json`
+is unchanged by the store (D-18) and by the time axis (D-26), which added two fields
+without moving one existing cell.
 
 ## Row counts
 
@@ -45,7 +48,7 @@ SHA-256 over a canonically ordered dump of every row, not over the file bytes,
 because a SQLite file can differ byte for byte while holding identical data.
 
 ```
-c3e4636ae5c1fc6d4592faa95cc64e1f8025df22365db9ba6cfe452fd3fabbbe
+6700ad9fbb77e6b5d3ae1e5f04c88f218f867076c294eef3bb365d0ec96d828f
 ```
 
 ## Schema
@@ -92,6 +95,8 @@ CREATE TABLE loan_applications (
             loan_amount_inr          INTEGER NOT NULL,
             days_since_created       INTEGER NOT NULL,
             flagged_for_fraud_review INTEGER NOT NULL CHECK (flagged_for_fraud_review IN (0, 1)),
+            created_at               TEXT    NOT NULL,
+            updated_at               TEXT    NOT NULL,
             tenure_months            INTEGER NOT NULL,
             interest_rate_pct        REAL    NOT NULL
         )
@@ -104,7 +109,7 @@ CREATE TABLE application_events (
             sequence_no         INTEGER NOT NULL,
             from_status         TEXT,
             to_status           TEXT    NOT NULL,
-            occurred_days_ago   INTEGER NOT NULL,
+            occurred_at         TEXT    NOT NULL,
             note                TEXT    NOT NULL,
             UNIQUE (record_id, sequence_no)
         )
@@ -115,7 +120,7 @@ CREATE TABLE repayments (
             repayment_id    INTEGER PRIMARY KEY,
             record_id       TEXT    NOT NULL REFERENCES loan_applications(record_id),
             instalment_no   INTEGER NOT NULL,
-            due_days_ago    INTEGER NOT NULL,
+            due_at          TEXT    NOT NULL,
             emi_inr         REAL    NOT NULL,
             principal_inr   REAL    NOT NULL,
             interest_inr    REAL    NOT NULL,
@@ -132,7 +137,7 @@ CREATE TABLE support_tickets (
             record_id           TEXT    REFERENCES loan_applications(record_id),
             channel             TEXT    NOT NULL,
             category            TEXT    NOT NULL,
-            opened_days_ago     INTEGER NOT NULL,
+            opened_at           TEXT    NOT NULL,
             status              TEXT    NOT NULL,
             summary             TEXT    NOT NULL
         )
@@ -144,7 +149,7 @@ CREATE TABLE kyc_documents (
             customer_id         TEXT    NOT NULL REFERENCES customers(customer_id),
             doc_type            TEXT    NOT NULL,
             doc_kind            TEXT    NOT NULL CHECK (doc_kind IN ('identity', 'address')),
-            submitted_days_ago  INTEGER NOT NULL,
+            submitted_at        TEXT    NOT NULL,
             verified            INTEGER NOT NULL CHECK (verified IN (0, 1))
         )
 ```

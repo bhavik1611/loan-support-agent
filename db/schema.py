@@ -59,6 +59,8 @@ CREATE_STATEMENTS = {
             loan_amount_inr          INTEGER NOT NULL,
             days_since_created       INTEGER NOT NULL,
             flagged_for_fraud_review INTEGER NOT NULL CHECK (flagged_for_fraud_review IN (0, 1)),
+            created_at               TEXT    NOT NULL,
+            updated_at               TEXT    NOT NULL,
             tenure_months            INTEGER NOT NULL,
             interest_rate_pct        REAL    NOT NULL
         )
@@ -70,7 +72,7 @@ CREATE_STATEMENTS = {
             sequence_no         INTEGER NOT NULL,
             from_status         TEXT,
             to_status           TEXT    NOT NULL,
-            occurred_days_ago   INTEGER NOT NULL,
+            occurred_at         TEXT    NOT NULL,
             note                TEXT    NOT NULL,
             UNIQUE (record_id, sequence_no)
         )
@@ -80,7 +82,7 @@ CREATE_STATEMENTS = {
             repayment_id    INTEGER PRIMARY KEY,
             record_id       TEXT    NOT NULL REFERENCES loan_applications(record_id),
             instalment_no   INTEGER NOT NULL,
-            due_days_ago    INTEGER NOT NULL,
+            due_at          TEXT    NOT NULL,
             emi_inr         REAL    NOT NULL,
             principal_inr   REAL    NOT NULL,
             interest_inr    REAL    NOT NULL,
@@ -96,7 +98,7 @@ CREATE_STATEMENTS = {
             record_id           TEXT    REFERENCES loan_applications(record_id),
             channel             TEXT    NOT NULL,
             category            TEXT    NOT NULL,
-            opened_days_ago     INTEGER NOT NULL,
+            opened_at           TEXT    NOT NULL,
             status              TEXT    NOT NULL,
             summary             TEXT    NOT NULL
         )
@@ -107,7 +109,7 @@ CREATE_STATEMENTS = {
             customer_id         TEXT    NOT NULL REFERENCES customers(customer_id),
             doc_type            TEXT    NOT NULL,
             doc_kind            TEXT    NOT NULL CHECK (doc_kind IN ('identity', 'address')),
-            submitted_days_ago  INTEGER NOT NULL,
+            submitted_at        TEXT    NOT NULL,
             verified            INTEGER NOT NULL CHECK (verified IN (0, 1))
         )
     """,

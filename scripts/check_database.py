@@ -11,6 +11,7 @@ Part 2 Task 10 formalises it. No flag is offered to unmask: one behaviour.
 
 import re
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -129,6 +130,82 @@ def main() -> int:
     ).fetchone()["n"]
     check(out_of_range == 0, f"days_since_created within 0 to 30 ({out_of_range} outside)")
 
+    # --- the time axis, D-26 to D-30 ---------------------------------------
+    anchor = config.AS_OF
+    stamped = {
+        "loan_applications": ("created_at", "updated_at"),
+        "application_events": ("occurred_at",),
+        "repayments": ("due_at",),
+        "support_tickets": ("opened_at",),
+        "kyc_documents": ("submitted_at",),
+    }
+
+    unparseable = []
+    future = []
+    for table, columns in stamped.items():
+        for column in columns:
+            for row in conn.execute(f"SELECT {column} AS v FROM {table}"):
+                try:
+                    moment = datetime.fromisoformat(row["v"])
+                except (TypeError, ValueError):
+                    unparseable.append(f"{table}.{column}")
+                    continue
+                if moment.utcoffset() is None:
+                    unparseable.append(f"{table}.{column}")
+                # due_at is the one column allowed past the anchor: future
+                # instalments are genuinely in the future (D-29).
+                elif moment > anchor and column != "due_at":
+                    future.append(f"{table}.{column}")
+    check(not unparseable, f"every timestamp is ISO 8601 with an offset ({len(unparseable)} bad)")
+    check(not future, f"no timestamp past the anchor except due_at ({len(future)} ahead)")
+
+    drifted = sum(
+        1
+        for row in conn.execute(
+            "SELECT days_since_created AS d, created_at AS c FROM loan_applications"
+        )
+        if datetime.fromisoformat(row["c"]).date()
+        != (anchor - timedelta(days=row["d"])).date()
+    )
+    check(drifted == 0, f"created_at is the anchor minus days_since_created ({drifted} off)")
+
+    weekend = conn.execute(
+        """SELECT count(*) AS n FROM application_events
+            WHERE strftime('%w', occurred_at) IN ('0', '6')
+              AND NOT (sequence_no = 1 AND to_status = ?)""",
+        (config.CUSTOMER_SIDE_ARRIVAL,),
+    ).fetchone()["n"]
+    check(weekend == 0, f"no bank-side event on a weekend ({weekend} found)")
+
+    outside = sum(
+        1
+        for table, columns in stamped.items()
+        for column in columns
+        if column != "due_at"
+        for row in conn.execute(f"SELECT {column} AS v FROM {table}")
+        if not (
+            config.BUSINESS_START
+            <= datetime.fromisoformat(row["v"]).time()
+            <= config.BUSINESS_END
+        )
+    )
+    check(outside == 0, f"every drawn timestamp inside business hours ({outside} outside)")
+
+    stale = conn.execute(
+        """SELECT count(*) AS n FROM loan_applications a
+            WHERE a.updated_at != (SELECT max(e.occurred_at)
+                                     FROM application_events e
+                                    WHERE e.record_id = a.record_id)"""
+    ).fetchone()["n"]
+    check(stale == 0, f"updated_at is the most recent event ({stale} disagree)")
+
+    mismatched = sum(
+        1
+        for row in conn.execute("SELECT due_at AS d, paid FROM repayments")
+        if bool(row["paid"]) != (datetime.fromisoformat(row["d"]) <= anchor)
+    )
+    check(mismatched == 0, f"paid agrees with due_at against the anchor ({mismatched} off)")
+
     vocab = {r["status"] for r in conn.execute("SELECT DISTINCT status FROM loan_applications")}
     check(vocab <= set(config.STATUSES), f"statuses in vocabulary: {sorted(vocab)}")
 
@@ -198,7 +275,7 @@ def main() -> int:
                                      GROUP BY customer_id ORDER BY count(*) DESC LIMIT 1)
              ORDER BY a.record_id"""),
         ("The status trail of one application",
-         """SELECT record_id, sequence_no, from_status, to_status, occurred_days_ago
+         """SELECT record_id, sequence_no, from_status, to_status, occurred_at
               FROM application_events WHERE record_id = 'LN-1001' ORDER BY sequence_no"""),
         ("First three instalments of one disbursed loan",
          """SELECT record_id, instalment_no, emi_inr, principal_inr, interest_inr, balance_inr, paid

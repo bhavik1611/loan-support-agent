@@ -144,7 +144,9 @@ def manifest_text(path=None) -> str:
     lines += [
         "",
         "`loan_applications` keeps offset 0, which is the original `Random(SEED)`.",
-        "That is what makes `data/loan_applications.json` byte-identical to its pre-database state.",
+        "That is why every value of the brief's six fields in `data/loan_applications.json`",
+        "is unchanged by the store (D-18) and by the time axis (D-26), which added two fields",
+        "without moving one existing cell.",
         "",
         "## Row counts",
         "",

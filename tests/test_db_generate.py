@@ -4,6 +4,7 @@ the schema, not against invented vocabulary.
 
 import re
 import string
+from datetime import datetime, timedelta
 
 import config
 import dataset
@@ -287,12 +288,24 @@ def test_application_events_form_a_legal_path_ending_at_the_status():
         for other in record_events[1:]:
             assert other["from_status"] is not None
 
-        days = [e["occurred_days_ago"] for e in record_events]
-        assert days == sorted(days, reverse=True)
-        assert len(set(days)) == len(days)
-        assert record_events[0]["occurred_days_ago"] == applications_by_id[record_id][
-            "days_since_created"
-        ]
+        # D-30 moved this from distinct days to distinct instants, because
+        # D-29's weekend shift can land two rows on one working day.
+        moments = [datetime.fromisoformat(e["occurred_at"]) for e in record_events]
+        assert moments == sorted(moments)
+        assert len(set(moments)) == len(moments)
+        assert all(moment <= config.AS_OF for moment in moments)
+
+        # The trail opens days_since_created days before the anchor. Only a
+        # bank-side opening row may have been shifted off a weekend, and
+        # forward is the only direction it can go (D-29).
+        opened = config.AS_OF - timedelta(
+            days=applications_by_id[record_id]["days_since_created"]
+        )
+        if record_events[0]["to_status"] == config.CUSTOMER_SIDE_ARRIVAL:
+            assert moments[0].date() == opened.date()
+        else:
+            assert moments[0].date() >= opened.date()
+            assert moments[0].weekday() < 5
 
         assert record_events[-1]["to_status"] == applications_by_id[record_id]["status"]
 
@@ -353,8 +366,10 @@ def test_repayments_use_kb02s_emi_formula():
 def test_repayments_paid_only_when_due_date_has_passed():
     applications, _ = _assigned_applications()
     rows = generate.generate_repayments(applications)
+    # D-13 and D-30: the flag stays stored, and the test that pinned it to a
+    # sign on an integer now pins it to the anchor instead.
     for row in rows:
-        assert row["paid"] == (row["due_days_ago"] >= 0)
+        assert row["paid"] == (datetime.fromisoformat(row["due_at"]) <= config.AS_OF)
 
 
 def test_repayments_deterministic():

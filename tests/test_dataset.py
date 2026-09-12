@@ -45,6 +45,8 @@ def test_record_count_and_shape():
         "loan_amount_inr",
         "days_since_created",
         "flagged_for_fraud_review",
+        "created_at",
+        "updated_at",
     ]
     for record in dataset.LOAN_APPLICATIONS:
         assert list(record) == expected_keys
@@ -81,8 +83,13 @@ def test_lookup_returns_the_record_and_none_for_a_miss():
 # --- the relational store must not move a single existing byte ------------
 
 
-def test_the_projection_keeps_exactly_the_six_fields_in_order():
-    assert dataset.PROJECTED_FIELDS == (
+def test_the_projection_opens_with_the_briefs_six_fields_in_order():
+    """D-31: the two timestamps are appended, never interleaved.
+
+    The brief's list is written out here rather than imported, so that
+    reordering PROJECTED_FIELDS fails this test instead of redefining it.
+    """
+    assert dataset.PROJECTED_FIELDS[:6] == (
         "record_id",
         "category",
         "status",
@@ -90,6 +97,7 @@ def test_the_projection_keeps_exactly_the_six_fields_in_order():
         "days_since_created",
         "flagged_for_fraud_review",
     )
+    assert dataset.PROJECTED_FIELDS[6:] == ("created_at", "updated_at")
     for record in dataset.LOAN_APPLICATIONS:
         assert tuple(record) == dataset.PROJECTED_FIELDS
 
@@ -113,9 +121,9 @@ def test_enrichment_does_not_disturb_the_six_field_draw():
 
 
 def test_generate_applications_still_returns_only_the_six_fields():
-    """Stream 0's loop is untouched; enrichment happens strictly afterwards."""
+    """Stream 0's loop is untouched; enrichment and timestamps come after it."""
     for record in dataset.generate_applications():
-        assert tuple(record) == dataset.PROJECTED_FIELDS
+        assert tuple(record) == dataset.PROJECTED_FIELDS[:6]
 
 
 def test_tenure_and_rate_sit_inside_the_knowledge_base_bands():

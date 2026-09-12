@@ -28,7 +28,7 @@ uv venv --python 3.12 .venv
 VIRTUAL_ENV=.venv uv pip install -r requirements.txt
 
 .venv/bin/python scripts/run_part1.py      # runs every Part 1 task, rewrites transcripts/
-.venv/bin/python -m pytest                  # 157 tests
+.venv/bin/python -m pytest                  # 166 tests
 ```
 
 The embedding weights for `all-MiniLM-L6-v2` download once on first use, into `~/.cache/huggingface` outside the repository.
@@ -134,8 +134,8 @@ Stopping there also left three knowledge-base documents - EMI calculation, prepa
 |---|---|---|
 | `loan_products` | 5 | The catalogue every amount, rate and tenure is drawn inside. |
 | `customers` | 66 | Identity, employment, income, credit score, KYC status, residency. |
-| `loan_applications` | 100 | The six brief fields plus customer, product, tenure and rate. |
-| `application_events` | 393 | The status audit trail behind `days_since_created`. |
+| `loan_applications` | 100 | The six brief fields plus `created_at`, `updated_at`, customer, product, tenure and rate. |
+| `application_events` | 393 | The status audit trail, each transition carrying an `occurred_at` instant. |
 | `repayments` | 276 | The first 12 instalments of each disbursed loan's schedule. |
 | `support_tickets` | 40 | Channel, category, status, linked application. |
 | `kyc_documents` | 196 | Identity and address proofs with verification state. |
@@ -143,7 +143,8 @@ Stopping there also left three knowledge-base documents - EMI calculation, prepa
 
 **Nothing that existed before this landed moved.**
 Each table draws from its own stream, `random.Random(SEED + offset)`, and `loan_applications` keeps offset 0, which is literally the original `Random(SEED)`.
-So `data/loan_applications.json` is byte-identical to its pre-database state, and `tests/test_database.py::test_the_committed_snapshot_did_not_move` proves it on every run.
+So every value of the brief's six fields in `data/loan_applications.json` is unchanged, by the store and by the time axis alike, and `tests/test_database.py::test_no_brief_field_value_has_ever_moved` proves it on every run by comparing the committed file against the raw stream-0 draw.
+The time axis appended `created_at` and `updated_at` and moved no existing cell; its hours and minutes come from a stream of their own at the next free offset.
 A second test asserts the enricher cannot draw from stream 0 at all, because that is the failure mode that would silently rewrite every `record_id` the transcripts quote.
 
 **The database is generated, not committed.**
@@ -181,6 +182,18 @@ They are never returned by `db/query.py::customer_context`, which yields only `c
 Interest-rate bands are read out of `kb-07`, not retyped.
 Tenures for Personal (12 to 60 months) and Home (30 years) come from `kb-13` and `kb-14`.
 The Auto, Education and Business tenures are stated nowhere in the knowledge base and are recorded in `config.py` as modelling choices rather than presented as sourced facts.
+
+**The time axis.**
+Every date in this repository is derived from `days_since_created` against one frozen anchor, `config.AS_OF`, which is 2026-09-30 at close of business IST.
+Nothing reads the wall clock, so the same seed still produces the same bytes.
+
+Anchoring those offsets to a calendar is what made them checkable, and the first thing it caught was the dataset's own: 99 of 393 application events had been landing on a Saturday or a Sunday, while `kb-01`, `kb-05` and `kb-06` write their turnaround promises in working days.
+A status transition the bank makes now moves forward to the next working day.
+The application's own `Submitted` event does not, because `db/generate.py` calls it an online submission and an online form takes a Sunday one.
+An EMI due date does not either: it is a contractual date rather than an action, and shifting it would stop the monthly spacing being monthly, so `repayments.due_at` is the one column allowed past the anchor.
+
+Business hours of 09:30 to 18:00 are stated nowhere in the knowledge base and are a modelling choice, recorded here the same way the Home Loan band and the three tenures are.
+Indian bank holidays are deliberately out of scope: weekends are computable from a date, a holiday calendar is not, and no document in this repository carries one.
 
 ## Part 1 Task 2 - the knowledge base
 
@@ -357,8 +370,8 @@ Retrieving a wider candidate set and then deduplicating down to 3 parents would 
 
 ## Tests
 
-157 tests, all passing offline.
-The six that restate an acceptance criterion directly:
+166 tests, all passing offline.
+The ten that restate an acceptance criterion directly:
 
 | # | Test | Criterion it restates |
 |---|---|---|
@@ -368,6 +381,10 @@ The six that restate an acceptance criterion directly:
 | 4 | The fraud rate is inside 10 to 30 percent | Fraud percentage band |
 | 5 | Every document yields at least 2 chunks in both collections | Support-rule viability |
 | 6 | Minimum in-scope similarity exceeds maximum out-of-scope similarity | The ban on an untested preset |
+| 13 | Every timestamp is ISO 8601 with an offset, and none sits past the anchor bar a due date | The time axis is total |
+| 14 | `created_at` is the anchor minus `days_since_created`, all 100 records | The derivation D-26 rests on |
+| 15 | No bank-side event falls on a weekend, and every drawn time is inside business hours | The working-day rule |
+| 16 | `updated_at` is the most recent event, and `paid` agrees with `due_at` | The two stored facts match the trail |
 
 **Precision@3 and Recall@3 are deliberately not pinned by any test.**
 They move legitimately when chunk parameters are tuned, so a test that pinned them would fight the work and get deleted.
@@ -398,7 +415,7 @@ scripts/run_part1.py        Runs every Part 1 task and writes the transcripts.
 scripts/check_database.py   The grader's one-command database check.
 data/                       Committed snapshot and database manifest, both hash-tested.
 transcripts/                Committed graded evidence.
-tests/                      157 tests, one per acceptance criterion plus unit coverage.
+tests/                      166 tests, one per acceptance criterion plus unit coverage.
 docs/                       The design spec and the implementation plans.
 reference/                  The problem statement.
 chroma/                     Generated vector store, gitignored.

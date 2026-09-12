@@ -5,6 +5,7 @@ or a chunk parameter. Parts 2 to 4 import from here too.
 """
 
 import os
+from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
@@ -67,6 +68,34 @@ DAYS_MIN = 0
 DAYS_MAX = 30
 DAYS_MODE = 8
 
+# --- Task 1c, the time axis (D-26 to D-29) ---------------------------------
+
+IST = timezone(timedelta(hours=5, minutes=30), "IST")
+
+# The instant every relative offset in this repository is counted back from.
+# Frozen, never read from the clock: a wall-clock anchor would break the
+# determinism ground rule and move the manifest hash daily (D-27). Close of
+# business rather than midnight, because a 0-day-old application exists in the
+# committed data and a midnight anchor would date its events in the future.
+AS_OF = datetime(2026, 9, 30, 18, 0, tzinfo=IST)
+
+# D-29. Every timestamp lands inside this window, on both sides of the counter.
+# Nothing in the knowledge base states branch hours, so this is a declared
+# modelling choice rather than a sourced fact, and README.md says so.
+BUSINESS_START = time(9, 30)
+BUSINESS_END = time(18, 0)
+
+# An auto-debit batch runs at a fixed hour and does not vary per loan, so an
+# EMI due date takes this time rather than a drawn one (D-29).
+EMI_DEBIT_TIME = time(10, 0)
+
+# The one event the customer creates rather than the bank, and the only row
+# exempt from the working-day shift. The generator's own note calls it an
+# online submission, and an online form takes a Sunday one (D-29). The
+# exemption is also load-bearing: this event is created_at, so moving it would
+# break created_at == AS_OF minus days_since_created.
+CUSTOMER_SIDE_ARRIVAL = "Submitted"
+
 # Unsecured and business lending carry higher fraud incidence than secured
 # retail lending, so the flag carries signal Part 2's escalation score can use.
 FRAUD_BASE_PROBABILITY = 0.15
@@ -95,6 +124,11 @@ STREAM_OFFSETS = {
     "repayments": 5,
     "support_tickets": 6,
     "kyc_documents": 7,
+    # Not a table. The hours and minutes every timestamp carries, drawn here so
+    # that adding a clock to four existing tables moves none of their committed
+    # values (D-28). This is the "next free offset disturbs nothing" property
+    # D-18 was designed for, used for the first time.
+    "clock": 8,
 }
 
 PRODUCT_CODES = {

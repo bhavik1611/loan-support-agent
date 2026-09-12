@@ -17,8 +17,60 @@ invented:
 
 import random
 import string
+from datetime import datetime, timedelta
 
 import config
+
+# ---------------------------------------------------------------------------
+# the time axis
+# ---------------------------------------------------------------------------
+#
+# Every calendar value in this module is derived from a relative day offset
+# against config.AS_OF. Nothing here reads the clock, and nothing here draws a
+# day: the days were already drawn, on their own streams, and only the hours
+# and minutes are new (D-26, D-28).
+
+
+def _date_at(days_ago: int):
+    """The calendar date `days_ago` days before the anchor."""
+    return (config.AS_OF - timedelta(days=days_ago)).date()
+
+
+def _next_working_day(day):
+    """The first non-weekend day on or after `day`.
+
+    Forward rather than backward because a bank handles a Saturday arrival on
+    Monday, not on the Friday before it. Forward is also a monotone map, which
+    is why shifting a trail this way cannot reorder it (D-29).
+    """
+    while day.weekday() >= 5:
+        day += timedelta(days=1)
+    return day
+
+
+def _minutes_in_business_hours(rng, count: int) -> list[int]:
+    """`count` distinct minutes-past-midnight inside business hours, ascending.
+
+    Distinct and sorted so that events sharing a day still read in the order
+    they happened. D-30 moved the uniqueness invariant from distinct days to
+    distinct instants precisely so this is legal.
+    """
+    first = config.BUSINESS_START.hour * 60 + config.BUSINESS_START.minute
+    last = config.BUSINESS_END.hour * 60 + config.BUSINESS_END.minute
+    return sorted(rng.sample(range(first, last + 1), count))
+
+
+def _stamp(day, minutes: int) -> str:
+    """One ISO 8601 instant in IST, to the minute."""
+    return datetime(
+        day.year, day.month, day.day, minutes // 60, minutes % 60, tzinfo=config.IST
+    ).isoformat()
+
+
+def _fixed_stamp(day, at) -> str:
+    """One ISO 8601 instant in IST at a fixed time of day."""
+    return _stamp(day, at.hour * 60 + at.minute)
+
 
 # ---------------------------------------------------------------------------
 # loan_products
@@ -346,11 +398,15 @@ MAX_EVENTS = 5
 def generate_application_events(applications: list[dict]) -> list[dict]:
     """2 to 5 events per application, a legal path ending at its status.
 
-    occurred_days_ago strictly decreases along the sequence and the first
-    event's occurred_days_ago equals the application's days_since_created, so
-    the number of events an application can carry is bounded by how many days
-    it has been alive: at most days_since_created + 1 distinct non-negative
-    day values exist.
+    occurred_at strictly increases along the sequence, and the first event
+    falls days_since_created days before the anchor, so the number of events an
+    application can carry is bounded by how many days it has been alive: at
+    most days_since_created + 1 distinct non-negative day offsets exist.
+
+    Those offsets become calendar instants under D-26. A bank-side row then
+    moves forward off a weekend (D-29), which can land two rows on one day;
+    they are given distinct ascending times within it, so the trail still reads
+    in order.
 
     Applications younger than the full legal chain (there is exactly one in
     the committed dataset: an Approved application 0 days old) cannot show
@@ -361,10 +417,16 @@ def generate_application_events(applications: list[dict]) -> list[dict]:
     budget allows rather than always at "Submitted".
     """
     rng = random.Random(config.stream("application_events"))
+    clock = random.Random(config.stream("clock"))
     events = []
     event_id = 1
 
-    for application in applications:
+    # Sorted by record_id, not taken in the caller's order. db/build.py passes
+    # these rows after assign_customers has shuffled them, and dataset.py needs
+    # the same trail to compute updated_at without knowing about customers at
+    # all. Iterating a fixed order makes this a pure function of the
+    # application set rather than of who happens to call it.
+    for application in sorted(applications, key=lambda row: row["record_id"]):
         status = application["status"]
         days_since_created = application["days_since_created"]
         chain = STATUS_CHAINS[status]
@@ -393,6 +455,35 @@ def generate_application_events(applications: list[dict]) -> list[dict]:
 
         stage_sequence = list(chain) + [chain[-1]] * (total - len(chain))
 
+        # D-29. A transition the bank makes cannot land on a Saturday or a
+        # Sunday, so it moves to the next working day. Submitted is exempt: the
+        # note beside it calls it an online submission, and an online form
+        # takes a Sunday one. The exemption is also what keeps
+        # created_at == AS_OF - days_since_created exactly true, because the
+        # first event is the application's own creation.
+        dates = []
+        for position, (days, to_status) in enumerate(
+            zip(days_sequence, stage_sequence)
+        ):
+            day = _date_at(days)
+            # The only row the customer creates is the opening Submitted, and
+            # only at position 0: a later row still reading "Submitted" is a
+            # follow-up the bank logged, which is why the test is on position
+            # and not on the status alone.
+            arrival = position == 0 and to_status == config.CUSTOMER_SIDE_ARRIVAL
+            dates.append(day if arrival else _next_working_day(day))
+
+        # Two events can now share a day. They are given distinct, ascending
+        # times within it, so the trail still reads in order (D-30).
+        stamps = [None] * len(dates)
+        start = 0
+        for index in range(1, len(dates) + 1):
+            if index == len(dates) or dates[index] != dates[start]:
+                minutes = _minutes_in_business_hours(clock, index - start)
+                for offset, minute in enumerate(minutes):
+                    stamps[start + offset] = _stamp(dates[start], minute)
+                start = index
+
         previous_status = None
         for position, to_status in enumerate(stage_sequence):
             note = (
@@ -407,7 +498,7 @@ def generate_application_events(applications: list[dict]) -> list[dict]:
                     "sequence_no": position + 1,
                     "from_status": previous_status,
                     "to_status": to_status,
-                    "occurred_days_ago": days_sequence[position],
+                    "occurred_at": stamps[position],
                     "note": note,
                 }
             )
@@ -415,6 +506,39 @@ def generate_application_events(applications: list[dict]) -> list[dict]:
             previous_status = to_status
 
     return events
+
+
+def application_timestamps(applications: list[dict]) -> dict[str, tuple[str, str]]:
+    """`record_id` to (created_at, updated_at), read off the trail itself.
+
+    dataset.py calls this so the committed snapshot carries the same two
+    instants the database does (D-31). It works because
+    generate_application_events is a pure function of the application set, so
+    this reproduces the trail db/build.py writes without needing the customers
+    that have not been generated yet.
+
+    created_at is the Submitted event, which never shifts, so its date is
+    always exactly AS_OF minus days_since_created. A compressed trail has no
+    Submitted event to borrow - one application in the committed data, an
+    Approved one 0 days old - and takes the opening of business on its own
+    creation date instead. That fallback is fixed rather than drawn, because a
+    draw here would be a second use of the clock stream for one row.
+    """
+    opened: dict[str, str] = {}
+    latest: dict[str, str] = {}
+    for event in generate_application_events(applications):
+        latest[event["record_id"]] = event["occurred_at"]
+        if event["sequence_no"] == 1 and event["to_status"] == "Submitted":
+            opened[event["record_id"]] = event["occurred_at"]
+
+    stamps = {}
+    for row in applications:
+        record_id = row["record_id"]
+        created_at = opened.get(record_id) or _fixed_stamp(
+            _date_at(row["days_since_created"]), config.BUSINESS_START
+        )
+        stamps[record_id] = (created_at, latest[record_id])
+    return stamps
 
 
 # ---------------------------------------------------------------------------
@@ -480,12 +604,18 @@ def generate_repayments(applications: list[dict]) -> list[dict]:
             due_days_ago = days_since_created - (
                 DAYS_BETWEEN_INSTALMENTS * instalment["instalment_no"]
             )
+            # D-29 exempts a due date from the working-day shift. It is a
+            # contractual date, not an action somebody takes, and moving it
+            # would stop the monthly spacing being monthly. Future instalments
+            # are genuinely future-dated: this is the one column allowed past
+            # the anchor.
+            due_at = _fixed_stamp(_date_at(due_days_ago), config.EMI_DEBIT_TIME)
             repayments.append(
                 {
                     "repayment_id": repayment_id,
                     "record_id": application["record_id"],
                     "instalment_no": instalment["instalment_no"],
-                    "due_days_ago": due_days_ago,
+                    "due_at": due_at,
                     "emi_inr": instalment["emi_inr"],
                     "principal_inr": instalment["principal_inr"],
                     "interest_inr": instalment["interest_inr"],
@@ -529,6 +659,7 @@ def generate_support_tickets(applications: list[dict], customers: list[dict]) ->
     Fraud-flagged applications are over-represented among the linked half.
     """
     rng = random.Random(config.stream("support_tickets"))
+    clock = random.Random(config.stream("clock"))
 
     customer_ids = [customer["customer_id"] for customer in customers]
     flagged_applications = [
@@ -566,7 +697,9 @@ def generate_support_tickets(applications: list[dict], customers: list[dict]) ->
                 "record_id": application["record_id"],
                 "channel": channel,
                 "category": category,
-                "opened_days_ago": opened_days_ago,
+                "opened_at": _stamp(
+                    _date_at(opened_days_ago), _minutes_in_business_hours(clock, 1)[0]
+                ),
                 "status": rng.choice(TICKET_STATUSES),
                 "summary": f"{category} reported via {channel.lower()}",
             }
@@ -583,7 +716,10 @@ def generate_support_tickets(applications: list[dict], customers: list[dict]) ->
                 "record_id": None,
                 "channel": channel,
                 "category": category,
-                "opened_days_ago": rng.randint(0, 90),
+                "opened_at": _stamp(
+                    _date_at(rng.randint(0, 90)),
+                    _minutes_in_business_hours(clock, 1)[0],
+                ),
                 "status": rng.choice(TICKET_STATUSES),
                 "summary": f"{category} query logged via {channel.lower()}",
             }
@@ -627,6 +763,7 @@ def generate_kyc_documents(customers: list[dict]) -> list[dict]:
     visa on top of the base identity and address proof, landing at exactly 4.
     """
     rng = random.Random(config.stream("kyc_documents"))
+    clock = random.Random(config.stream("clock"))
     documents = []
     document_no = 1
 
@@ -658,7 +795,10 @@ def generate_kyc_documents(customers: list[dict]) -> list[dict]:
                     "customer_id": customer["customer_id"],
                     "doc_type": doc_type,
                     "doc_kind": doc_kind,
-                    "submitted_days_ago": rng.randint(1, 60),
+                    "submitted_at": _stamp(
+                        _date_at(rng.randint(1, 60)),
+                        _minutes_in_business_hours(clock, 1)[0],
+                    ),
                     "verified": rng.random() < EXTRA_DOC_VERIFIED_PROBABILITY,
                 }
             )

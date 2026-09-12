@@ -64,10 +64,10 @@ def loan_book(customer_id: str, conn=None) -> list[dict]:
             """
             SELECT record_id, category, status, loan_amount_inr,
                    tenure_months, interest_rate_pct, days_since_created,
-                   flagged_for_fraud_review
+                   flagged_for_fraud_review, created_at, updated_at
               FROM loan_applications
              WHERE customer_id = ?
-             ORDER BY days_since_created ASC, record_id ASC
+             ORDER BY created_at DESC, record_id ASC
             """,
             (customer_id,),
         ).fetchall()
@@ -79,7 +79,7 @@ def application_timeline(record_id: str, conn=None) -> list[dict]:
     with _connection(conn) as c:
         rows = c.execute(
             """
-            SELECT sequence_no, from_status, to_status, occurred_days_ago, note
+            SELECT sequence_no, from_status, to_status, occurred_at, note
               FROM application_events
              WHERE record_id = ?
              ORDER BY sequence_no ASC
@@ -94,7 +94,7 @@ def repayment_schedule(record_id: str, conn=None) -> list[dict]:
     with _connection(conn) as c:
         rows = c.execute(
             """
-            SELECT instalment_no, due_days_ago, emi_inr,
+            SELECT instalment_no, due_at, emi_inr,
                    principal_inr, interest_inr, balance_inr, paid
               FROM repayments
              WHERE record_id = ?
@@ -111,10 +111,10 @@ def open_tickets(customer_id: str, conn=None) -> list[dict]:
         rows = c.execute(
             """
             SELECT ticket_id, record_id, channel, category,
-                   opened_days_ago, status, summary
+                   opened_at, status, summary
               FROM support_tickets
              WHERE customer_id = ? AND status != 'Closed'
-             ORDER BY opened_days_ago ASC, ticket_id ASC
+             ORDER BY opened_at DESC, ticket_id ASC
             """,
             (customer_id,),
         ).fetchall()

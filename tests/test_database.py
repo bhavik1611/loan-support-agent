@@ -8,6 +8,8 @@ trusted.
 import re
 from pathlib import Path
 
+from datetime import datetime, timedelta
+
 import config
 import dataset
 from db import build, schema
@@ -44,14 +46,33 @@ def _kb07_rate_bands() -> dict[str, tuple[float, float]]:
 # --- test 7 ---------------------------------------------------------------
 
 
-def test_the_committed_snapshot_did_not_move():
-    """D-18 and D-19: adding the store changed no existing record."""
-    import hashlib
+BRIEF_FIELDS = (
+    "record_id",
+    "category",
+    "status",
+    "loan_amount_inr",
+    "days_since_created",
+    "flagged_for_fraud_review",
+)
 
-    assert (
-        hashlib.sha256(dataset.snapshot_bytes()).hexdigest()
-        == hashlib.sha256(config.DATASET_SNAPSHOT.read_bytes()).hexdigest()
-    )
+
+def test_no_brief_field_value_has_ever_moved():
+    """D-18, D-19 and D-31: nothing added to this dataset moved an old value.
+
+    The store added six tables and the time axis added two fields, and neither
+    was allowed to perturb stream 0. So the brief's six fields as the generator
+    draws them today must still equal the six fields the committed snapshot
+    carries. Comparing the raw stream-0 output rather than the projection is
+    what makes this bite: if a future change draws anything new inside
+    generate_applications, every record shifts and this fails.
+    """
+    import json
+
+    committed = json.loads(config.DATASET_SNAPSHOT.read_text())
+    drawn = dataset.generate_applications()
+    assert len(committed) == len(drawn)
+    for record, raw in zip(committed, drawn):
+        assert {field: record[field] for field in BRIEF_FIELDS} == raw
 
 
 # --- test 8 ---------------------------------------------------------------
@@ -199,3 +220,127 @@ def test_two_builds_produce_the_same_content_hash(tmp_path):
     build.build_database(a)
     build.build_database(b)
     assert build.content_hash(a) == build.content_hash(b)
+
+
+# --- test 13 --------------------------------------------------------------
+
+# Every timestamped column in the store, and whether it may sit past the
+# anchor. repayments.due_at is the one that may: a future instalment is
+# genuinely in the future (D-29).
+STAMPED_COLUMNS = [
+    ("loan_applications", "created_at", False),
+    ("loan_applications", "updated_at", False),
+    ("application_events", "occurred_at", False),
+    ("repayments", "due_at", True),
+    ("support_tickets", "opened_at", False),
+    ("kyc_documents", "submitted_at", False),
+]
+
+
+def test_every_timestamp_is_iso_8601_with_an_offset(db_conn):
+    """Test 13. D-26 and D-27: the derivation is total and offset-aware."""
+    for table, column, _ in STAMPED_COLUMNS:
+        for row in db_conn.execute(f"SELECT {column} AS value FROM {table}"):
+            moment = datetime.fromisoformat(row["value"])
+            assert moment.utcoffset() == config.IST.utcoffset(None), f"{table}.{column}"
+
+
+def test_no_timestamp_sits_past_the_anchor_except_a_due_date(db_conn):
+    """Test 13. Nothing is dated in the future, and due_at says why it may be."""
+    for table, column, may_be_future in STAMPED_COLUMNS:
+        if may_be_future:
+            continue
+        latest = db_conn.execute(f"SELECT max({column}) AS m FROM {table}").fetchone()["m"]
+        assert datetime.fromisoformat(latest) <= config.AS_OF, f"{table}.{column}"
+
+
+def test_no_column_below_loan_applications_still_carries_a_day_integer(db_conn):
+    """Test 13. D-26 dropped the four `_days_ago` columns rather than keeping both."""
+    for table in schema.TABLE_ORDER:
+        columns = [c["name"] for c in db_conn.execute(f"PRAGMA table_info({table})")]
+        assert not [c for c in columns if c.endswith("_days_ago")], table
+
+
+# --- test 14 --------------------------------------------------------------
+
+
+def test_created_at_is_the_anchor_minus_days_since_created(db_conn):
+    """Test 14. D-26, the derivation everything else rests on.
+
+    Recomputed from the anchor here rather than read back from the generator,
+    so a change to how created_at is built fails this instead of redefining it.
+    """
+    rows = db_conn.execute(
+        "SELECT record_id, days_since_created, created_at FROM loan_applications"
+    ).fetchall()
+    assert len(rows) == config.RECORD_COUNT
+    for row in rows:
+        expected = (config.AS_OF - timedelta(days=row["days_since_created"])).date()
+        assert datetime.fromisoformat(row["created_at"]).date() == expected, row["record_id"]
+
+
+# --- test 15 --------------------------------------------------------------
+
+
+def test_no_bank_side_event_falls_on_a_weekend(db_conn):
+    """Test 15. D-29, the rule that answers the defect anchoring exposed."""
+    offenders = [
+        row["event_id"]
+        for row in db_conn.execute(
+            "SELECT event_id, sequence_no, to_status, occurred_at FROM application_events"
+        )
+        if datetime.fromisoformat(row["occurred_at"]).weekday() >= 5
+        and not (row["sequence_no"] == 1 and row["to_status"] == config.CUSTOMER_SIDE_ARRIVAL)
+    ]
+    assert offenders == []
+
+
+def test_the_exempt_weekend_rows_are_all_online_submissions(db_conn):
+    """Test 15. The exemption is narrow, and this says how narrow."""
+    weekend = [
+        row
+        for row in db_conn.execute(
+            "SELECT sequence_no, to_status, occurred_at FROM application_events"
+        )
+        if datetime.fromisoformat(row["occurred_at"]).weekday() >= 5
+    ]
+    assert weekend, "the exemption is meant to be exercised, not vacuous"
+    for row in weekend:
+        assert row["sequence_no"] == 1
+        assert row["to_status"] == config.CUSTOMER_SIDE_ARRIVAL
+
+
+def test_every_drawn_timestamp_sits_inside_business_hours(db_conn):
+    """Test 15. D-29's window, on every column whose time was drawn."""
+    for table, column, may_be_future in STAMPED_COLUMNS:
+        if may_be_future:  # due_at takes the fixed debit time, not a drawn one
+            continue
+        for row in db_conn.execute(f"SELECT {column} AS value FROM {table}"):
+            moment = datetime.fromisoformat(row["value"]).time()
+            assert config.BUSINESS_START <= moment <= config.BUSINESS_END, f"{table}.{column}"
+
+
+# --- test 16 --------------------------------------------------------------
+
+
+def test_updated_at_is_the_most_recent_event(db_conn):
+    """Test 16. D-30: the stored copy agrees with the trail it came from."""
+    rows = db_conn.execute(
+        """SELECT a.record_id, a.updated_at,
+                  (SELECT max(e.occurred_at) FROM application_events e
+                    WHERE e.record_id = a.record_id) AS latest
+             FROM loan_applications a"""
+    ).fetchall()
+    assert len(rows) == config.RECORD_COUNT
+    for row in rows:
+        assert row["latest"] is not None, row["record_id"]
+        assert row["updated_at"] == row["latest"], row["record_id"]
+
+
+def test_paid_agrees_with_the_due_date_against_the_anchor(db_conn):
+    """Test 16. D-13 kept the flag stored, so something has to pin it."""
+    rows = db_conn.execute("SELECT repayment_id, due_at, paid FROM repayments").fetchall()
+    assert rows
+    for row in rows:
+        expected = datetime.fromisoformat(row["due_at"]) <= config.AS_OF
+        assert bool(row["paid"]) is expected, row["repayment_id"]

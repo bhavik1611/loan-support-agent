@@ -1,8 +1,13 @@
 # Relational Store Implementation Plan
 
-Status: implemented
+Status: implemented, and superseded in part on 2026-09-12
 
 > Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Superseded where it names a `_days_ago` column.**
+D-26 to D-31 in the design spec replaced `occurred_days_ago`, `due_days_ago`, `opened_days_ago` and `submitted_days_ago` with ISO 8601 instants, and added `created_at` and `updated_at` to `loan_applications`.
+The column names below are left as they were written, because this file is a record of what was planned on 2026-09-11 and rewriting it would falsify that record.
+The spec is the current description of the schema.
 
 **Goal:** Add a seven-table SQLite database, generated from the same seeded generator that already produces `LOAN_APPLICATIONS`, gitignored with a committed text manifest, plus a one-command check script a grader can run.
 
