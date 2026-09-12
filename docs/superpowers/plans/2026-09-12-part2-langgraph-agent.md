@@ -3647,8 +3647,43 @@ def readme_numbers(esc: dict, route: dict) -> str:
     )
 
 
+def require_database() -> None:
+    """Refuse before writing anything if the gitignored database is missing.
+
+    `sqlite3.connect` creates an empty file rather than raising, so an absent
+    database does not surface here - it surfaces as `no such table:
+    loan_applications` at the first lookup, several transcripts in, with files
+    already on disk. A partly written transcript is worse than a failed run,
+    because it looks like evidence. Existence is not enough for the same
+    reason, so this asks for the table.
+
+    A clean clone is exactly the case a grader runs, and `data/` is gitignored.
+    """
+    import sqlite3
+
+    if config.DB_PATH.exists():
+        conn = sqlite3.connect(str(config.DB_PATH))
+        try:
+            found = conn.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name='loan_applications'"
+            ).fetchone()
+        finally:
+            conn.close()
+        if found:
+            return
+
+    raise SystemExit(
+        f"{config.DB_PATH.relative_to(config.REPO_ROOT)} is missing or empty, and "
+        "the lookup transcripts read it.\n"
+        "It is gitignored and regenerable in about a second:\n"
+        "  .venv/bin/python -m db.build"
+    )
+
+
 def main() -> None:
     print("Part 2. Writing transcripts under MOCK_LLM.")
+    require_database()  # before the first write, never after
     escalation_body, esc_numbers = escalation_transcript()
     write("part2-escalation.txt", escalation_body)
 
@@ -3676,7 +3711,9 @@ if __name__ == "__main__":
 
 - [ ] **Step 4: Build the database, then run the script**
 
-The lookup tool reads `data/meridian_bank.db`, which is gitignored.
+The lookup tool reads `data/meridian_bank.db`, which is gitignored, and the transcripts call it for real rather than monkeypatched.
+`require_database()` enforces this step rather than trusting it, and it runs before the first write: measured on 2026-09-12, `sqlite3.connect` creates an empty file instead of raising, so without the guard a clean clone fails at the first lookup with `OperationalError: no such table: loan_applications`, several transcripts already written.
+No test covers the guard, deliberately - it is a runner precondition rather than an acceptance criterion, and the task's count stays at 5.
 
 Run:
 
