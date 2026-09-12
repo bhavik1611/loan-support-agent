@@ -4,6 +4,8 @@ Status: approved design for Parts 1 and 2, declared interfaces for Parts 3 and 4
 Written 2026-09-10 after two grilling rounds.
 Amended 2026-09-12 after three more, adding the time axis in D-26 to D-31.
 Amended again 2026-09-12, adding Part 2 in sections 10 to 14 and D-33 to D-45, approved off the review artifact of that date.
+Amended again 2026-09-12, adding the Groq provider and observability in sections 20 and 21 and D-58 to D-70, approved off three grilling rounds of that date.
+Sections 20 and 21 are appended rather than inserted, so no existing section number moves and the dated plans keep their citations.
 Authority: `reference/problem-statement.md` is the brief; where this document and the brief disagree, the brief wins and this document is wrong.
 Section numbering changed in that amendment so the parts read in order; the two dated plans under `docs/superpowers/plans/` cite the numbering as it stood when they were written, and are left alone because a dated plan is a record.
 
@@ -23,6 +25,7 @@ Every rule below applies to all four parts and is not restated per section.
 
 - The system runs offline with zero API keys under `MOCK_LLM`, which is the default and the mode every graded transcript uses.
 - Every output is deterministic: same input, same seed, same bytes.
+- Logs are a side channel and never a deliverable. Nothing a log writes may reach `transcripts/`, the README number blocks or any committed file, because a log line carries a clock and the rule above does not bend for it (D-69).
 - A real language model may be wired in behind the `LLM_PROVIDER` environment variable, and no acceptance criterion may depend on it.
 - No screenshots, PDFs, slides, images or diagrams are produced anywhere; every deliverable is code or text in the repository.
 - Names, PAN numbers, Aadhaar numbers, account numbers and income figures are fabricated throughout.
@@ -128,13 +131,32 @@ Tasks 6 to 10. Approved 2026-09-12 off the review artifact of that date.
 | D-56 | Which evaluation numbers a test may pin | Only `outside_boundary` and `far_out_of_scope` refusals. `answerable` and `inside_uncovered` are reported and never asserted | An aggregate decision-accuracy number lost because it blends a robust signal with a fragile one, so a legitimate retune breaks it. Pinning nothing lost because the gate could then stop working silently. This is D-13 applied to a second family of numbers: Precision@3 and Recall@3 move when chunk parameters are tuned, and so does `inside_uncovered`. |
 | D-57 | How the two number-moving changes land | Two changes, two regenerations, threshold first | One combined regeneration lost because two independent causes move Part 1's numbers, and conflating them destroys the only property the transcripts exist for, which is that a grader can trace a number to a cause. Landing the gate first lost because `T` would then be calibrated against a retrieval layer about to change again. |
 
+### 3.6 The real provider and observability
+
+| # | Decision | Chosen | Rejected, and why |
+|---|---|---|---|
+| D-58 | Whether the Part 3 triad judge follows `LLM_PROVIDER` | One switch. `llm.generate` stays the only seam and the judge follows it, so a real generator is graded by a real judge and a mock generator by the mock one | A judge pinned to mock lost because a keyword template scoring real prose measures nothing, and section 18.3 already says nothing under `MOCK_LLM` can judge output. A separate `JUDGE_PROVIDER` lost because it is four combinations, three of them mixed, and a flag whose only job is to keep two designs alive. |
+| D-59 | What a real provider is allowed to reach | Only the answer sentence. The scope gate, the router, retrieval, the lookup template and the guardrails are deterministic under every provider | Letting a real model route or judge scope lost twice over: D-44 and D-51 rejected it on measurement rather than on the mock rule, and making it conditional on a key means tests 24a, 25 and 27 would cover code the grader never runs. The property this buys is that setting the key changes exactly one variable. |
+| D-60 | Which model, and what is sent | `openai/gpt-oss-120b`, the existing prompt unchanged, `temperature` 0 and the seed pinned | A Groq-tuned second prompt lost because it makes mock versus Groq a two-variable comparison and leaves two prompts to keep in sync. The model id was **verified against the live models endpoint, not recalled**: the Llama 3.3 70B id this decision would otherwise have pinned is not hosted. `groq/compound` is excluded by name, because it carries server-side web search and could answer from outside the retrieved context, which silently voids the grounding guarantee. |
+| D-61 | What happens when the provider fails | Hard fail. A missing `GROQ_API_KEY` raises naming the variable, API errors propagate, and a truncated completion raises rather than returning empty | A silent fallback to mock lost because it produces output that claims one provenance and has another, which is the failure the whole of section 2 exists to prevent. A stamped fallback lost because it buys honesty with a change to a committed schema, on an error path. Retries and timeouts stay Part 4's resilience task and wrap this rather than duplicating it. |
+| D-62 | How citations survive a real model | `SYSTEM_PROMPT` mandates a closing `Sources: [doc-id]` line. `_cited_documents` keeps its single exact contract | Widening the parser lost because chasing citation styles never ends and it weakens the one thing that can be checked. **Measured, not assumed**: `openai/gpt-oss-120b` cited as `【kb-07-interest-rate-slabs】` and `_cited_documents` returned `()` for a correct, fully grounded answer. The fix is free under mock, because `_generate_mock` accepts `system` and never reads it, so no graded byte moves. |
+| D-63 | Who reads `.env`, and what keeps it out of the suite | `python-dotenv` in `config.py` without overriding a real environment variable, plus an autouse fixture in `tests/conftest.py` forcing `LLM_PROVIDER=mock` | Trusting the operator lost on arithmetic: `tests/conftest.py` pins three offline variables and never pinned this one, so a single line in `.env` would turn 339 offline tests into 339 network calls and make the offline proof in CLAUDE.md false. Not loading `.env` at all lost because attaching the key there is what was asked for, and the guard is needed either way. |
+| D-64 | SDK or stdlib | Stdlib `urllib` against the OpenAI-compatible endpoint, with an explicit `User-Agent`. `python-dotenv` is the only new dependency | The `groq` SDK lost because its retry layer is Part 4's job by D-61 and its error taxonomy buys little once errors propagate. **The one gotcha it would have hidden is measured and fixed**: the same request body from the same process returns HTTP 403 under the default `Python-urllib/3.12` agent and HTTP 200 under any explicit one, so the header is set deliberately and carries a comment saying why. |
+| D-65 | Where provenance is recorded | At run level, by the demo script's header. The response envelope is untouched | A `provider` field in the envelope lost because `agent/response.schema.json` is committed with `additionalProperties: false`, Part 3 reads it and test 21 validates every response against it, all for a value that is constant across a whole process. Provenance is a property of the run, not of the turn. |
+| D-66 | What an ungrounded real answer produces | The existing refusal path, unchanged | A retry with a stricter prompt lost because it is the reflection loop section 18.3 declined, and it makes cost and latency per turn unbounded. Answering with a warning flag lost because a support agent would then knowingly emit unsupported statements about someone's loan, and it drags D-65's schema change along with it. |
+| D-67 | Whether a real run may write graded artefacts | No. `scripts/run_part1.py` and `run_part2.py` exit non-zero under a non-mock provider. `scripts/run_groq_demo.py` is the only end-to-end Groq entry point and writes to a gitignored directory | A second `transcripts/groq/` tree lost because two sets of numbers can disagree and the README blocks have exactly one generator. Committing a sample Groq run lost outright: non-reproducible bytes in a repository whose second ground rule is byte determinism, which nothing could ever verify again. Trusting the operator lost because one forgotten `.env` rewrites SHA-guarded and manifest-guarded output, and the diff looks like a legitimate retune. |
+| D-68 | How far observability reaches in V1 | One `obs.py`, with an instrumented call at every existing boundary now. Only the metrics endpoint waits, for Part 3's FastAPI | Building a registry and exporter ahead of the server lost because it is precisely the speculative layer D-02 and D-03 rejected, and Part 3 would rewrite it. Instrumenting the provider call alone lost because retrieval and the router are where decisions are actually made. **The starting point was measured**: zero of 60 modules imported `logging`, so this is greenfield, and section 19's claim that trace ids already existed in V1 log lines was false when written and is corrected by this amendment. |
+| D-69 | The shape of a log line | JSON lines to stderr and a gitignored `logs/`, keyed on the existing deterministic `trace_id`, level from `LOG_LEVEL`, stdlib `logging` only, durations at coarse resolution | Human-readable text lost because Part 3's structured logging would reparse it. Logs inside the graded transcripts lost because it breaks tests 1 and 12 and the reproducibility claim in one move. `trace_id` is reused rather than replaced because D-38 already made it deterministic and tested, so the join key needed no invention. |
+| D-70 | What a log line may never contain | Every logged query passes through `mask_pii`. The API key is never logged in any form. Prompts and retrieved context are logged as doc ids, counts and lengths, never as full text | Logging prompts in full lost because the brief puts PII masking on the input side and the query **is** the input side, so it would write PAN-shaped and Aadhaar-shaped strings to a file on disk. Observability is the usual way a PII rule is broken, because the rule is normally written for responses and not for diagnostics. Reproducing a prompt locally from the logged doc ids covers the debugging case. |
+
 ## 4. Repository layout
 
 ```
 loan-support-agent/
   dataset.py                  Task 1. Seeded generator, LOAN_APPLICATIONS, lookup, validation report.
   config.py                   Paths, chunk parameters, calibrated threshold, environment flags.
-  llm.py                      Provider seam. MOCK_LLM default, real provider behind LLM_PROVIDER.
+  llm.py                      Provider seam. MOCK_LLM default, Groq behind LLM_PROVIDER.
+  obs.py                      Section 21. JSON log lines, timing, and the redaction rule.
   knowledge_base/             Task 2. 18 plain-text documents plus catalogue.json.
   rag/
     kb.py                     Load and parse knowledge_base/ into Document objects.
@@ -162,6 +184,7 @@ loan-support-agent/
     run_part1.py              Runs every Part 1 task and writes the transcripts.
     run_part2.py              Runs every Part 2 task and writes the transcripts.
     check_database.py         The grader's one-command database check.
+    run_groq_demo.py          The only end-to-end Groq entry point. Output gitignored.
   db/
     schema.py                 The seven CREATE TABLE statements.
     generate.py               One generator per table, each on its own seeded stream.
@@ -177,6 +200,8 @@ loan-support-agent/
   docs/superpowers/specs/     This design specification.
   reference/problem-statement.md
   chroma/                     Generated vector store, gitignored.
+  logs/                       Generated JSON log lines, gitignored.
+  .env.example                Committed. Variable names only, never a value.
 ```
 
 Parts 3 and 4 add `api/`, `mcp_server/` and `mcp_client.py` alongside these.
@@ -819,6 +844,10 @@ Part 2 continues the numbering.
 | 29 | Every `far_out_of_scope` golden item is refused | Section 9.4, and the brief's out-of-scope requirement |
 | 30 | No calibration probe string appears in the golden dataset, in either direction | D-55, the property that lets the dataset be called golden |
 | 31 | Every `products` tag in `catalogue.json` names a product in the top-level `products` list | D-52, the catalogue is the authority over the gate and cannot disagree with itself |
+| 32 | The mock provider's output is byte-identical before and after the `SYSTEM_PROMPT` change | D-62, the claim that tightening the prompt is free because `_generate_mock` never reads it |
+| 33 | `LLM_PROVIDER=groq` with no key raises naming the variable, offline, and the suite stays on mock whatever `.env` says | D-61 and D-63, the two halves of the failure contract |
+| 34 | `scripts/run_part1.py` exits non-zero under a non-mock provider and writes nothing | D-67, the graded artefacts have one authority |
+| 35 | A log line carries `trace_id`, is valid JSON, and contains no unmasked PAN or Aadhaar and no API key | D-69 and D-70 |
 
 Precision@3 and Recall@3 are deliberately not pinned.
 They move legitimately when chunk parameters are tuned, and a test that fights tuning is a test that gets deleted.
@@ -1082,5 +1111,92 @@ Each item names the V1 module it replaces and what makes the swap cheap.
 | Learned threshold and calibration on held-out data | `config.py` and section 8.2 | `T` is a single named constant with a documented derivation. |
 | Two-signal fallback: support rule plus null-query margin | Section 8.3 | The rule is one function; this is the option that lost in D-07. |
 | Docker, CI, and a published image | New | Nothing in V1 assumes a local path outside `config.py`. |
-| OpenTelemetry tracing and a metrics endpoint | Part 3's structured logging | Trace IDs already exist in V1's log lines. |
+| OpenTelemetry tracing and a metrics endpoint | `obs.py` and Part 3's structured logging | Every line `obs.py` writes is already keyed on `trace_id`, so an exporter is a formatter swap. **This row previously claimed V1 already had log lines; it did not, and D-68 is the amendment that made the claim true.** |
 | Streaming responses over server-sent events | Part 3's FastAPI layer | Requires a real model, so it follows the `llm.py` swap. |
+
+## 20. The real provider
+
+Appended by the 2026-09-12 amendment.
+Nothing in sections 1 to 19 changes shape because of it: `llm.generate` was already the seam, and this section fills in the branch that previously raised.
+
+### 20.1 The switch
+
+`config.resolve_provider()` reads `LLM_PROVIDER`, defaulting to `mock`, and `llm.generate` dispatches on it.
+That is unchanged.
+What changes is that `groq` is now a value it accepts instead of a value it refuses, and every other value still raises.
+
+`config.py` loads `.env` at import, without overriding a variable already present in the real environment, per D-63.
+The committed `.env.example` names `LLM_PROVIDER`, `GROQ_API_KEY`, `GROQ_MODEL` and `LOG_LEVEL` and carries no values.
+
+### 20.2 The call
+
+Stdlib `urllib` against `https://api.groq.com/openai/v1/chat/completions`, per D-64.
+
+- `model` from `config.GROQ_MODEL`, default `openai/gpt-oss-120b`
+- `temperature` 0 and `seed` pinned to `config.SEED`, which makes the call as reproducible as the provider allows and no more
+- `max_completion_tokens` from `config.GROQ_MAX_TOKENS`, sized for a reasoning model
+- an explicit `User-Agent`, because Groq's edge returns 403 for the stdlib default
+
+The prompt is the pair `rag.generate.build_prompt` already produces, unchanged, per D-60.
+
+### 20.3 What counts as failure
+
+Per D-61, all four of these raise rather than degrade:
+
+| Condition | Why it is not a refusal |
+|---|---|
+| `GROQ_API_KEY` absent | Configuration, not a knowledge-base outcome |
+| HTTP error, or a transport error | The provider failed; the corpus said nothing |
+| `finish_reason` is `length` | The answer was cut off; a reasoning model can spend its whole budget before writing a word |
+| `content` is empty after stripping | Same, and `rag/generate.py` would otherwise read it as "the context held nothing usable" |
+
+The last two matter more than they look.
+`openai/gpt-oss-120b` returns a separate `reasoning` field, and on the measured call 71 of 118 completion tokens were reasoning.
+A budget set carelessly returns `content: ""` with `finish_reason: "length"`, which the existing code path would have recorded as a principled refusal.
+
+### 20.4 The citation contract
+
+`SYSTEM_PROMPT` gains one sentence requiring a closing `Sources: [doc-id]` line, per D-62.
+`_cited_documents` is unchanged.
+
+This is free under `MOCK_LLM`: `_generate_mock` takes `system` and never reads it, so every graded transcript is byte-identical across the change, and test 32 exists to say so.
+
+## 21. Observability
+
+Appended by the 2026-09-12 amendment, per D-68 to D-70.
+Before it, no module in this repository imported `logging`.
+
+### 21.1 `obs.py`
+
+One module, stdlib only.
+It exposes a configured logger, a JSON formatter, and a timing context manager that emits one line per instrumented boundary.
+
+Every line carries `event`, `trace_id`, `duration_ms` and an outcome, plus whatever the boundary names.
+`LOG_LEVEL` sets the level and defaults to a level that keeps an ordinary run as quiet as it is today.
+
+### 21.2 Where the lines come from
+
+One call per existing boundary, and no new boundary invented to hold one:
+
+| Boundary | Line it emits |
+|---|---|
+| `rag/scope.py` | the gate verdict, the product named if any |
+| `rag/retrieve.py` | strategy, `k`, top-1 similarity, whether the support rule held |
+| `rag/generate.py` | the outcome, the cited doc ids, the answer length |
+| `llm.py` | provider, model, token counts, latency |
+| `agent/intents.py` | the route chosen and the winning score |
+| `agent/tools.py` | the tool called and whether the record was found |
+| `agent/guardrails.py` | which rule fired, never what it matched on |
+
+### 21.3 The two rules that bound it
+
+**Determinism.** Logs go to stderr and to a gitignored `logs/`, never into `transcripts/` or the README blocks (D-69).
+Durations are recorded at coarse resolution so a noisy value never becomes the reason a diff looks different.
+
+**Redaction.** Every logged query passes through `guardrails.mask_pii`; the API key is never logged in any form; prompts and retrieved context are logged as doc ids, counts and lengths, never as text (D-70).
+Test 35 restates both.
+
+### 21.4 What this deliberately does not build
+
+A metrics registry, an exporter and a `/metrics` endpoint, because there is no server in V1 to serve them from and Part 3 adds one.
+Building them now is the speculative layer D-02 and D-03 rejected, and section 19's OpenTelemetry row is now cheap for exactly the reason stated there.
