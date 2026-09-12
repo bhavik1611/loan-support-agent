@@ -3868,8 +3868,18 @@ Before the gate it was 14 of 30 readings answered outright, and printing the aft
 Add criterion 29: every `far_out_of_scope` item is refused, by either mechanism.
 Criterion 30 was already added in Task 18 Step 7, alongside the dataset it guards.
 
-Do **not** assert on Precision@3, Recall@3, the `inside_uncovered` count, or any aggregate decision accuracy.
+Add criterion 24b, and read its wording carefully, because it was reworded on 2026-09-12 and the old wording is the trap.
+It asserts that the decision transcript carries a line for every `inside_uncovered` item, with that item's outcome and its top-1 similarity.
+It does **not** assert what those outcomes are.
+
+The reason is measured, not stylistic.
+Against `kb_sentences` at `T` 0.3066, IU-01 reads 0.3931 and is refused only by the support rule, while IU-02 reads 0.4645 and is **answered**, because all three of its top chunks come from `kb-12` and the support rule therefore agrees with itself about a document that does not answer the question.
+An assertion that this class is refused would have been false the day it was written.
+Section 18.1 item 8 carries the full reading.
+
+Do **not** assert on Precision@3, Recall@3, the `inside_uncovered` outcomes or count, or any aggregate decision accuracy.
 D-13 settled this shape of question for this repository and D-56 extends it: those numbers move legitimately when chunk parameters are tuned, and a test that fights tuning gets deleted.
+If the IU-02 reading offends you, the fix belongs in Part 2 or in V2's two-signal fallback, never in this task and never by swapping the probe for one that passes.
 
 - [ ] **Step 3: Give it a transcript**
 

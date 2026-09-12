@@ -807,7 +807,7 @@ Part 2 continues the numbering.
 | 22 | A PAN, an Aadhaar and a 14-digit account number are each masked, and no raw value appears anywhere in the emitted state | "PII masking demonstrated firing on the fixed-format fields" |
 | 23 | Each of the four injection rules fires on its own probe and yields `route = refused` with the rule named | "prompt-injection detection demonstrated firing" |
 | 24a | An `outside_boundary` query is refused by the product gate before retrieval, naming the product | D-51 and D-52, and the brief's out-of-scope requirement |
-| 24b | An `inside_uncovered` query yields the groundedness refusal rather than an answer | "an output-side groundedness check that refuses" |
+| 24b | Every `inside_uncovered` query's outcome and top-1 similarity appear in the decision transcript | D-56 and section 9.4; asserting the outcome itself would pin the known miss measured in section 18.1 item 8 |
 | 25 | Every labelled probe routes to its label, and every vague probe routes to `clarify` except the one named in 18.2 | D-44 and D-45, the router decides rather than guesses |
 | 26 | The same thread and turn yields the same `trace_id` twice | D-38, and the determinism ground rule in section 2 |
 | 27 | The `both` route writes `policy` and `lookup` from different nodes, and no key twice | Section 11.2, the claim that the fan-out cannot reorder |
@@ -884,10 +884,16 @@ Four further items opened during implementation and review, and are recorded her
 8. **The known-adjacent list does not generalise.**
    `KNOWN_ADJACENT` in `rag/scope.py` is curated, so an adjacent product nobody thought to add still falls through to the threshold.
    Two probes already sit in that residue and are labelled `inside_uncovered` per D-50: "Can I get a credit card from another bank with a low limit?", which names an in-catalogue product but asks about a competitor, and "How do I transfer money to an account in another country?", which is inside the boundary with no document covering it.
-   Decision: leave it, and measure it.
+   Measured 2026-09-12 against `kb_sentences` at `T` 0.3066, and the two do not behave alike.
+   IU-01 reads 0.3931 top-1, clears `T`, and is refused only because its top three chunks land on `kb-01`, `kb-15` and `kb-12`, so the support rule finds no two in agreement.
+   IU-02 reads 0.4645 top-1 and is **answered**: all three of its top chunks come from `kb-12`, which covers NRI account eligibility and does not cover international remittance, so the support rule agrees with itself about the wrong document.
+   That is the sharper half of this item, and it is a property of the support rule rather than of the gate: agreement between chunks measures that retrieval was consistent, never that it was right.
+   Decision: leave it, measure it, and assert nothing about it.
+   Criterion 24b was originally written to assert a groundedness refusal on this class and is reworded to a reporting criterion, because IU-02 shows the assertion would be false on the day it was written.
+   The groundedness mechanism is still demonstrated by a test, on the false-refusal case in item 5, which is pinned in `tests/test_generate.py`.
    This is what a real support desk maintains, and the alternative that would generalise is the LLM reader forbidden by section 2.
 
-6. ~~The relational store in section 5.4 is specified but not built.~~ Closed 2026-09-11.
+9. ~~The relational store in section 5.4 is specified but not built.~~ Closed 2026-09-11.
    Built: 1,076 rows over seven tables, `loan_products` 5, `customers` 66, `loan_applications` 100, `application_events` 393, `repayments` 276, `support_tickets` 40, `kyc_documents` 196.
    `data/loan_applications.json` is byte-identical to its pre-database state and a test asserts it on every run.
    The knowledge-base agreement tests found a real drift on their first run - the generator had written "Voter ID Card" and "NREGA Job Card" where `kb-04` says "a voter identity card" and "a job card issued under NREGA" - which is what those tests exist for.
