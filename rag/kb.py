@@ -88,6 +88,15 @@ def _load_catalogue(kb_dir: Path) -> tuple[list[str], dict[str, dict]]:
         unknown = set(meta) - set(_CATALOGUE_FIELDS)
         if unknown:
             raise ValueError(f"{CATALOGUE_NAME}: {doc_id} has unknown fields {sorted(unknown)}")
+        # A document covering nothing would be invisible to every filtered query
+        # while still being retrievable unfiltered, which is the catalogue
+        # disagreeing with itself quietly. tests/test_kb.py already requires the
+        # real corpus to have none; the loader now requires it of any corpus.
+        if not meta[PRODUCTS_KEY]:
+            raise ValueError(
+                f"{CATALOGUE_NAME}: {doc_id}.{PRODUCTS_KEY} is empty; every document "
+                f"covers at least one product"
+            )
         # Acceptance criterion 31. A document tag naming a product the catalogue
         # does not sell would let the gate filter on an id no search can match,
         # and the catalogue would be disagreeing with itself.

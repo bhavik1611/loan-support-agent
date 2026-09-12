@@ -44,7 +44,7 @@ def test_both_strategies_answer_every_evaluation_query(built_index):
     for strategy in sorted(config.COLLECTION_FOR_STRATEGY):
         for query in EVAL_QUERIES:
             result = generate.answer(query.text, strategy)
-            assert result.supported, f"{strategy}/{query.query_id}"
+            assert result.supported, f"{strategy}/{query.item_id}"
             assert result.strategy == strategy
 
 

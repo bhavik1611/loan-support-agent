@@ -117,6 +117,9 @@
       "topic": "minimum_balance",
       "required": true,
       "products": [
+        "NRE account",
+        "NRO account",
+        "joint account",
         "salary account",
         "savings account"
       ]

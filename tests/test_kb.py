@@ -50,7 +50,11 @@ def _seed(tmp_path, documents: str, products: str = '["Widget Loan"]', bodies=("
 
 
 def test_a_missing_field_is_an_error_not_a_default(tmp_path):
-    _seed(tmp_path, '{"kb-99-broken": {"title": "Broken", "required": true, "products": []}}')
+    _seed(
+        tmp_path,
+        '{"kb-99-broken": {"title": "Broken", "required": true,'
+        ' "products": ["Widget Loan"]}}',
+    )
     with pytest.raises(ValueError, match="topic"):
         kb.load_documents(tmp_path)
 
@@ -58,7 +62,8 @@ def test_a_missing_field_is_an_error_not_a_default(tmp_path):
 def test_a_mistyped_field_is_an_error_not_a_coercion(tmp_path):
     _seed(
         tmp_path,
-        '{"kb-99-broken": {"title": "Broken", "topic": "t", "required": "yes", "products": []}}',
+        '{"kb-99-broken": {"title": "Broken", "topic": "t", "required": "yes",'
+        ' "products": ["Widget Loan"]}}',
     )
     with pytest.raises(ValueError, match="required must be bool"):
         kb.load_documents(tmp_path)
@@ -68,8 +73,10 @@ def test_a_catalogued_document_with_no_file_is_an_error(tmp_path):
     """The half of the drift a glob alone would never notice."""
     _seed(
         tmp_path,
-        '{"kb-99-broken": {"title": "B", "topic": "t", "required": true, "products": []},'
-        ' "kb-98-ghost": {"title": "G", "topic": "u", "required": false, "products": []}}',
+        '{"kb-99-broken": {"title": "B", "topic": "t", "required": true,'
+        ' "products": ["Widget Loan"]},'
+        ' "kb-98-ghost": {"title": "G", "topic": "u", "required": false,'
+        ' "products": ["Widget Loan"]}}',
     )
     with pytest.raises(ValueError, match="kb-98-ghost"):
         kb.load_documents(tmp_path)
@@ -79,7 +86,8 @@ def test_a_file_with_no_catalogue_entry_is_an_error(tmp_path):
     """The other half: a body that would embed with no topic and no required flag."""
     _seed(
         tmp_path,
-        '{"kb-99-broken": {"title": "B", "topic": "t", "required": true, "products": []}}',
+        '{"kb-99-broken": {"title": "B", "topic": "t", "required": true,'
+        ' "products": ["Widget Loan"]}}',
         bodies=("kb-99-broken", "kb-97-orphan"),
     )
     with pytest.raises(ValueError, match="kb-97-orphan"):
@@ -104,6 +112,36 @@ def test_every_document_carries_a_products_tag():
         assert isinstance(doc.products, tuple)
         assert doc.products, f"{doc.doc_id} covers no product"
         assert list(doc.products) == sorted(doc.products)
+
+
+def test_an_empty_product_tag_is_an_error(tmp_path):
+    """The loader is as strict as the corpus invariant above, not one step behind.
+
+    A document covering nothing is retrievable unfiltered and invisible to every
+    filtered query, which is the catalogue disagreeing with itself quietly.
+    """
+    _seed(
+        tmp_path,
+        '{"kb-99-broken": {"title": "B", "topic": "t", "required": true,'
+        ' "products": []}}',
+    )
+    with pytest.raises(ValueError, match="is empty"):
+        kb.load_documents(tmp_path)
+
+
+def test_minimum_balance_covers_every_account_it_applies_to():
+    """kb-09 states a requirement for accounts, not for one account type.
+
+    The document is the authority over catalogue.json. It sets an average
+    monthly balance by branch tier for any account, charges a shortfall on any
+    account, and names salary and basic savings accounts only to exempt them.
+    Tagging it with those two alone hid it from a filtered NRE or NRO query,
+    which then answered from kb-12 and kb-18 without ever seeing the figures.
+    """
+    tagged = set(kb.documents_for_product("NRE account"))
+    assert "kb-09-minimum-balance" in tagged
+    for product in ("NRO account", "joint account", "salary account", "savings account"):
+        assert "kb-09-minimum-balance" in kb.documents_for_product(product), product
 
 
 def test_every_product_tag_names_a_catalogued_product():
@@ -148,7 +186,7 @@ def test_a_product_tag_outside_the_catalogue_is_an_error(tmp_path):
 def test_a_catalogue_with_no_products_list_is_an_error(tmp_path):
     (tmp_path / kb.CATALOGUE_NAME).write_text(
         '{"documents": {"kb-99-broken": {"title": "B", "topic": "t",'
-        ' "required": true, "products": []}}}',
+        ' "required": true, "products": ["Widget Loan"]}}}',
         encoding="utf-8",
     )
     (tmp_path / f"kb-99-broken{kb.DOCUMENT_SUFFIX}").write_text("Body." * 60, encoding="utf-8")

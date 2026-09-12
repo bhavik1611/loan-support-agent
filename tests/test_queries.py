@@ -52,13 +52,13 @@ def test_probes_do_not_reuse_the_evaluation_query_strings():
     assert not evaluation & set(calibration.IN_SCOPE_PROBES)
 
 
-def test_the_dataset_has_thirty_two_items_in_four_classes():
-    """D-55 and spec 9.1: 12 answerable, 13 outside, 2 uncovered, 5 far out."""
-    assert len(queries.GOLDEN_DATASET) == 32
+def test_the_dataset_has_twenty_nine_items_in_four_classes():
+    """D-55 and spec 9.1: 12 answerable, 10 outside, 2 uncovered, 5 far out."""
+    assert len(queries.GOLDEN_DATASET) == 29
     assert Counter(i.kind for i in queries.GOLDEN_DATASET) == Counter(
         {
             queries.KIND_ANSWERABLE: 12,
-            queries.KIND_OUTSIDE_BOUNDARY: 13,
+            queries.KIND_OUTSIDE_BOUNDARY: 10,
             queries.KIND_INSIDE_UNCOVERED: 2,
             queries.KIND_FAR_OUT_OF_SCOPE: 5,
         }
@@ -67,7 +67,7 @@ def test_the_dataset_has_thirty_two_items_in_four_classes():
 
 def test_item_ids_are_unique_and_carry_their_class_prefix():
     ids = [i.item_id for i in queries.GOLDEN_DATASET]
-    assert len(set(ids)) == 32
+    assert len(set(ids)) == 29
     prefixes = {
         queries.KIND_ANSWERABLE: "EQ-",
         queries.KIND_OUTSIDE_BOUNDARY: "OB-",
@@ -80,7 +80,7 @@ def test_item_ids_are_unique_and_carry_their_class_prefix():
 
 def test_item_texts_are_unique():
     texts = [i.text for i in queries.GOLDEN_DATASET]
-    assert len(set(texts)) == 32
+    assert len(set(texts)) == 29
 
 
 def test_only_answerable_items_carry_gold_documents():
@@ -100,18 +100,23 @@ def test_eval_queries_is_the_answerable_subset_and_not_a_second_copy():
 
 
 def test_the_far_out_of_scope_items_never_reuse_a_calibration_probe():
-    """Acceptance criterion 30, checked in both directions.
+    """Acceptance criterion 30: the two sets are disjoint.
 
     The fitting set derives T and the golden dataset scores it. A string in both
     would mean the threshold was scored on the readings that set it, which
     measures nothing, and it is the property that lets this be called a golden
     dataset at all.
+
+    This asserted the intersection twice and called it "both directions", which
+    is not a thing set intersection has: `a & b` and `b & a` are the same
+    expression written twice. Stated once here, and the coverage that genuinely
+    widens it is the next test, which takes all 29 items against both probe
+    lists rather than 5 against one.
     """
     far_items = {i.text for i in queries.items_of_kind(queries.KIND_FAR_OUT_OF_SCOPE)}
     probes = set(calibration.FAR_OUT_OF_SCOPE_PROBES)
     assert len(far_items) == 5
     assert not far_items & probes
-    assert not probes & far_items
 
 
 def test_no_golden_item_reuses_any_calibration_probe():

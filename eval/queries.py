@@ -1,4 +1,4 @@
-"""The golden dataset: 32 hand-authored items in four classes, per spec 9.1.
+"""The golden dataset: 29 hand-authored items in four classes, per spec 9.1.
 
 This file is the **scored** half of the corpus and it fits nothing. The
 calibration probes in eval/calibration.py are the fitting half, and no string
@@ -17,13 +17,24 @@ them (D-55):
 | class              | ids           | n  | correct behaviour                       |
 |--------------------|---------------|----|-----------------------------------------|
 | answerable         | EQ-01..EQ-12  | 12 | answer, citing its parent               |
-| outside_boundary   | OB-01..OB-13  | 13 | refuse at the gate, before retrieval    |
+| outside_boundary   | OB-01..OB-10  | 10 | refuse at the gate, before retrieval    |
 | inside_uncovered   | IU-01..IU-02  |  2 | refuse on the threshold and support rule|
 | far_out_of_scope   | FO-01..FO-05  |  5 | refuse on the threshold                 |
 
 The 12 answerable items keep the ids and the byte-identical text they were
 committed with, so every Precision@3 and Recall@3 number already in README.md
 stays comparable across this amendment.
+
+The outside_boundary class was thirteen items and is ten. Fix round 1 removed
+"shares", "tax return", "GST" and "income tax" from rag/scope.KNOWN_ADJACENT,
+because each refused a question the corpus answers, and the three items that
+exercised the removed phrases were retired with them rather than reworded onto a
+surviving phrase. An item whose only job was to test a vocabulary entry has no
+job once the entry is gone, and moving one into far_out_of_scope would have been
+worse: the retired tax-return item reads 0.3703 under sentence chunking, above T,
+and is refused by the support rule alone, so criterion 29 would have been
+asserting on a coin flip. The class is now exactly one item per surviving phrase,
+and ten phrases mean ten items.
 """
 
 from dataclasses import dataclass
@@ -135,7 +146,9 @@ GOLDEN_DATASET: list[GoldenItem] = [
     # These are the items the gate was sized against. Each one names a phrase in
     # rag/scope.KNOWN_ADJACENT, and the correct behaviour is a refusal before
     # any retrieval runs. The product column below is the canonical spelling the
-    # refusal carries, not a copy of the item's own wording.
+    # refusal carries, not a copy of the item's own wording. Ten items for ten
+    # surviving phrases, one each, after fix round 1 retired the three that
+    # tested phrases the corpus turned out to answer.
     GoldenItem(
         "OB-01",
         "What is the interest rate on a fixed deposit for 5 years?",
@@ -180,52 +193,31 @@ GOLDEN_DATASET: list[GoldenItem] = [
     ),
     GoldenItem(
         "OB-07",
-        "Which shares should I buy this quarter?",
-        KIND_OUTSIDE_BOUNDARY,
-        (),
-        "shares",
-    ),
-    GoldenItem(
-        "OB-08",
         "What are the stock market timings on a settlement holiday?",
         KIND_OUTSIDE_BOUNDARY,
         (),
         "stock market",
     ),
     GoldenItem(
-        "OB-09",
+        "OB-08",
         "Does the bank sell term life insurance cover?",
         KIND_OUTSIDE_BOUNDARY,
         (),
         "insurance",
     ),
     GoldenItem(
-        "OB-10",
+        "OB-09",
         "What is today's gold rate per gram?",
         KIND_OUTSIDE_BOUNDARY,
         (),
         "gold",
     ),
     GoldenItem(
-        "OB-11",
+        "OB-10",
         "Can I buy cryptocurrency through this bank's mobile app?",
         KIND_OUTSIDE_BOUNDARY,
         (),
         "cryptocurrency",
-    ),
-    GoldenItem(
-        "OB-12",
-        "How much income tax will I owe on my salary this year?",
-        KIND_OUTSIDE_BOUNDARY,
-        (),
-        "income tax",
-    ),
-    GoldenItem(
-        "OB-13",
-        "When must I file my tax return for the last financial year?",
-        KIND_OUTSIDE_BOUNDARY,
-        (),
-        "tax return",
     ),
     # --- inside_uncovered: inside D-47's boundary, no document covers it ---
     # The residue named in spec 18.1 item 8, verbatim. The first names a product

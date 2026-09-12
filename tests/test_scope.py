@@ -21,7 +21,7 @@ from rag import generate, kb, scope
 def test_a_known_adjacent_product_is_refused_before_retrieval():
     """Criterion 24a: every outside_boundary item is refused at the gate."""
     items = queries.items_of_kind(queries.KIND_OUTSIDE_BOUNDARY)
-    assert len(items) == 13
+    assert len(items) == 10
     for item in items:
         verdict = scope.classify(item.text)
         assert verdict.known_adjacent, f"{item.item_id} passed the gate: {item.text}"
@@ -36,6 +36,63 @@ def test_no_answerable_item_is_refused_by_the_gate():
         assert not verdict.known_adjacent, (
             f"{item.item_id} would be refused before retrieval: {item.text}"
         )
+
+
+# Criterion 28 guards the twelve answerable items and nothing else, and not one
+# of them names a tax topic. That is exactly why four bad phrases got through it:
+# a curated dataset can only catch the mistakes its authors already imagined.
+# These six are drawn from the corpus instead, each one a question kb-01, kb-03,
+# kb-08, kb-09, kb-11, kb-12, kb-13, kb-15 or kb-18 answers, and each one was
+# gate-refused at some point during fix round 1.
+CORPUS_QUESTIONS_THE_GATE_MUST_NOT_REFUSE = [
+    # GST: kb-03, kb-08 and kb-09 each state Meridian's treatment of it.
+    "Does GST apply to the late payment fee on my credit card?",
+    # The spelling the documents themselves use. The pair has to agree.
+    "Is goods and services tax charged on the prepayment penalty?",
+    # kb-01 and kb-04 both accept income-tax returns as proof of income. Both
+    # spellings, because one spelling passing is what hid the defect for a round.
+    "Do I need my income-tax returns to prove income for a loan?",
+    "Do I need my income tax returns to prove income for a loan?",
+    # "shares" as a verb, not as equity. kb-11 answers this at 0.3619.
+    "My wife shares the account with me, can she operate it?",
+    # kb-12 and kb-18 both answer this one directly.
+    "Is interest on an NRE account exempt from income tax?",
+]
+
+
+def test_no_corpus_question_is_refused_by_the_gate():
+    """Criterion 28 widened from curated items to questions the corpus answers.
+
+    This is the test that generalises. Every phrase removed in fix round 1 was
+    removed because it failed here while passing criterion 28, so a future
+    addition to KNOWN_ADJACENT has to clear this before it counts as safe.
+    """
+    for question in CORPUS_QUESTIONS_THE_GATE_MUST_NOT_REFUSE:
+        verdict = scope.classify(question)
+        assert not verdict.known_adjacent, (
+            f"gate refuses a question the corpus answers, on {verdict.product!r}: {question}"
+        )
+
+
+def test_the_two_spellings_of_a_tax_question_land_on_the_same_side():
+    """One question, two spellings, one verdict. The inconsistency test.
+
+    "GST" was in the vocabulary and "goods and services tax", the spelling the
+    documents actually use, was not, so the same question was refused or answered
+    depending on how the customer typed it. Same for the hyphen in income-tax.
+    """
+    pairs = [
+        (
+            "Does GST apply to the late payment fee on my credit card?",
+            "Is goods and services tax charged on the prepayment penalty?",
+        ),
+        (
+            "Do I need my income-tax returns to prove income for a loan?",
+            "Do I need my income tax returns to prove income for a loan?",
+        ),
+    ]
+    for first, second in pairs:
+        assert scope.classify(first).known_adjacent == scope.classify(second).known_adjacent
 
 
 def test_the_declared_product_is_the_one_the_gate_reads():
@@ -54,25 +111,35 @@ def test_a_query_naming_no_product_falls_through_unfiltered():
 def test_matching_is_case_folded_and_takes_the_longest_phrase():
     assert scope.classify("FIXED DEPOSIT rates please").product == "fixed deposit"
     assert scope.classify("what is a home loan").product == "Home Loan"
-    # "stock market" is longer than "shares", so it is the phrase reported.
-    assert scope.classify("Which shares trade on the stock market?").product == "stock market"
+    # "mutual fund" is longer than "gold", so it is the phrase reported.
+    assert scope.classify("Which mutual fund invests in gold?").product == "mutual fund"
 
 
 def test_a_plural_matches_but_a_shorter_word_does_not():
     """The "s" is added to the canonical phrase, never made optional on it.
 
-    An optional trailing "s" on "shares" would also match the verb "share", and
-    "Can I share my account with my wife?" is not a question about equities.
+    The plural of the phrase is the phrase; a shorter word inside it is not.
+    "Can I deposit a cheque today?" is not a question about fixed deposits, and
+    an optional "s" spelling would have matched the removed entry "shares"
+    against the verb "share" the same way.
     """
     assert scope.classify("Which mutual funds do you offer?").product == "mutual fund"
-    assert scope.classify("Can I share my account with my wife?").product == ""
+    assert scope.classify("Do you offer fixed deposits?").product == "fixed deposit"
+    assert scope.classify("Can I deposit a cheque today?").product == ""
 
 
 def test_the_catalogue_wins_when_a_query_names_both():
-    """A Meridian product in the query outranks an adjacent one of equal length."""
-    verdict = scope.classify("Is interest on an NRE account free of income tax?")
-    assert verdict.product == "NRE account"
+    """A Meridian product in the query outranks an adjacent one of equal length.
+
+    "insurance" and "Home Loan" are both nine characters, so this is the exact
+    tie the sort key decides rather than a length comparison, and the catalogue
+    has to win it: Meridian sells the loan, whatever else the sentence mentions.
+    """
+    verdict = scope.classify("Is loan insurance mandatory on a home loan?")
+    assert verdict.product == "Home Loan"
     assert verdict.in_catalogue
+    assert not verdict.known_adjacent
+    assert len("insurance") == len("Home Loan")
 
 
 def test_known_adjacent_never_collides_with_a_catalogue_product():
