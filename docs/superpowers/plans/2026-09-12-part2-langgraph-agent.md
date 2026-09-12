@@ -290,7 +290,8 @@ It wraps Task 1's score and Part 1's two read paths, and it returns rather than 
   - `agent.tools.LOOKUP_FIELDS: tuple[str, ...]`
 
 **[D-54] Two new fields on `GroundedAnswer`, and they are the contract between the two plans.**
-Part 1 Task 18 step 6 wires the product gate into `rag/generate.py`.
+Part 1 Task 18, in its step titled **Wire the gate into `rag/generate.py`**, adds the product gate to the function Part 2 already calls.
+Steps are cited by title rather than number throughout this section: Part 1 Task 18 was renumbered once on 2026-09-12 and may be again.
 Part 2 never calls the gate and never imports `rag/scope.py`; it reads two fields off the dataclass `answer()` already returns:
 
 | field | type | meaning |
@@ -308,7 +309,7 @@ A gate refusal also carries `hits=()`, because the gate decides before retrieval
 **`product` is spelled the way the list spells it, not the way the query did.**
 The gate case-folds the query to match, so "suggest me a good sip" and "Suggest me a good SIP" both match, and both return `"SIP"`.
 Part 2 prints this string straight into a sentence a customer reads, so a lower-cased echo of the user's typing would surface as "Meridian Bank does not offer sip".
-Part 1 Task 18 step 3 owns that behaviour; the assertions in Tasks 2, 9 and 10 below are what catch it if it ever drifts.
+Part 1 Task 18's step **Write `rag/scope.py`** owns that behaviour; the assertions in Tasks 2, 9 and 10 below are what catch it if it ever drifts.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -978,7 +979,7 @@ After the product gate lands there are two out-of-scope failures, not one, and o
 | "What is the best pizza topping?" | names no product at all, so it reaches retrieval and fails `T` | 8.3, criterion 24b |
 
 The probe in the tests below is the second kind on purpose.
-By inspection of the `KNOWN_ADJACENT` list in Part 1 Task 18 step 3 - fixed deposit, recurring deposit, mutual fund, SIP, ELSS, demat, shares, stock market, insurance, gold, cryptocurrency, income tax, GST, tax return - nothing in it matches "pizza topping", so this probe still exercises the groundedness path and these tests do not need rewriting.
+By inspection of the `KNOWN_ADJACENT` list in Part 1 Task 18's step **Write `rag/scope.py`** - fixed deposit, recurring deposit, mutual fund, SIP, ELSS, demat, shares, stock market, insurance, gold, cryptocurrency, income tax, GST, tax return - nothing in it matches "pizza topping", so this probe still exercises the groundedness path and these tests do not need rewriting.
 If a later edit adds a food word to that list, this test starts asserting the wrong mechanism and the fix is a new probe here, not a smaller list there.
 
 - [ ] **Step 1: Write the failing tests**
@@ -3597,11 +3598,13 @@ merely asserted."
 Part 2 is built against a retuned `T` and a retrieval layer with a product gate in front of it, and neither is visible from inside `agent/`.
 
 ```bash
-git log --oneline | grep -i "scope gate\|regenerate part 1 evidence"   # Part 1 Tasks 18 and 20
-.venv/bin/python -c "import config; print(config.SIMILARITY_THRESHOLD)"  # not 0.2818
+.venv/bin/python -c "import config; print(config.SIMILARITY_THRESHOLD)"
 .venv/bin/python -c "from rag import scope; print(len(scope.KNOWN_ADJACENT))"
+.venv/bin/python -c "from rag.generate import answer; a = answer('Suggest me a good SIP to invest in.'); print(a.outcome, repr(a.product))"
 ```
 
+Expected: a threshold that is no longer 0.2818, a non-empty `KNOWN_ADJACENT`, and `refused_gate 'SIP'`.
+These are checks on the code rather than on commit messages, because a commit message can say anything.
 If `rag/scope.py` does not import, Part 1 Tasks 17 to 20 have not landed and every out-of-scope number below is measuring the old system.
 
 Then run these four and read the output. None may be skipped.
@@ -3635,7 +3638,7 @@ If one moved, something in `agent/` reached into the generator, which is a defec
 
 **[D-54] Criteria 24a and 24b are one brief requirement split by D-51, and Part 2 owns half of each.**
 Spec section 16 numbers them separately because the mechanisms are separate.
-Criterion 24a is asserted on the Part 1 side too, by `tests/test_scope.py` in Part 1 Task 18 step 7, which checks that every `outside_boundary` golden item is refused at the gate.
+Criterion 24a is asserted on the Part 1 side too, by `tests/test_scope.py` in Part 1 Task 18's step **Test the gate in both directions**, which checks that every `outside_boundary` golden item is refused at the gate and, pulling the other way, that no `answerable` one is.
 What the tasks above add is the other half: that the agent *says* which product, rather than reciting Part 1's "the knowledge base does not contain enough supporting material", which would be true and useless.
 
 Criteria 28 to 31 of spec section 16 are Part 1's alone and appear in no task here.
