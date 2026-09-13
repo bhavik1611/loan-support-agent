@@ -94,6 +94,27 @@ def test_the_logged_query_never_carries_an_unmasked_pan(caplog):
     assert "FXZPG5049K" not in json.dumps(lines[0])
 
 
+def test_the_dedup_does_not_merge_two_distinct_emissions_with_identical_fields(caplog):
+    """The guarantee _capture's identity dedup must never break.
+
+    Two separate obs.event calls that happen to carry byte-identical fields
+    are two distinct LogRecord objects; only the literal-same-object artifact
+    from pytest's double handler attachment (see _capture's docstring above)
+    may ever be collapsed. If the dedup were ever changed to compare content
+    instead of identity, this is what would silently start failing.
+    """
+    def fn():
+        obs.event("probe.duplicate_content", trace_id="same", n=1)
+        obs.event("probe.duplicate_content", trace_id="same", n=1)
+
+    lines = [
+        json.loads(line) for line in _capture(caplog, fn)
+        if json.loads(line).get("event") == "probe.duplicate_content"
+    ]
+    assert len(lines) == 2
+    assert lines[0] == lines[1]
+
+
 def test_the_trace_id_is_deterministic_for_add_document(caplog):
     """D-38's rule, applied to a request that produces no AgentResponse."""
     import shutil
