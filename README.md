@@ -43,7 +43,7 @@ VIRTUAL_ENV=.venv uv pip install -r requirements.txt
 
 .venv/bin/python scripts/run_part1.py      # every Part 1 task, rewrites transcripts/
 .venv/bin/python scripts/run_part2.py      # every Part 2 task, rewrites transcripts/
-.venv/bin/python -m pytest                  # 372 tests
+.venv/bin/python -m pytest                  # 431 tests
 ```
 
 The `all-MiniLM-L6-v2` weights download once on first use into `~/.cache/huggingface`, outside the repository. Every run after that is offline, which you can prove - it passes with the network hard-disabled, and no API key is read in the default mode:
@@ -310,7 +310,7 @@ Queries pass through the masker the guardrails use, the API key is never logged,
 
 ## Tests
 
-**372 tests, all passing offline.** 222 are Part 1's, 139 Part 2's, and 11 cover the provider and the logging spine.
+**431 tests, all passing offline.** 223 are Part 1's, 139 Part 2's, 15 cover the provider and the logging spine, and 54 are Part 3's and Part 4's.
 Each acceptance criterion in the brief has a test that restates it; the full mapping is spec section 16.
 
 **Precision@3 and Recall@3 are deliberately not pinned by any test.** They move legitimately when chunk parameters are tuned, so a test that pinned them would fight the work and get deleted.
@@ -325,9 +325,12 @@ obs.py                      JSON log lines, timing, and the redaction rule.
 knowledge_base/             Task 2. 18 plain-text documents plus catalogue.json.
 rag/                        Tasks 3 to 5. kb, chunking, index, retrieve, scope, generate, evaluate.
 agent/                      Part 2. escalation, tools, intents, guardrails, memory, schema, nodes, graph.
-eval/                       Evaluation queries, calibration probes, router probes.
+eval/                       Evaluation queries, calibration probes, router probes, Part 3's judge and triad.
 db/                         The seven-table store: schema, generate, build, query.
-scripts/                    run_part1, run_part2, run_groq_demo, check_database.
+api/                        Part 3. The FastAPI app: POST /ask and POST /add-document.
+mcp_server/  mcp_client.py   Part 4. The lookup tool exposed over MCP, and a separate client.
+ui/                         The optional Streamlit app. Not graded evidence, per D-81.
+scripts/                    run_part1, run_part2, run_part3, run_part4, run_groq_demo, check_database.
 data/                       Committed snapshot and database manifest, both hash-tested.
 transcripts/                Committed graded evidence.
 tests/                      One test per acceptance criterion, plus unit coverage.
