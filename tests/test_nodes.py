@@ -148,10 +148,66 @@ def test_clarify_asks_one_question():
     assert "?" in result["clarification"]
 
 
-def test_refuse_names_the_rule():
+def test_refuse_does_not_name_the_rule():
+    """The rule is in the envelope as guardrails.injection_rule, once.
+
+    Repeating it in the prose told whoever tripped the guardrail which
+    pattern to write around next, and said nothing the structured field did
+    not already say. The refusal still has to say what the agent can do.
+    """
     result = nodes.refuse(_state("q", injection_rule="exfiltration"))
-    assert "exfiltration" in result["clarification"]
+    assert "exfiltration" not in result["clarification"]
+    assert "guardrail" not in result["clarification"].lower()
+    assert "application" in result["clarification"]
     assert result["grounded"] is None
+
+
+def _found_record(**overrides):
+    record = {
+        "found": True,
+        "record_id": "LN-1042",
+        "status": "Rejected",
+        "loan_amount_inr": 1544000,
+        "days_since_created": 9,
+        "flagged_for_fraud_review": False,
+        "escalation_score": 0.0,
+        "recommend_escalation": False,
+        "customer_context": {"full_name": "Vihaan Pillai", "open_loan_count": 0},
+    }
+    return record | overrides
+
+
+def test_the_lookup_sentence_answers_the_field_that_was_asked_about():
+    """Turn 2 of transcripts/part2-memory.txt used to repeat turn 1 exactly.
+
+    "Is it flagged for fraud?" received the status sentence byte for byte,
+    while flagged_for_fraud_review sat unread in the same response.
+    """
+    fraud = nodes._lookup_sentence(_found_record(), "Is it flagged for fraud?")
+    status = nodes._lookup_sentence(_found_record(), "What is the status of LN-1042?")
+    assert fraud != status
+    assert fraud.startswith("Application LN-1042 is not flagged for fraud review.")
+    assert "1,544,000" in nodes._lookup_sentence(_found_record(), "How much was sanctioned?")
+    assert "9 days ago" in nodes._lookup_sentence(_found_record(), "When was it submitted?")
+
+
+def test_the_lookup_sentence_is_still_byte_reproducible():
+    """D-41 still holds. Question-aware is not the same as non-deterministic."""
+    first = nodes._lookup_sentence(_found_record(), "Is it flagged for fraud?")
+    second = nodes._lookup_sentence(_found_record(), "Is it flagged for fraud?")
+    assert first == second
+
+
+def test_the_lookup_sentence_speaks_no_internal_score():
+    """The escalation score and threshold live in the lookup block only."""
+    quiet = nodes._lookup_sentence(_found_record(), "What is the status?")
+    assert "0.0" not in quiet and "threshold" not in quiet
+    loud = nodes._lookup_sentence(
+        _found_record(escalation_score=0.82, recommend_escalation=True),
+        "What is the status?",
+    )
+    assert "0.82" not in loud and "threshold" not in loud
+    assert "escalating" in loud
 
 
 def test_verify_passes_a_supported_policy_answer(built_index):
