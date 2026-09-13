@@ -369,3 +369,39 @@ LOG_LEVEL = os.environ.get("LOG_LEVEL", "WARNING")
 # Durations are rounded to this many decimal places before they are logged, so
 # clock noise never becomes the reason two runs look different (D-70).
 LOG_DURATION_PLACES = 1
+
+# ---------------------------------------------------------------------------
+# Part 4, resilience and MCP. Spec section 25.
+# ---------------------------------------------------------------------------
+
+# Per-node budget for the one node that does record I/O. Generous against a
+# local SQLite read that takes single-digit milliseconds, so it never fires in
+# ordinary operation and only the Task 16 shim can trip it.
+NODE_TIMEOUT_SECONDS = 5.0
+
+# Whole-run budget, enforced by asyncio.wait_for around ainvoke. Larger than
+# the per-node budget by more than one node's worth, so a single slow node
+# trips its own timeout first and the global one means what it says.
+GRAPH_TIMEOUT_SECONDS = 30.0
+
+# The four parameters the brief asks you to state, plus the one it does not.
+# jitter is OFF deliberately: a jittered sleep makes the retry transcript's
+# timings irreproducible, and the determinism ground rule outranks the small
+# thundering-herd benefit a single-process demo cannot exhibit anyway.
+RETRY_MAX_ATTEMPTS = 3
+RETRY_INITIAL_INTERVAL = 0.05
+RETRY_BACKOFF_FACTOR = 2.0
+RETRY_MAX_INTERVAL = 0.4
+RETRY_JITTER = False
+
+# Ports. The brief introduces 8000 for MCP with "e.g." while being insistent
+# about the /mcp path, so the API keeps its own default and MCP moves. D-79.
+API_PORT = 8000
+MCP_PORT = 8765
+MCP_PATH = "/mcp"
+MCP_HOST = "127.0.0.1"
+MCP_URL = f"http://{MCP_HOST}:{MCP_PORT}{MCP_PATH}"
+
+# Graph execution state for resuming a half-finished run. Not the conversation:
+# that is data/conversations/, readable and diffable. Gitignored, regenerable.
+CHECKPOINT_PATH = REPO_ROOT / "checkpoints.sqlite"

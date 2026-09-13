@@ -6,6 +6,8 @@ also means the fan-out safety property of section 11.2 is checkable by
 reading the return value of two functions rather than by running a graph.
 """
 
+import asyncio
+
 import config
 from agent import guardrails, intents, memory, schema, tools
 from agent.state import AgentState
@@ -118,9 +120,25 @@ def policy_answer(state: AgentState) -> dict:
     }
 
 
-def lookup_status(state: AgentState) -> dict:
-    """The record route. Writes state['lookup'] and nothing else."""
-    return {"lookup": tools.check_loan_application_status(state["record_id"])}
+async def lookup_status(state: AgentState) -> dict:
+    """The record route. Writes state['lookup'] and nothing else.
+
+    Async so LangGraph will accept a timeout on this node, and wrapped in
+    asyncio.to_thread so that timeout can actually fire: a coroutine that
+    never awaits cannot be preempted by any watchdog, so async def alone
+    only satisfies LangGraph's build-time check, not the run-time one.
+    agent.tools stays synchronous by design; the wrapper lives here, at the
+    call site, not there. The cost is that when the timeout fires, this
+    coroutine is cancelled but the worker thread keeps running until the
+    underlying call returns (LangGraph's own _runnable_has_native_async
+    docstring says the same) - acceptable here because the call is a local
+    SQLite read of single-digit milliseconds.
+    """
+    return {
+        "lookup": await asyncio.to_thread(
+            tools.check_loan_application_status, state["record_id"]
+        )
+    }
 
 
 def clarify(state: AgentState) -> dict:
