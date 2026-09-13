@@ -9,18 +9,92 @@ running event loop. A `def` endpoint runs in FastAPI's threadpool where there
 is no loop, so it works identically before and after Part 4 lands.
 """
 
+import hashlib
+import json
+import time
+
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
+from starlette.requests import Request
 
 import config
+import obs
+from agent import guardrails
 from agent.graph import ask
 from rag import chunking, index, kb
+
+obs.configure()
 
 app = FastAPI(
     title="Meridian Bank loan support agent",
     description="Part 3 Task 11. Every response is the Part 2 envelope, unchanged.",
     version="1.0.0",
 )
+
+
+@app.middleware("http")
+async def log_request(request: Request, call_next):
+    """Task 12. One JSON line per request, per D-75.
+
+    The middleware is async because Starlette's middleware contract is; the
+    endpoints below it stay sync for the reason in the module docstring.
+    """
+    body = await request.body()
+
+    async def receive():
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    request._receive = receive
+
+    started = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = round(
+        (time.perf_counter() - started) * 1000, config.LOG_DURATION_PLACES
+    )
+
+    payload = {}
+    try:
+        payload = json.loads(body) if body else {}
+    except ValueError:
+        payload = {}
+
+    raw_query = payload.get("query", "")
+    masked_query, _ = guardrails.mask_pii(raw_query) if raw_query else ("", ())
+
+    if request.url.path == "/ask" and raw_query:
+        # The response's own trace id, so the log line joins to the transcript
+        # that produced it, per D-38.
+        #
+        # Deliberately no `+ 1` here, unlike agent/graph.py:111's
+        # `len(memory.load(thread_id).turns) + 1`: that call runs *before* the
+        # graph executes, so it has to predict the turn number a not-yet-persisted
+        # turn will get. This line runs after `await call_next` above, i.e. after
+        # the endpoint (and the memory.record_turn call inside it) has already
+        # completed, so `len(memory.load(thread_id).turns)` here already counts
+        # the turn this same request just persisted - it already equals the
+        # `turn` D-38's trace_id was built from. Adding another `+ 1` double
+        # counts and was measured to produce a trace_id one turn ahead of the
+        # response's own; do not "fix" this back to `+ 1` without re-measuring.
+        from agent import memory, schema
+
+        thread_id = payload.get("thread_id", "default")
+        turn = len(memory.load(thread_id).turns)
+        trace_id = schema.trace_id(thread_id, turn, masked_query)
+    else:
+        # No AgentResponse exists for this request, so the id comes from the
+        # body. Canonical JSON, so key order in the request cannot change it.
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        trace_id = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+
+    obs.event(
+        "http_request",
+        trace_id=trace_id,
+        path=request.url.path,
+        status=response.status_code,
+        duration_ms=duration_ms,
+        query_masked=masked_query,
+    )
+    return response
 
 
 class AskRequest(BaseModel):
