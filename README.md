@@ -43,7 +43,9 @@ VIRTUAL_ENV=.venv uv pip install -r requirements.txt
 
 .venv/bin/python scripts/run_part1.py      # every Part 1 task, rewrites transcripts/
 .venv/bin/python scripts/run_part2.py      # every Part 2 task, rewrites transcripts/
-.venv/bin/python -m pytest                  # 431 tests
+.venv/bin/python scripts/run_part3.py      # every Part 3 task, rewrites transcripts/
+.venv/bin/python scripts/run_part4.py      # every Part 4 task, spawns the MCP server
+.venv/bin/python -m pytest                  # 433 tests
 ```
 
 The `all-MiniLM-L6-v2` weights download once on first use into `~/.cache/huggingface`, outside the repository. Every run after that is offline, which you can prove - it passes with the network hard-disabled, and no API key is read in the default mode:
@@ -310,7 +312,7 @@ Queries pass through the masker the guardrails use, the API key is never logged,
 
 ## Tests
 
-**431 tests, all passing offline.** 223 are Part 1's, 139 Part 2's, 15 cover the provider and the logging spine, and 54 are Part 3's and Part 4's.
+**433 tests, all passing offline.** 379 are Parts 1 and 2 with the provider and the logging spine; 54 are Part 3's and Part 4's, three of those covering the optional Streamlit screen.
 Each acceptance criterion in the brief has a test that restates it; the full mapping is spec section 16.
 
 **Precision@3 and Recall@3 are deliberately not pinned by any test.** They move legitimately when chunk parameters are tuned, so a test that pinned them would fight the work and get deleted.

@@ -377,7 +377,11 @@ LOG_DIR = REPO_ROOT / "logs"
 LOG_FILE = LOG_DIR / "agent.jsonl"
 
 # Quiet by default, so adding the spine changed nothing about an ordinary run.
-LOG_LEVEL = os.environ.get("LOG_LEVEL", "WARNING")
+# `or`, not a `get` default: `.env.example` declares LOG_LEVEL with no value, so
+# `cp .env.example .env` - the command README.md gives - puts an empty string in
+# the environment. `get("LOG_LEVEL", "WARNING")` returns that empty string, and
+# obs.py's getattr(logging, "", ...) then falls back to WARNING silently.
+LOG_LEVEL = os.environ.get("LOG_LEVEL") or "WARNING"
 
 # Durations are rounded to this many decimal places before they are logged, so
 # clock noise never becomes the reason two runs look different (D-70).

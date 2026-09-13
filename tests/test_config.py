@@ -1,5 +1,8 @@
 """Config is the single source of every path and tunable in the project."""
 
+import subprocess
+import sys
+
 import config
 
 
@@ -37,3 +40,34 @@ def test_mock_is_the_default_provider(monkeypatch):
     assert config.resolve_provider() == "mock"
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     assert config.resolve_provider() == "openai"
+
+
+def test_an_empty_log_level_falls_back_to_the_default():
+    """An empty value is not a value, and `.env` routinely carries one.
+
+    `.env.example` declares LOG_LEVEL with no value on the right-hand side,
+    and README.md tells the reader to `cp .env.example .env`, so an ordinary
+    setup puts LOG_LEVEL="" into the process environment. Two things then read
+    it wrong at once: `os.environ.get("LOG_LEVEL", "WARNING")` returns the
+    empty string rather than the default, and `os.environ.setdefault` in
+    scripts/run_part3.py sees a present key and declines to fill it in. obs.py
+    stayed quiet, the runner read back zero log lines, and it died on an
+    IndexError three frames from the cause. Measured on 2026-09-13: three
+    suite failures that appeared and disappeared with a file that is
+    gitignored and therefore invisible to the diff.
+
+    Read out of a subprocess rather than by reloading config in-process,
+    because config.LOG_LEVEL is computed at import: a reload here would hand
+    every later test in the session a different module object, which is the
+    same class of bug this test exists to pin.
+    """
+    result = subprocess.run(
+        [sys.executable, "-c", "import config; print(repr(config.LOG_LEVEL))"],
+        cwd=config.REPO_ROOT,
+        env={"PATH": "/usr/bin:/bin", "LOG_LEVEL": ""},
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "'WARNING'"

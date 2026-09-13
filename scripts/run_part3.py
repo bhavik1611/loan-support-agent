@@ -21,7 +21,13 @@ os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 # part3-logging.txt reads real http_request lines back from config.LOG_FILE.
 # obs.py is quiet by default (D-70); this is the one runner that needs it
 # turned up, and it has to happen before `import config` computes LOG_LEVEL.
-os.environ.setdefault("LOG_LEVEL", "INFO")
+# Not setdefault: `cp .env.example .env`, the command README.md gives, defines
+# LOG_LEVEL with an empty value, and setdefault treats a present-but-empty key
+# as already set. The runner then wrote no log lines and died on an IndexError
+# three frames away from the cause. An explicit level the caller chose is still
+# honoured; only an absent or empty one is filled in.
+if not os.environ.get("LOG_LEVEL"):
+    os.environ["LOG_LEVEL"] = "INFO"
 
 import config  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -179,6 +185,23 @@ def _new_http_request_lines(before: int) -> list[dict]:
     return [l for l in lines if l.get("event") == "http_request"]
 
 
+def _require_one(lines: list[dict], label: str) -> dict:
+    """The first http_request line for `label`, or a readable failure.
+
+    Reading zero lines back means obs.py was quiet, not that the request
+    failed - the request above it succeeded either way. Indexing straight
+    into the list reported that as an IndexError three frames from the
+    cause, which is how an empty LOG_LEVEL in .env stayed invisible.
+    """
+    if not lines:
+        raise SystemExit(
+            f"No http_request log line was written for {label}. obs.py logs at "
+            f"INFO and config.LOG_LEVEL is {config.LOG_LEVEL!r}; this runner needs "
+            "INFO or DEBUG. Check LOG_LEVEL in the environment and in .env."
+        )
+    return lines[0]
+
+
 def logging_transcript() -> str:
     """Task 12. Three requests, one carrying a fabricated PAN, read back
     from config.LOG_FILE rather than reasoned about - the same discipline
@@ -208,14 +231,14 @@ def logging_transcript() -> str:
 
     lines += [
         "REQUEST 1 - a plain /ask, trace_id is the response's own (D-38, D-75)",
-        _show(_redact_duration(plain[0])),
+        _show(_redact_duration(_require_one(plain, "REQUEST 1"))),
         "",
         "REQUEST 2 - a fabricated PAN, masked before it is logged (D-71)",
-        _show(_redact_duration(pan[0])),
+        _show(_redact_duration(_require_one(pan, "REQUEST 2"))),
         "",
         "REQUEST 3 - /add-document, no AgentResponse, so trace_id is a hash",
         "of the canonical request body instead (D-38's rule, applied)",
-        _show(_redact_duration(add_document[0])),
+        _show(_redact_duration(_require_one(add_document, "REQUEST 3"))),
     ]
     return "\n".join(lines) + "\n"
 
