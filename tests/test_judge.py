@@ -83,6 +83,27 @@ def test_scoring_is_deterministic():
     assert first == second
 
 
+def _score_all_triad_rows() -> dict:
+    """Every triad row answered and scored once, keyed by item_id.
+
+    Shared by test 39 and the IU-02 test below so the fifteen rows are scored
+    once rather than twice. Not cached across test runs: each test calls this
+    fresh, so a change to retrieval or the judge shows up in whichever test
+    observes it rather than being hidden behind a stale module-level cache.
+    """
+    from eval import triad
+    from rag import generate
+
+    rows = {}
+    for item in triad.triad_items():
+        answered = generate.answer(item.text)
+        scores = judge.score(
+            item.text, answered.text, judge.context_of(answered.hits)
+        )
+        rows[item.item_id] = (answered, scores)
+    return rows
+
+
 def test_39_far_out_of_scope_queries_score_below_answerable_ones_on_groundedness():
     """Spec section 16 test 39, amended per Bhavik's ruling on D-84.
 
@@ -112,17 +133,14 @@ def test_39_far_out_of_scope_queries_score_below_answerable_ones_on_groundedness
     separately, in
     test_iu02_is_answered_not_refused_and_context_relevance_catches_it below.
     """
-    import eval.queries as queries
-    from eval import triad
-    from rag import generate
+    from eval import queries, triad
 
+    rows = _score_all_triad_rows()
     grounded_by_kind: dict[str, list[float]] = {}
     for item in triad.triad_items():
-        answered = generate.answer(item.text)
-        scores = judge.score(
-            item.text, answered.text, judge.context_of(answered.hits)
+        grounded_by_kind.setdefault(item.kind, []).append(
+            rows[item.item_id][1].groundedness
         )
-        grounded_by_kind.setdefault(item.kind, []).append(scores.groundedness)
 
     answerable = grounded_by_kind[queries.KIND_ANSWERABLE]
     far_out_of_scope = grounded_by_kind[queries.KIND_FAR_OUT_OF_SCOPE]
@@ -138,37 +156,50 @@ def test_39_far_out_of_scope_queries_score_below_answerable_ones_on_groundedness
 def test_iu02_is_answered_not_refused_and_context_relevance_catches_it():
     """The clearest single illustration of why the triad has three signals.
 
-    Measured: IU-02 ("How do I transfer money to an account in another
-    country?") is outcome='answered', not refused - top1=0.4645 against
-    T=0.3066, with all three retrieved chunks parented under
-    kb-12-nri-account-eligibility, so the support rule (>= 2 of 3 chunks share
-    a parent) passes too. Its groundedness (0.7857) sits in the answerable
-    band, because the answer faithfully restates the NRI-account context it
-    retrieved. An answer that faithfully restates irrelevant context is
-    grounded by definition, so groundedness cannot catch this failure and was
-    never the signal that could. Its context_relevance (0.2000) sits low
-    instead, near the bottom of the set, because retrieved NRI-eligibility
-    text shares almost no vocabulary with a question about an international
-    money transfer - that is the signal that does catch it.
+    Recorded observations, this run (prose, not assertions - see below for
+    why): IU-02 ("How do I transfer money to an account in another country?")
+    is outcome='answered', not refused - top1=0.4645 against T=0.3066, with
+    all three retrieved chunks parented under kb-12-nri-account-eligibility,
+    so the support rule (>= 2 of 3 chunks share a parent) passes too. Its
+    groundedness (0.7857) sits inside the answerable band - at or above
+    EQ-10's 0.7234, the weakest answerable row - because the answer
+    faithfully restates the NRI-account context it retrieved. An answer that
+    faithfully restates irrelevant context is grounded by definition, so
+    groundedness cannot catch this failure and was never the signal that
+    could. Its context_relevance (0.2000) sits low instead, well below its
+    own groundedness, and even below correctly-answered EQ-12's 0.1667 is not
+    guaranteed - the two are close enough that no single cut on
+    context_relevance alone separates them either. Context_relevance still
+    catches the failure here because it reads low while groundedness reads
+    high for the same row, and that gap is what the assertion below checks.
 
-    Only the shape is pinned, per D-13: the outcome, and that groundedness
-    reads well above context_relevance for this row, never the exact floats,
-    which move when the chunker or scorers are tuned.
+    Every assertion below is relational, measured against the other fourteen
+    triad rows scored in the same run, never against a constant a
+    stopword-list or chunker change could drift past while the claim - IU-02
+    is a groundedness blind spot - stayed true. That is D-13's and D-84's
+    rule: pin the property, never the number. The outcome check is
+    categorical rather than numeric, so a fixed value there is legitimate.
 
     eval.queries.GOLDEN_DATASET still records IU-02's expected behaviour as
     "refuse on the threshold and support rule". Measurement contradicts that:
     the dataset's expectation is the stale half, not this test.
     """
-    from eval import triad
+    from eval import queries, triad
     from rag import generate
 
-    iu02 = next(item for item in triad.triad_items() if item.item_id == "IU-02")
-    answered = generate.answer(iu02.text)
-    scores = judge.score(
-        iu02.text, answered.text, judge.context_of(answered.hits)
-    )
+    rows = _score_all_triad_rows()
+    iu02_answered, iu02_scores = rows["IU-02"]
+    answerable_groundedness = [
+        rows[item.item_id][1].groundedness
+        for item in triad.triad_items()
+        if item.kind == queries.KIND_ANSWERABLE
+    ]
 
-    assert answered.outcome == generate.OUTCOME_ANSWERED
-    assert scores.groundedness > 0.7
-    assert scores.context_relevance < 0.3
-    assert scores.context_relevance < scores.groundedness
+    assert iu02_answered.outcome == generate.OUTCOME_ANSWERED
+    assert iu02_scores.groundedness >= min(answerable_groundedness), (
+        f"IU-02 groundedness {iu02_scores.groundedness} fell below the weakest "
+        f"answerable row's {min(answerable_groundedness)}. The blind spot this "
+        f"test exists to pin - a wrong-document answer reading as well "
+        f"grounded as a correct one - stopped holding."
+    )
+    assert iu02_scores.context_relevance < iu02_scores.groundedness
