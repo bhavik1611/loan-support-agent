@@ -307,6 +307,19 @@ NOUN_PHRASE_MARKERS = frozenset(
 # agent/schema.py exports it and scripts/run_part2.py asserts it is current.
 RESPONSE_SCHEMA_PATH = REPO_ROOT / "agent" / "response.schema.json"
 
+# --- Part 3, POST /add-document (D-72) -------------------------------------
+
+# Runtime-uploaded documents. Gitignored, and never inside knowledge_base/,
+# per D-72: writing there would move Precision@3, Recall@3 and every chunk
+# count in the Part 1 transcripts.
+UPLOAD_DIR = DATA_DIR / "uploads"
+UPLOAD_DOC_PREFIX = "kb-up-"
+
+# Only kb_sentences takes uploads. It is the collection Part 2 consumes and
+# the one Task 5 recommended; upserting into both would double the work for a
+# collection nothing downstream reads.
+UPLOAD_STRATEGY = STRATEGY_SENTENCES
+
 # --- Environment ----------------------------------------------------------
 
 # .env is read once, at import, and never overrides a variable the real
