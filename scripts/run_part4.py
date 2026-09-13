@@ -138,22 +138,21 @@ def mcp_transcript() -> str:
 # --- Tasks 15 and 16, resilience --------------------------------------------
 
 
-def _stable_timeout_message(message: str) -> str:
-    """Round the elapsed seconds langgraph bakes into a NodeTimeoutError's
-    message to config.LOG_DURATION_PLACES.
+def _drop_elapsed(message: str) -> str:
+    """Strip the "(elapsed: ...s)" parenthetical from a NodeTimeoutError's
+    message.
 
-    The message is otherwise printed verbatim. Only the elapsed figure moves
-    between two runs of this script - a scheduler jitter of a few
-    milliseconds - and the project's own rule for exactly this problem is to
-    round a duration rather than let it move a committed byte (D-70, applied
-    by obs.py to every log line). A transcript is not a log line, but the
-    same noise-vs-determinism problem is the same fix.
+    That figure is a wall-clock reading with no deterministic value on any
+    machine, at any decimal precision - rounding only narrows the window in
+    which two runs can disagree, it does not close it. D-70 already states
+    the principle for exactly this: a clock reading is a side channel that
+    never reaches a committed, byte-guarded artefact, and a transcript is
+    such an artefact. The claim this demonstration makes is that the node
+    raised NodeTimeoutError rather than hanging; that claim needs the
+    exception type and the budget it breached, not the observed duration, so
+    the duration is removed rather than rounded.
     """
-    return re.sub(
-        r"elapsed: ([\d.]+)s",
-        lambda m: f"elapsed: {round(float(m.group(1)), config.LOG_DURATION_PLACES)}s",
-        message,
-    )
+    return re.sub(r"\s*\(elapsed: [\d.]+s\)", "", message)
 
 
 def _retry_demo() -> list[str]:
@@ -241,10 +240,10 @@ def _node_timeout_demo() -> list[str]:
         f"not wait on a real timeout) instead of doing the record read it "
         f"pretends to do.",
         "",
-        f"NodeTimeoutError: {_stable_timeout_message(str(caught))}",
-        "(elapsed above is rounded to config.LOG_DURATION_PLACES place, the",
-        " same rule obs.py applies to every duration it logs, so scheduler",
-        " jitter of a few milliseconds never changes this transcript)",
+        f"exception type: {type(caught).__name__}",
+        f"configured per-node budget for this demonstration: {demo_timeout}s "
+        f"(config.NODE_TIMEOUT_SECONDS is {original_node_timeout}s normally)",
+        f"message: {_drop_elapsed(str(caught))}",
     ]
 
 

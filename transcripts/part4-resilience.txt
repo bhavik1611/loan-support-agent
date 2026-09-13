@@ -27,10 +27,9 @@ DEMONSTRATION 2 - A NODE OVER ITS OWN BUDGET RAISES CLEANLY
 
 shim: agent.tools.check_loan_application_status sleeps past a 0.1s per-node budget (config.NODE_TIMEOUT_SECONDS is 5.0s normally, narrowed here so the demo does not wait on a real timeout) instead of doing the record read it pretends to do.
 
-NodeTimeoutError: Node 'lookup_status' exceeded its run timeout of 0.100s (elapsed: 0.1s).
-(elapsed above is rounded to config.LOG_DURATION_PLACES place, the
- same rule obs.py applies to every duration it logs, so scheduler
- jitter of a few milliseconds never changes this transcript)
+exception type: NodeTimeoutError
+configured per-node budget for this demonstration: 0.1s (config.NODE_TIMEOUT_SECONDS is 5.0s normally)
+message: Node 'lookup_status' exceeded its run timeout of 0.100s.
 
 DEMONSTRATION 3 - A RUN OVER THE GLOBAL BUDGET IS CANCELLED
 
