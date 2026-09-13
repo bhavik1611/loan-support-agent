@@ -61,7 +61,7 @@ One Approved application aged zero days carries a single compressed event instea
 Both are honest limits of a 30-day window, not oversights.
 
 **PII.**
-`customers` carries fabricated PAN, Aadhaar and account numbers in the fixed formats Part 2 Task 10 will mask.
+`customers` carries fabricated PAN, Aadhaar and account numbers in the fixed formats Part 2 Task 10 masks.
 The PAN follows the Income Tax Department's structure, `AAAAA9999A`: three series letters, the holder-type code `P` for an individual, the surname initial, a 0001-9999 serial and a check letter derived from the first nine characters.
 The department does not publish the real check-character formula, so that last letter is a documented stand-in, not a claim to be verifiable against anything.
 The Aadhaar numbers are twelve digits never beginning 0 or 1, with the twelfth a real Verhoeff check digit over the first eleven - UIDAI's published algorithm, so every fabricated number passes a genuine validator and a mistyped or transposed digit fails it.
