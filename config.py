@@ -405,3 +405,22 @@ MCP_URL = f"http://{MCP_HOST}:{MCP_PORT}{MCP_PATH}"
 # Graph execution state for resuming a half-finished run. Not the conversation:
 # that is data/conversations/, readable and diffable. Gitignored, regenerable.
 CHECKPOINT_PATH = REPO_ROOT / "checkpoints.sqlite"
+
+# ---------------------------------------------------------------------------
+# Part 3, the RAG triad. Spec section 24.
+# ---------------------------------------------------------------------------
+
+# Scores are ratios in [0, 1]. Four places is enough to separate the classes
+# and few enough that a transcript diff never moves on floating-point noise.
+TRIAD_SCORE_PLACES = 4
+
+# Tokens carrying no topical content. Deliberately short and closed: the judge
+# measures overlap, and a long stop list would start deleting the words that
+# distinguish one policy question from another. Drawn from the query set's own
+# function words, not from a general English stop list.
+TRIAD_STOPWORDS = frozenset({
+    "a", "an", "and", "are", "as", "at", "be", "by", "can", "do", "does",
+    "for", "from", "how", "i", "if", "in", "is", "it", "me", "much", "must",
+    "my", "of", "on", "or", "the", "to", "what", "when", "which", "will",
+    "with", "you", "your",
+})
