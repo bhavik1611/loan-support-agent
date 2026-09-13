@@ -9,6 +9,34 @@ os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _no_stray_uploads():
+    """Fail the whole session before it starts if data/uploads/ holds a file.
+
+    Same reasoning as scripts/run_part1.py and run_part2.py's
+    require_no_stray_uploads: rag/retrieve.py's product narrowing reads
+    config.UPLOAD_DIR live, so a stray file left by a manual /add-document
+    session, a crashed test, or an interrupted run would silently change
+    what a product-narrowed query returns for the whole session, not just
+    for whichever test happens to touch it. Session-scoped and autouse, so
+    it runs once, before built_index's own (non-autouse) rebuild.
+    """
+    import config
+
+    if config.UPLOAD_DIR.exists():
+        stray = sorted(p.name for p in config.UPLOAD_DIR.iterdir())
+        if stray:
+            pytest.fail(
+                f"{config.UPLOAD_DIR.relative_to(config.REPO_ROOT)} holds "
+                f"{stray} before the suite even started. rag/retrieve.py's "
+                f"product narrowing reads this directory live, so a stray "
+                f"upload changes what every product-narrowed query returns "
+                f"for the whole run. Clear it first: rm -r "
+                f"{config.UPLOAD_DIR.relative_to(config.REPO_ROOT)}",
+                pytrace=False,
+            )
+
+
 @pytest.fixture(autouse=True)
 def pinned_to_mock(monkeypatch):
     """Every test runs under MOCK_LLM, whatever the environment says.

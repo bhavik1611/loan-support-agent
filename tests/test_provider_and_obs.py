@@ -97,6 +97,104 @@ def test_run_part1_refuses_under_a_non_mock_provider(tmp_path):
     assert config.PROVIDER_GROQ in result.stderr
 
 
+def _with_stray_upload():
+    """Drop one stray file into config.UPLOAD_DIR and remove it on exit.
+
+    A context manager rather than a fixture: three different tests below use
+    it against three different guards (run_part1.py, run_part2.py,
+    tests/conftest.py's own session fixture), and none of them may leave the
+    file behind for a later test to trip over.
+    """
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _cm():
+        config.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        stray = config.UPLOAD_DIR / f"{config.UPLOAD_DOC_PREFIX}99.txt"
+        stray.write_text("stray upload, used only to prove the guard fires\n")
+        try:
+            yield stray
+        finally:
+            stray.unlink()
+            if not any(config.UPLOAD_DIR.iterdir()):
+                config.UPLOAD_DIR.rmdir()
+
+    return _cm()
+
+
+def test_run_part1_refuses_when_data_uploads_holds_a_stray_file():
+    """require_no_stray_uploads, the guard the union filter needed.
+
+    Proven the same way test_run_part1_refuses_under_a_non_mock_provider is:
+    subprocess the real script and read its exit code and stderr, rather than
+    calling the guard function directly.
+    """
+    with _with_stray_upload() as stray:
+        result = subprocess.run(
+            [sys.executable, "scripts/run_part1.py"],
+            cwd=config.REPO_ROOT,
+            env={"PATH": "/usr/bin:/bin"},
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        assert result.returncode != 0
+        assert "Refusing to run" in result.stderr
+        assert stray.name in result.stderr
+
+    # And the runner succeeds once the stray file is gone (the `with` above
+    # already removed it).
+    result = subprocess.run(
+        [sys.executable, "scripts/run_part1.py"],
+        cwd=config.REPO_ROOT,
+        env={"PATH": "/usr/bin:/bin"},
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert result.returncode == 0
+
+
+def test_run_part2_refuses_when_data_uploads_holds_a_stray_file():
+    """run_part2.py's copy of the same guard, per D-02/D-03's no-shared-shim rule."""
+    with _with_stray_upload() as stray:
+        result = subprocess.run(
+            [sys.executable, "scripts/run_part2.py"],
+            cwd=config.REPO_ROOT,
+            env={"PATH": "/usr/bin:/bin"},
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        assert result.returncode != 0
+        assert "Refusing to run" in result.stderr
+        assert stray.name in result.stderr
+
+
+def test_the_suite_refuses_when_data_uploads_holds_a_stray_file():
+    """tests/conftest.py's session-scoped guard, exercised as its own process.
+
+    The guard is session-scoped and autouse, so it only runs once at the
+    start of a session; proving it fires means starting a fresh pytest
+    session with the stray file already in place, not reusing this one.
+    A single, fixture-free test is the subprocess's target, to keep this fast.
+    """
+    with _with_stray_upload() as stray:
+        result = subprocess.run(
+            [
+                sys.executable, "-m", "pytest",
+                "-k", "test_paths_are_rooted_in_the_repository", "-q",
+            ],
+            cwd=config.REPO_ROOT,
+            env={"PATH": "/usr/bin:/bin"},
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        assert result.returncode != 0
+        assert stray.name in result.stdout + result.stderr
+
+
 # --- Test 35: what a log line carries, and what it never carries (D-71) ---
 
 
