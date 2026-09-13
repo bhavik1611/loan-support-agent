@@ -428,6 +428,8 @@ def readme_numbers() -> str:
             f"| Whole-run timeout budget | {config.GRAPH_TIMEOUT_SECONDS}s |",
             f"| MCP URL | {config.MCP_URL} |",
             "",
+            "<!-- End of generated block. -->",
+            "",
         ]
     )
 

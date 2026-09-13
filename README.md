@@ -219,6 +219,8 @@ A FastAPI deployment over the Part 2 agent: `POST /ask` (the envelope unchanged,
 | Average groundedness | 0.6695 |
 | Average answer relevance | 0.4975 |
 
+<!-- End of generated block. -->
+
 Under `MOCK_LLM` the three scores above are deterministic lexical proxies - n-gram containment between the query, the answer and the retrieved context - rather than a model's judgement (D-74); a real provider is asked the identical three questions through the same prompt.
 
 Transcripts: [`part3-api`](transcripts/part3-api.txt) - one call to each endpoint, then the refuse/add/answer loop, which now succeeds even naming the upload's own catalogue product because `rag/retrieve.py`'s product filter unions in every uploaded doc id; [`part3-logging`](transcripts/part3-logging.txt) - three requests' worth of `http_request` lines, one carrying a fabricated PAN masked before it is logged; [`part3-triad`](transcripts/part3-triad.txt) - all fifteen rows, leading with IU-02, the row that argues for three signals rather than one.
@@ -241,6 +243,8 @@ An async graph with a retry policy on the one node that reads a record, two time
 | Per-node timeout budget | 5.0s |
 | Whole-run timeout budget | 30.0s |
 | MCP URL | http://127.0.0.1:8765/mcp |
+
+<!-- End of generated block. -->
 
 Transcripts: [`part4-mcp`](transcripts/part4-mcp.txt) - a real client-server round trip, the server and client as two separate processes over loopback HTTP; [`part4-resilience`](transcripts/part4-resilience.txt) - the retry policy recovering a transient failure, a node over its own budget raising `NodeTimeoutError`, and a run over the whole-run budget being cancelled outright; [`part4-checkpoint`](transcripts/part4-checkpoint.txt) - the two invocations of a checkpointed turn, naming which nodes ran in each and which were loaded from the checkpoint rather than re-executed.
 Design and the alternatives each choice beat: spec section 25.

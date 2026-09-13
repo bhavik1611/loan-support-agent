@@ -6,3 +6,5 @@
 | Average context relevance | 0.4214 |
 | Average groundedness | 0.6695 |
 | Average answer relevance | 0.4975 |
+
+<!-- End of generated block. -->

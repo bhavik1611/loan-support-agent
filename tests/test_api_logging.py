@@ -115,6 +115,36 @@ def test_the_dedup_does_not_merge_two_distinct_emissions_with_identical_fields(c
     assert lines[0] == lines[1]
 
 
+def test_a_raising_handler_still_writes_exactly_one_line_carrying_status_500(caplog, monkeypatch):
+    """Part 3 criterion 2 is "log every request", and a 500 is the request a
+    reader most wants to see logged. Before the fix, `BaseHTTPMiddleware`
+    re-raised whatever `call_next` raised straight out of `log_request`,
+    skipping the `obs.event` call below it entirely - a raising handler wrote
+    no `http_request` line at all. The fix moves that call into a `finally`,
+    so it runs on this path too, carrying the 500 Starlette's
+    `ServerErrorMiddleware` ultimately returns for an exception this
+    middleware never gets to see as a response.
+    """
+    import api.main as main_module
+
+    def boom(query, thread_id="default"):
+        raise RuntimeError("simulated failure, for this test only")
+
+    monkeypatch.setattr(main_module, "ask", boom)
+    local_client = TestClient(main_module.app, raise_server_exceptions=False)
+
+    def fn():
+        response = local_client.post(
+            "/ask", json={"query": "How is the EMI calculated?"}
+        )
+        assert response.status_code == 500
+
+    lines = _http_request_lines(caplog, fn)
+    assert len(lines) == 1
+    assert lines[0]["path"] == "/ask"
+    assert lines[0]["status"] == 500
+
+
 def test_the_trace_id_is_deterministic_for_add_document(caplog):
     """D-38's rule, applied to a request that produces no AgentResponse."""
     import shutil

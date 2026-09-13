@@ -9,7 +9,20 @@ client = TestClient(app)
 
 
 def test_36_ask_answers_a_policy_question_through_the_api():
-    """Spec section 16 test 36, Part 3 criterion 1."""
+    """Spec section 16 test 36, Part 3 criterion 1.
+
+    Criterion 1 asks for Pydantic request *and* response models on at least
+    two endpoints, so this covers both endpoints' declared response model,
+    not only /ask's behaviour.
+    """
+    from api.main import AddDocumentResponse, AskResponse
+
+    routes_by_path = {
+        route.path: route for route in app.routes if hasattr(route, "response_model")
+    }
+    assert routes_by_path["/ask"].response_model is AskResponse
+    assert routes_by_path["/add-document"].response_model is AddDocumentResponse
+
     response = client.post("/ask", json={"query": "How is the EMI on a loan calculated?"})
     assert response.status_code == 200
     body = response.json()
@@ -212,11 +225,12 @@ def test_40_add_document_never_writes_into_the_knowledge_base(clean_uploads):
         return digest.hexdigest()
 
     before = fingerprint()
-    client.post("/add-document", json={
+    response = client.post("/add-document", json={
         "title": "Auto loan top up",
         "body": "An existing auto loan may be topped up after twelve paid EMIs. " * 3,
         "products": ["Auto Loan"],
     })
+    assert response.status_code == 200
     assert fingerprint() == before
 
 
@@ -233,11 +247,12 @@ def test_a_rebuild_drops_every_upload(clean_uploads):
     import config
     from rag import index
 
-    client.post("/add-document", json={
+    response = client.post("/add-document", json={
         "title": "Education loan moratorium",
         "body": "An education loan carries a moratorium until course completion. " * 3,
         "products": ["Education Loan"],
     })
+    assert response.status_code == 200
     index.build_index(rebuild=True)
     collection = index.get_collection(config.UPLOAD_STRATEGY)
     stored = collection.get(include=["metadatas"])

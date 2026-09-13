@@ -11,3 +11,5 @@
 | Per-node timeout budget | 5.0s |
 | Whole-run timeout budget | 30.0s |
 | MCP URL | http://127.0.0.1:8765/mcp |
+
+<!-- End of generated block. -->

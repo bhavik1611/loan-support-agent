@@ -65,7 +65,7 @@ def _show(payload) -> str:
     return json.dumps(payload, indent=2, sort_keys=True)
 
 
-# --- Tasks 3 and 4, the API --------------------------------------------------
+# --- Task 11, the API --------------------------------------------------------
 
 
 def api_transcript() -> str:
@@ -73,7 +73,7 @@ def api_transcript() -> str:
     the loop the /add-document endpoint exists to demonstrate: refuse an
     unsupported question, add the document that answers it, ask again.
     """
-    lines = ["PART 3 TASKS 3 AND 4 - THE API", ""]
+    lines = ["PART 3 TASK 11 - THE API", ""]
 
     lines.append("--- POST /ask, one call ---")
     ask_query = "How is the EMI on a loan calculated?"
@@ -150,7 +150,7 @@ def api_transcript() -> str:
     return "\n".join(lines) + "\n"
 
 
-# --- Task 5, the request log line -------------------------------------------
+# --- Task 12, the request log line --------------------------------------------
 
 
 def _redact_duration(line: dict) -> dict:
@@ -185,7 +185,7 @@ def logging_transcript() -> str:
     test_api_logging.py applies through caplog, here applied to the real
     file a running deployment actually writes.
     """
-    lines = ["PART 3 TASK 5 - THE REQUEST LOG LINE", ""]
+    lines = ["PART 3 TASK 12 - THE REQUEST LOG LINE", ""]
 
     before = _log_line_count()
     fresh_ask("How is the EMI calculated?", thread_id="part3-log-plain")
@@ -220,7 +220,7 @@ def logging_transcript() -> str:
     return "\n".join(lines) + "\n"
 
 
-# --- Task 1, the RAG triad ---------------------------------------------------
+# --- Task 13, the RAG triad ---------------------------------------------------
 
 
 def triad_transcript() -> tuple[str, dict]:
@@ -316,6 +316,8 @@ def readme_numbers(triad_numbers: dict) -> str:
             f"| Average context relevance | {triad_numbers['context_relevance_avg']:.4f} |",
             f"| Average groundedness | {triad_numbers['groundedness_avg']:.4f} |",
             f"| Average answer relevance | {triad_numbers['answer_relevance_avg']:.4f} |",
+            "",
+            "<!-- End of generated block. -->",
             "",
         ]
     )

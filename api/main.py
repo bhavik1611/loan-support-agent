@@ -21,6 +21,7 @@ import config
 import obs
 from agent import guardrails
 from agent.graph import ask
+from agent.schema import AgentResponse as AskResponse
 from rag import chunking, index, kb
 
 obs.configure()
@@ -34,7 +35,21 @@ app = FastAPI(
 
 @app.middleware("http")
 async def log_request(request: Request, call_next):
-    """Task 12. One JSON line per request, per D-75.
+    """Task 12. One JSON line per request, per D-75, on every path including a 500.
+
+    `BaseHTTPMiddleware` (what `@app.middleware("http")` builds on) re-raises
+    whatever `call_next` raises rather than returning a response for it, so an
+    unhandled exception from the endpoint below - a `NodeTimeoutError` escaping
+    `ask`, for instance - would previously skip the whole logging block that
+    used to sit after `await call_next`, and the request went completely
+    unlogged. Criterion 2 is "log every request", so the line now lives in a
+    `finally`: it runs whether `call_next` returns or raises, and the status it
+    records is 200-ish on the happy path or 500 on the path where Starlette's
+    `ServerErrorMiddleware` (outside this one) converts the escaped exception
+    into a response this middleware never sees. The `raise` is implicit -
+    `finally` runs and then the original exception keeps propagating - so the
+    client-visible behaviour (and ServerErrorMiddleware's own handling) is
+    unchanged.
 
     The middleware is async because Starlette's middleware contract is; the
     endpoints below it stay sync for the reason in the module docstring.
@@ -47,54 +62,61 @@ async def log_request(request: Request, call_next):
     request._receive = receive
 
     started = time.perf_counter()
-    response = await call_next(request)
-    duration_ms = round(
-        (time.perf_counter() - started) * 1000, config.LOG_DURATION_PLACES
-    )
-
-    payload = {}
+    status_code = 500
     try:
-        payload = json.loads(body) if body else {}
-    except ValueError:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        duration_ms = round(
+            (time.perf_counter() - started) * 1000, config.LOG_DURATION_PLACES
+        )
+
         payload = {}
+        try:
+            payload = json.loads(body) if body else {}
+        except ValueError:
+            payload = {}
 
-    raw_query = payload.get("query", "")
-    masked_query, _ = guardrails.mask_pii(raw_query) if raw_query else ("", ())
+        raw_query = payload.get("query", "")
+        masked_query, _ = guardrails.mask_pii(raw_query) if raw_query else ("", ())
 
-    if request.url.path == "/ask" and raw_query:
-        # The response's own trace id, so the log line joins to the transcript
-        # that produced it, per D-38.
-        #
-        # Deliberately no `+ 1` here, unlike agent/graph.py:111's
-        # `len(memory.load(thread_id).turns) + 1`: that call runs *before* the
-        # graph executes, so it has to predict the turn number a not-yet-persisted
-        # turn will get. This line runs after `await call_next` above, i.e. after
-        # the endpoint (and the memory.record_turn call inside it) has already
-        # completed, so `len(memory.load(thread_id).turns)` here already counts
-        # the turn this same request just persisted - it already equals the
-        # `turn` D-38's trace_id was built from. Adding another `+ 1` double
-        # counts and was measured to produce a trace_id one turn ahead of the
-        # response's own; do not "fix" this back to `+ 1` without re-measuring.
-        from agent import memory, schema
+        if request.url.path == "/ask" and raw_query:
+            # The response's own trace id, so the log line joins to the transcript
+            # that produced it, per D-38.
+            #
+            # Deliberately no `+ 1` here, unlike agent/graph.py:111's
+            # `len(memory.load(thread_id).turns) + 1`: that call runs *before* the
+            # graph executes, so it has to predict the turn number a not-yet-persisted
+            # turn will get. This line runs after `await call_next` above, i.e. after
+            # the endpoint (and the memory.record_turn call inside it) has already
+            # completed on the success path, so `len(memory.load(thread_id).turns)`
+            # here already counts the turn this same request just persisted - it
+            # already equals the `turn` D-38's trace_id was built from. Adding
+            # another `+ 1` double counts and was measured to produce a trace_id
+            # one turn ahead of the response's own; do not "fix" this back to
+            # `+ 1` without re-measuring. On the exception path no turn was
+            # persisted, so this reads the same turn count the request started
+            # with - the id still deterministically identifies the attempt.
+            from agent import memory, schema
 
-        thread_id = payload.get("thread_id", "default")
-        turn = len(memory.load(thread_id).turns)
-        trace_id = schema.trace_id(thread_id, turn, masked_query)
-    else:
-        # No AgentResponse exists for this request, so the id comes from the
-        # body. Canonical JSON, so key order in the request cannot change it.
-        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-        trace_id = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+            thread_id = payload.get("thread_id", "default")
+            turn = len(memory.load(thread_id).turns)
+            trace_id = schema.trace_id(thread_id, turn, masked_query)
+        else:
+            # No AgentResponse exists for this request, so the id comes from the
+            # body. Canonical JSON, so key order in the request cannot change it.
+            canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+            trace_id = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
 
-    obs.event(
-        "http_request",
-        trace_id=trace_id,
-        path=request.url.path,
-        status=response.status_code,
-        duration_ms=duration_ms,
-        query_masked=masked_query,
-    )
-    return response
+        obs.event(
+            "http_request",
+            trace_id=trace_id,
+            path=request.url.path,
+            status=status_code,
+            duration_ms=duration_ms,
+            query_masked=masked_query,
+        )
 
 
 class AskRequest(BaseModel):
@@ -107,8 +129,8 @@ class AskRequest(BaseModel):
     )
 
 
-@app.post("/ask")
-def ask_endpoint(request: AskRequest) -> dict:
+@app.post("/ask", response_model=AskResponse)
+def ask_endpoint(request: AskRequest) -> AskResponse:
     """Answer one question, through the full nine-node graph.
 
     `ask` wraps asyncio.run (D-78). A slow tool call ties up this threadpool
@@ -117,6 +139,12 @@ def ask_endpoint(request: AskRequest) -> dict:
     handed work to and CPython cannot kill a running thread. The graph's
     timeouts bound the graph, not this endpoint's wall clock. This is a known,
     documented cost, not something fixed here.
+
+    `AskResponse` is `agent.schema.AgentResponse` itself, not a second model
+    describing the same shape by hand: `ask()` already returns exactly that
+    envelope, validated against the committed JSON Schema before it ever
+    reaches here (agent/nodes.py::compose), so redeclaring the fields here
+    would only be a second place for the two to drift apart.
     """
     return ask(request.query, thread_id=request.thread_id)
 
@@ -164,6 +192,11 @@ def add_document_endpoint(request: AddDocumentRequest) -> AddDocumentResponse:
     off that directory rather than off catalogue.json, so D-72 stays
     unmodified and rag/ still has no dependency on api/. tests/test_api.py
     pins this for both a product-naming and a product-free query.
+
+    `request.products` is validated against the catalogue above and then
+    discarded (D-86): every upload joins the narrowing set of every product,
+    not only the ones it declared, so nothing downstream reads the field
+    back to decide what an upload is "about".
     """
     from fastapi import HTTPException
 
