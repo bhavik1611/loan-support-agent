@@ -19,7 +19,11 @@ from db.generate import is_valid_aadhaar
 from rag import retrieve
 import obs
 
-_PAN = re.compile(r"\b[A-Z]{5}[0-9]{4}[A-Z]\b")
+# Case-insensitive, because a PAN typed in lower case is the same PAN and the
+# mask is fail-safe by design. This was the only one of the three patterns a
+# holder could defeat by not holding shift: the two digit patterns below have
+# no letters in them to be case-sensitive about.
+_PAN = re.compile(r"\b[A-Z]{5}[0-9]{4}[A-Z]\b", re.IGNORECASE)
 
 # Grouped form first, because the bare-digits pattern would otherwise match
 # only the first group of four and leave the rest of the number in the clear.
