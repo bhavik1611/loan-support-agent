@@ -1,0 +1,8 @@
+# The Streamlit app is NOT part of any acceptance criterion. It is here
+# because a portfolio artefact is read by a person, per D-81. Install it only
+# if you want the screen:
+#     VIRTUAL_ENV=.venv uv pip install -r requirements-ui.txt
+#
+# The graded path is requirements.txt alone, per D-83.
+streamlit
+requests

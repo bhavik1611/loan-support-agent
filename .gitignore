@@ -38,3 +38,11 @@ CLAUDE.md
 
 # Groq demo output. Not reproducible, so never committed.
 demo/
+
+# SDD scratch workspace. Not a deliverable.
+.superpowers/
+checkpoints.sqlite
+data/uploads/
+
+# Independent grading review. A review of the submission, not part of it.
+docs/2026-09-13-v1-review-and-v2-triage.md

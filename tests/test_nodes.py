@@ -1,5 +1,7 @@
 """The nine nodes, each tested as a pure function without building a graph."""
 
+import asyncio
+
 from agent import memory, nodes, state
 from rag import generate as rag_generate
 
@@ -127,7 +129,7 @@ def test_the_gate_refusal_names_the_product_instead_of_the_part_1_fallback():
 
 def test_lookup_status_writes_only_the_lookup_key(db_conn, monkeypatch):
     monkeypatch.setattr("agent.tools.query.customer_context", lambda rid, conn=None: {"customer_id": "CU-001"})
-    result = nodes.lookup_status(_state("q", record_id="LN-1042"))
+    result = asyncio.run(nodes.lookup_status(_state("q", record_id="LN-1042")))
     assert set(result) == {"lookup"}
     assert result["lookup"]["record_id"] == "LN-1042"
 
@@ -136,7 +138,7 @@ def test_the_two_branch_nodes_write_disjoint_keys(built_index, db_conn, monkeypa
     """Test 27. This is the property that makes the fan-out deterministic."""
     monkeypatch.setattr("agent.tools.query.customer_context", lambda rid, conn=None: {"customer_id": "CU-001"})
     policy_keys = set(nodes.policy_answer(_state("q", masked_query="What is the EMI formula?")))
-    lookup_keys = set(nodes.lookup_status(_state("q", record_id="LN-1042")))
+    lookup_keys = set(asyncio.run(nodes.lookup_status(_state("q", record_id="LN-1042"))))
     assert policy_keys.isdisjoint(lookup_keys)
 
 

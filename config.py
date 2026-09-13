@@ -307,6 +307,19 @@ NOUN_PHRASE_MARKERS = frozenset(
 # agent/schema.py exports it and scripts/run_part2.py asserts it is current.
 RESPONSE_SCHEMA_PATH = REPO_ROOT / "agent" / "response.schema.json"
 
+# --- Part 3, POST /add-document (D-72) -------------------------------------
+
+# Runtime-uploaded documents. Gitignored, and never inside knowledge_base/,
+# per D-72: writing there would move Precision@3, Recall@3 and every chunk
+# count in the Part 1 transcripts.
+UPLOAD_DIR = DATA_DIR / "uploads"
+UPLOAD_DOC_PREFIX = "kb-up-"
+
+# Only kb_sentences takes uploads. It is the collection Part 2 consumes and
+# the one Task 5 recommended; upserting into both would double the work for a
+# collection nothing downstream reads.
+UPLOAD_STRATEGY = STRATEGY_SENTENCES
+
 # --- Environment ----------------------------------------------------------
 
 # .env is read once, at import, and never overrides a variable the real
@@ -364,8 +377,67 @@ LOG_DIR = REPO_ROOT / "logs"
 LOG_FILE = LOG_DIR / "agent.jsonl"
 
 # Quiet by default, so adding the spine changed nothing about an ordinary run.
-LOG_LEVEL = os.environ.get("LOG_LEVEL", "WARNING")
+# `or`, not a `get` default: `.env.example` declares LOG_LEVEL with no value, so
+# `cp .env.example .env` - the command README.md gives - puts an empty string in
+# the environment. `get("LOG_LEVEL", "WARNING")` returns that empty string, and
+# obs.py's getattr(logging, "", ...) then falls back to WARNING silently.
+LOG_LEVEL = os.environ.get("LOG_LEVEL") or "WARNING"
 
 # Durations are rounded to this many decimal places before they are logged, so
 # clock noise never becomes the reason two runs look different (D-70).
 LOG_DURATION_PLACES = 1
+
+# ---------------------------------------------------------------------------
+# Part 4, resilience and MCP. Spec section 25.
+# ---------------------------------------------------------------------------
+
+# Per-node budget for the one node that does record I/O. Generous against a
+# local SQLite read that takes single-digit milliseconds, so it never fires in
+# ordinary operation and only the Task 16 shim can trip it.
+NODE_TIMEOUT_SECONDS = 5.0
+
+# Whole-run budget, enforced by asyncio.wait_for around ainvoke. Larger than
+# the per-node budget by more than one node's worth, so a single slow node
+# trips its own timeout first and the global one means what it says.
+GRAPH_TIMEOUT_SECONDS = 30.0
+
+# The four parameters the brief asks you to state, plus the one it does not.
+# jitter is OFF deliberately: a jittered sleep makes the retry transcript's
+# timings irreproducible, and the determinism ground rule outranks the small
+# thundering-herd benefit a single-process demo cannot exhibit anyway.
+RETRY_MAX_ATTEMPTS = 3
+RETRY_INITIAL_INTERVAL = 0.05
+RETRY_BACKOFF_FACTOR = 2.0
+RETRY_MAX_INTERVAL = 0.4
+RETRY_JITTER = False
+
+# Ports. The brief introduces 8000 for MCP with "e.g." while being insistent
+# about the /mcp path, so the API keeps its own default and MCP moves. D-79.
+API_PORT = 8000
+MCP_PORT = 8765
+MCP_PATH = "/mcp"
+MCP_HOST = "127.0.0.1"
+MCP_URL = f"http://{MCP_HOST}:{MCP_PORT}{MCP_PATH}"
+
+# Graph execution state for resuming a half-finished run. Not the conversation:
+# that is data/conversations/, readable and diffable. Gitignored, regenerable.
+CHECKPOINT_PATH = REPO_ROOT / "checkpoints.sqlite"
+
+# ---------------------------------------------------------------------------
+# Part 3, the RAG triad. Spec section 24.
+# ---------------------------------------------------------------------------
+
+# Scores are ratios in [0, 1]. Four places is enough to separate the classes
+# and few enough that a transcript diff never moves on floating-point noise.
+TRIAD_SCORE_PLACES = 4
+
+# Tokens carrying no topical content. Deliberately short and closed: the judge
+# measures overlap, and a long stop list would start deleting the words that
+# distinguish one policy question from another. Drawn from the query set's own
+# function words, not from a general English stop list.
+TRIAD_STOPWORDS = frozenset({
+    "a", "an", "and", "are", "as", "at", "be", "by", "can", "do", "does",
+    "for", "from", "how", "i", "if", "in", "is", "it", "me", "much", "must",
+    "my", "of", "on", "or", "the", "to", "what", "when", "which", "will",
+    "with", "you", "your",
+})

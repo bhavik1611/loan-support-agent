@@ -1,0 +1,36 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "db.build (rebuild database + manifest)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "db.build",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "run_part1.py",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.run_part1",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+        ,
+        {
+            "name": "run_part2.py",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.run_part2",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+    ]
+}
