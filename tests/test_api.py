@@ -78,23 +78,25 @@ def clean_uploads():
 def test_add_document_makes_a_previously_refused_question_answerable(clean_uploads):
     """The loop the endpoint exists to demonstrate: refuse, add, answer.
 
-    The query names no catalogue product on purpose. D-53 narrows retrieval
-    to catalogue.json's doc ids whenever a query names a catalogue product,
-    and an upload is never in the catalogue (D-72 forbids writing there), so
-    a product-naming query can never reach an upload - see the boundary test
-    below and the comment on add_document_endpoint. "How long does a home
-    loan take to disburse after approval?" names Home Loan and is refused at
-    top-1 0.4534 today, but adding this same document never moves that
-    number, unfiltered or not. This query is the one candidate that is both
-    unfiltered and genuinely refused beforehand: refused_threshold at top-1
-    0.3820, and answered afterward at top-1 0.7569, measured 2026-09-13. D-13
-    leaves Precision@3/Recall@3-adjacent numbers like these unpinned on
-    purpose - they move legitimately when chunk parameters are tuned - so the
+    The query names its catalogue product on purpose, and succeeds anyway:
+    rag/retrieve.py's product narrowing (D-53) is now the catalogue's doc ids
+    union whatever POST /add-document has written to data/uploads/, so an
+    upload is reachable from exactly the query a user is most likely to ask -
+    the one naming the product the upload is about. Before that change this
+    demo had to use a product-free query to reach the upload at all; that
+    boundary is gone (see test_add_document_is_visible_to_a_query_naming_its_catalogue_product)
+    and this is the better demo because of it.
+
+    "How long does a home loan take to disburse after approval?" names Home
+    Loan and is refused today at top-1 0.4534; adding this document raises it
+    to top-1 0.8702 and answers, measured 2026-09-13. D-13 leaves
+    Precision@3/Recall@3-adjacent numbers like these unpinned on purpose -
+    they move legitimately when chunk parameters are tuned - so the
     assertions below are relational (refused before, answered after, on a
     strictly higher score) and the measured values live in this docstring as
     recorded evidence rather than as a test that would fight retuning.
     """
-    query = "How long does disbursement take after approval?"
+    query = "How long does a home loan take to disburse after approval?"
 
     before = client.post("/ask", json={"query": query, "thread_id": "up-a"}).json()
     assert before["policy"]["outcome"].startswith("refused")
@@ -123,16 +125,19 @@ def test_add_document_makes_a_previously_refused_question_answerable(clean_uploa
     assert any(c.startswith("kb-up-") for c in after["policy"]["citations"])
 
 
-def test_add_document_is_invisible_to_a_query_naming_its_catalogue_product(clean_uploads):
-    """The known boundary D-72 and D-53 leave behind, pinned rather than left as prose.
+def test_add_document_is_visible_to_a_query_naming_its_catalogue_product(clean_uploads):
+    """The boundary this used to pin is reversed on purpose, not a regression.
 
-    D-53 narrows retrieval to the doc ids catalogue.json tags with a named
-    product; an upload is never in the catalogue, so it is unreachable from a
-    query naming one, even though the identical question with no product
-    named reaches it. Fixing this means either writing into knowledge_base/,
-    which D-72 forbids, or teaching the product filter about uploads, which
-    is a V2 change to rag/kb.py and rag/retrieve.py, out of this task's
-    scope. This test fails loudly if the filter ever changes to close the gap.
+    Before, rag/retrieve.py's product narrowing (D-53) built its `doc_id` `$in`
+    clause from catalogue.json alone, so a query naming a catalogue product
+    could never reach an upload - only the identical question with no product
+    named could. Bhavik chose to close that gap rather than document it as a
+    V1 limit: the narrowing set is now the catalogue's doc ids union every
+    doc id POST /add-document has written to data/uploads/, read straight off
+    the directory (rag/retrieve.py::_uploaded_doc_ids), so rag/ still has no
+    dependency on api/ and knowledge_base/ and catalogue.json stay untouched -
+    D-72 is unchanged. This test now pins the closed gap: a query naming the
+    upload's product must reach it, exactly like a query naming no product.
     """
     added = client.post("/add-document", json={
         "title": "Home loan disbursal timeline",
@@ -153,7 +158,7 @@ def test_add_document_is_invisible_to_a_query_naming_its_catalogue_product(clean
         "query": "How long does a home loan take to disburse after approval?",
         "thread_id": "boundary-named",
     }).json()
-    assert not any(c.startswith("kb-up-") for c in named_product["policy"]["citations"])
+    assert any(c.startswith("kb-up-") for c in named_product["policy"]["citations"])
 
     no_product_named = client.post("/ask", json={
         "query": "How long does disbursement take after approval?",
