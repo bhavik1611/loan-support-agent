@@ -15,6 +15,8 @@ pydantic
 # Part 4 - MCP and resilience
 fastmcp
 langgraph-checkpoint-sqlite
+# AsyncSqliteSaver needs it, and the graph is async-only per D-78.
+aiosqlite
 
 # Tooling
 pytest
