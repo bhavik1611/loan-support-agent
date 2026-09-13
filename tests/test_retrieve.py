@@ -65,3 +65,30 @@ def test_the_answer_decision_needs_both_conditions():
 def test_an_unknown_strategy_raises():
     with pytest.raises(ValueError):
         retrieve.retrieve("anything", "semantic")
+
+
+def test_an_orphaned_upload_file_is_silently_ignored_by_the_union(built_index):
+    """The gap between api/main.py writing data/uploads/<doc_id>.txt and indexing
+    its chunks into Chroma is not atomic: a crash in between leaves a file
+    whose doc id `_uploaded_doc_ids()` still lists, but which no chunk carries.
+    Chroma's `doc_id` `$in` clause simply matches nothing for that id, so this
+    pins the behaviour as a silent no-op rather than leaving it
+    correct-by-inspection only - no KeyError, no wrong hit, and retrieval for
+    the same query and product is byte-identical with or without the orphan.
+    """
+    baseline = retrieve.retrieve(
+        "How is the EMI calculated?", config.STRATEGY_SENTENCES, product="Personal Loan"
+    )
+
+    config.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    orphan = config.UPLOAD_DIR / f"{config.UPLOAD_DOC_PREFIX}99.txt"
+    orphan.write_text("An orphaned upload file with no indexed chunks.\n")
+    try:
+        with_orphan = retrieve.retrieve(
+            "How is the EMI calculated?", config.STRATEGY_SENTENCES, product="Personal Loan"
+        )
+        assert with_orphan == baseline
+    finally:
+        orphan.unlink()
+        if not any(config.UPLOAD_DIR.iterdir()):
+            config.UPLOAD_DIR.rmdir()

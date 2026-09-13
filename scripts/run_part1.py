@@ -325,9 +325,33 @@ def require_mock_provider() -> None:
         )
 
 
+def require_no_stray_uploads() -> None:
+    """Refuse to write graded artefacts while data/uploads/ holds a file.
+
+    rag/retrieve.py's product narrowing reads config.UPLOAD_DIR live and
+    unions its doc ids into every product-named query (D-72's V2 note). A
+    file left there by a manual /add-document session, a crashed test, or an
+    interrupted run would silently join that union here too and move
+    transcripts/ and the README number blocks, with no code change and no
+    error - the same failure shape require_mock_provider guards against for a
+    real provider.
+    """
+    if config.UPLOAD_DIR.exists():
+        stray = sorted(p.name for p in config.UPLOAD_DIR.iterdir())
+        if stray:
+            sys.exit(
+                f"Refusing to run: {config.UPLOAD_DIR.relative_to(config.REPO_ROOT)} "
+                f"holds {stray}. rag/retrieve.py's product narrowing reads this "
+                f"directory live, so a stray upload would move graded, "
+                f"byte-guarded artefacts with no code change. Clear it first: "
+                f"rm -r {config.UPLOAD_DIR.relative_to(config.REPO_ROOT)}"
+            )
+
+
 def main() -> None:
     """Main function."""
     require_mock_provider()
+    require_no_stray_uploads()
     print("Part 1 - running every task under MOCK_LLM")
     print()
 
