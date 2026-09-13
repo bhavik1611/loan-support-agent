@@ -245,6 +245,26 @@ An async graph with a retry policy on the one node that reads a record, two time
 Transcripts: [`part4-mcp`](transcripts/part4-mcp.txt) - a real client-server round trip, the server and client as two separate processes over loopback HTTP; [`part4-resilience`](transcripts/part4-resilience.txt) - the retry policy recovering a transient failure, a node over its own budget raising `NodeTimeoutError`, and a run over the whole-run budget being cancelled outright; [`part4-checkpoint`](transcripts/part4-checkpoint.txt) - the two invocations of a checkpointed turn, naming which nodes ran in each and which were loaded from the checkpoint rather than re-executed.
 Design and the alternatives each choice beat: spec section 25.
 
+## The Streamlit app
+
+`ui/app.py` is not graded evidence and carries no acceptance criterion, per D-81: the brief accepts no screenshots, so a running screen can never enter this repository as proof of anything.
+It exists because a portfolio project is read by a person, and a form is not fun to try by hand.
+
+It is the last thing built for exactly that reason - it is the first thing that would be cut if time ran short, and cutting it disturbs nothing graded.
+Per D-82 it talks to `POST /ask` over loopback HTTP only, and imports nothing from `agent/`, `rag/`, `dataset` or `db` - test 46 in [`tests/test_ui.py`](tests/test_ui.py) parses its imports and fails the build if that boundary is ever crossed.
+That boundary is the point: every click drives the real Part 3 API, so every click writes a real Task 12 line to `logs/agent.jsonl`, rather than a second, undocumented path that answers questions on its own and never touches that log.
+It also does not import `config`, for the same reason it does not import `agent` - the two constants it needs (the API port and the escalation threshold) are read from environment variables that default to `config.py`'s own values, mirrored by hand rather than imported.
+
+```bash
+VIRTUAL_ENV=.venv uv pip install -r requirements-ui.txt   # streamlit, requests - never in requirements.txt, per D-83
+.venv/bin/python -m uvicorn api.main:app --port 8000 &
+.venv/bin/python -m streamlit run ui/app.py
+```
+
+The screen holds a thread id box and a **New conversation** button, so memory and its absence are visible in two clicks: ask a question, ask a follow-up using "it", press New conversation, then ask the same follow-up again and watch it need clarification instead of answering from memory.
+A guardrail strip lights up on PII masking, prompt injection and an ungrounded refusal, each with its own example-query button so a reader can fire it without inventing one.
+Every answer's trace id is shown as copyable text - the join key to the matching line in `logs/agent.jsonl`.
+
 ## What this does not do
 
 Real limits, each carried on purpose rather than fixed, stated the way [`rag/scope.py`](rag/scope.py) already states its own: the limit, the measurement that shows it, and why it stayed.

@@ -23,3 +23,5 @@ pytest
 
 # Provider
 python-dotenv
+
+# The optional Streamlit app has its own file: requirements-ui.txt. D-83.
