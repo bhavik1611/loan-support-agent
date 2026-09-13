@@ -93,7 +93,7 @@ def _score_lexically(query: str, answer_text: str, context: str) -> TriadScores:
 
 def score(query: str, answer_text: str, context: str) -> TriadScores:
     """The three scores. Mock computes them; a real provider is asked for them."""
-    if config.MOCK_LLM:
+    if config.resolve_provider() == config.DEFAULT_PROVIDER:
         return _score_lexically(query, answer_text, context)
 
     system, user = build_judge_prompt(query, answer_text, context)

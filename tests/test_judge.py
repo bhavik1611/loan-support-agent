@@ -83,6 +83,54 @@ def test_scoring_is_deterministic():
     assert first == second
 
 
+def test_judge_stays_lexical_even_when_the_frozen_mock_flag_is_wrong(monkeypatch):
+    """Regression for the import-time snapshot bug.
+
+    config.MOCK_LLM is computed once, at import, from whatever .env held at
+    that moment. tests/conftest.py's pinned_to_mock fixture pins the LIVE
+    LLM_PROVIDER env var to "mock" for every test via monkeypatch.setenv,
+    which cannot retroactively change that already-computed constant. Before
+    the fix, eval/judge.py checked config.MOCK_LLM directly, so a checkout
+    where .env held LLM_PROVIDER=groq at process start would freeze
+    MOCK_LLM=False for the whole session - the judge would then silently
+    take the real-provider path in every single test, pin or no pin, which
+    is the actual, measured failure this test exists to catch (json.loads
+    choking on mock's own template text, or a raised ProviderError, both
+    surfacing as spurious suite failures with a real .env on disk). llm.py's
+    own resolve_provider() call is call-time and was never affected by this;
+    the fix makes eval/judge.py resolve the same way, at call time, instead
+    of trusting the frozen constant.
+
+    A plain monkeypatch.setenv("LLM_PROVIDER", "groq") here would not
+    reproduce the bug: resolve_provider() is deliberately call-time (matching
+    llm.py), so telling it the truth (groq) makes it correctly go real - that
+    is the fix working as intended, not a regression. The actual bug was the
+    frozen constant disagreeing with the live, pinned environment, so this
+    test reproduces that disagreement directly: config.MOCK_LLM is
+    monkeypatched to False (standing in for the stale, wrong snapshot) while
+    LLM_PROVIDER itself is left exactly as the autouse pin already set it
+    (mock) - the live truth judge.score must actually consult. No
+    GROQ_API_KEY is set either, so if judge.score ever reaches llm.generate
+    on this path it fails loudly rather than silently attempting a network
+    call.
+    """
+    import config
+
+    monkeypatch.setattr(config, "MOCK_LLM", False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+
+    scores = judge.score(
+        "How is the EMI calculated?",
+        "The EMI is calculated from the principal, the interest rate and the tenure.",
+        CONTEXT,
+    )
+    assert scores == judge._score_lexically(
+        "How is the EMI calculated?",
+        "The EMI is calculated from the principal, the interest rate and the tenure.",
+        CONTEXT,
+    )
+
+
 def _score_all_triad_rows() -> dict:
     """Every triad row answered and scored once, keyed by item_id.
 
