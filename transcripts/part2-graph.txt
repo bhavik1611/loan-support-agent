@@ -42,7 +42,7 @@ query: How is the EMI on a loan calculated?
 --- route: lookup ---
 query: What is the status of LN-1042?
 {
-  "answer": "Application LN-1042 for Vihaan Pillai is Rejected, for 1,544,000 rupees, and was created 9 days ago. Vihaan Pillai has 0 open application(s) with us. Its escalation score is 0.0, below the 0.5 threshold, so no escalation is needed.",
+  "answer": "Application LN-1042 for Vihaan Pillai is Rejected, for 1,544,000 rupees, and was created 9 days ago. Vihaan Pillai has 0 open application(s) with us.",
   "guardrails": {
     "grounded": null,
     "injection_rule": null,
@@ -75,7 +75,7 @@ query: What is the status of LN-1042?
 --- route: both ---
 query: Why is LN-1042 still under review, and what is the eligibility rule?
 {
-  "answer": "Application LN-1042 for Vihaan Pillai is Rejected, for 1,544,000 rupees, and was created 9 days ago. Vihaan Pillai has 0 open application(s) with us. Its escalation score is 0.0, below the 0.5 threshold, so no escalation is needed.\n\nI do not know. The loan support knowledge base does not contain enough supporting material to answer that question, so I will not guess.",
+  "answer": "Application LN-1042 for Vihaan Pillai is Rejected, for 1,544,000 rupees, and was created 9 days ago. Vihaan Pillai has 0 open application(s) with us.\n\nI do not know. The loan support knowledge base does not contain enough supporting material to answer that question, so I will not guess.",
   "guardrails": {
     "grounded": false,
     "injection_rule": null,

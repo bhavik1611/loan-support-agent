@@ -28,6 +28,20 @@ import obs
 
 RECORD_ID = re.compile(r"\bLN-\d{4}\b", re.IGNORECASE)
 
+# A first-person reference to the asker's own application: "my application",
+# "our home loan application", "my file". Deliberately NOT folded into
+# memory.needs_resolution, which eval/routing.py measures and which is right
+# to call "my application" self-contained - it is a complete noun phrase with
+# its own determiner. It is still a reference to one record once the thread
+# holds one, and turn 2 of an ordinary support conversation is made of them:
+# "why was my application rejected", "why is my loan denied". None of the
+# twelve SELF_CONTAINED_PROBES match, because each says "my credit score",
+# "my card" or a bare "loan applications" rather than "my loan".
+OWN_RECORD = re.compile(
+    r"\b(?:my|our)\s+(?:\w+\s+){0,2}(?:loan|loans|application|applications|file|request|case)\b",
+    re.IGNORECASE,
+)
+
 # Words that mean the asker also wants the rule, not only the record.
 POLICY_CUES = (
     "policy", "rule", "rules", "eligibility", "eligible", "criteria",
@@ -147,12 +161,19 @@ def _classify(query: str, entities: dict, clarify_used: bool = False) -> RouteDe
             )
         return RouteDecision("lookup", resolved, {}, "resolved from the entity slot")
 
+    own_record = False
+    if record_id is None and OWN_RECORD.search(query):
+        resolved = entities.get("last_record_id")
+        if resolved is not None:
+            record_id, own_record = resolved, True
+
     if record_id is not None:
+        source = "own-record reference" if own_record else "record id present"
         if has_policy_language(query):
             return RouteDecision(
-                "both", record_id, {}, "record id plus policy language"
+                "both", record_id, {}, f"{source} plus policy language"
             )
-        return RouteDecision("lookup", record_id, {}, "record id present")
+        return RouteDecision("lookup", record_id, {}, source)
 
     scores = intent_scores(query)
     winner = max(scores, key=scores.get)
@@ -161,5 +182,23 @@ def _classify(query: str, entities: dict, clarify_used: bool = False) -> RouteDe
         if clarify_used:
             return RouteDecision("policy", None, scores, "clarify already used")
         return RouteDecision("clarify", None, scores, "vague centroid won")
+
+    if winner == "lookup":
+        # The lookup centroid can win on similarity alone, with no id in the
+        # query and none resolvable. Routing there anyway calls the tool with
+        # None, which returns a miss whose record_id is None, which LookupBlock
+        # rejects: measured as an uncaught ValidationError in compose and an
+        # HTTP 500 from POST /ask on "Why is my application rejected?". Five of
+        # six ordinary no-id status phrasings did this.
+        resolved = entities.get("last_record_id")
+        if resolved is not None:
+            return RouteDecision(
+                "lookup", resolved, scores, "lookup intent resolved from the entity slot"
+            )
+        if clarify_used:
+            return RouteDecision("policy", None, scores, "clarify already used")
+        return RouteDecision(
+            "clarify", None, scores, "lookup intent with no record id to use"
+        )
 
     return RouteDecision(winner, None, scores, "nearest intent centroid")
