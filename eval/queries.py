@@ -18,8 +18,23 @@ them (D-55):
 |--------------------|---------------|----|-----------------------------------------|
 | answerable         | EQ-01..EQ-12  | 12 | answer, citing its parent               |
 | outside_boundary   | OB-01..OB-10  | 10 | refuse at the gate, before retrieval    |
-| inside_uncovered   | IU-01..IU-02  |  2 | refuse on the threshold and support rule|
+| inside_uncovered   | IU-01..IU-02  |  2 | not uniform - see note below             |
 | far_out_of_scope   | FO-01..FO-05  |  5 | refuse on the threshold                 |
+
+Measured 2026-09-13, under MOCK_LLM: inside_uncovered does not deliver one
+behaviour for both items, so the row above no longer claims it does. IU-01
+("Can I get a credit card from another bank with a low limit?") is refused -
+outcome=refused_threshold, top1=0.3931 against T=0.3066 - but it clears the
+similarity threshold outright and is refused by the support rule alone, since
+its top three chunks parent to three different documents (kb-01-loan-
+eligibility, kb-15-card-late-payment-charges, kb-12-nri-account-eligibility).
+IU-02 ("How do I transfer money to an account in another country?") is
+answered, not refused: top1=0.4645, also above T, and all three chunks parent
+to kb-12-nri-account-eligibility, so the >= 2 of 3 support rule passes as
+well as the threshold. tests/test_judge.py's
+test_iu02_is_answered_not_refused_and_context_relevance_catches_it pins IU-02's
+measured behaviour and why groundedness cannot catch it; this file's own
+prose is the piece that was stale, not the pipeline.
 
 The 12 answerable items keep the ids and the byte-identical text they were
 committed with, so every Precision@3 and Recall@3 number already in README.md
