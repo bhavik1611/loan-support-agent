@@ -1,12 +1,15 @@
 # Loan Support Agent - design specification
 
-Status: approved design for Parts 1 and 2, declared interfaces for Parts 3 and 4, roadmap only for V2.
+Status: approved design for Parts 1 to 4, roadmap only for V2.
 Written 2026-09-10 after two grilling rounds.
 Amended 2026-09-12 after three more, adding the time axis in D-26 to D-31.
 Amended again 2026-09-12, adding Part 2 in sections 10 to 14 and D-33 to D-45, approved off the review artifact of that date.
 Amended again 2026-09-12, adding the Groq provider and observability in sections 20 and 21 and D-59 to D-71, approved off three grilling rounds of that date.
 Those entries were written as D-58 to D-70 on a branch and renumbered on merge, because D-58 was taken by the scope-gate decision that landed first.
 Sections 20 and 21 are appended rather than inserted, so no existing section number moves and the dated plans keep their citations.
+Amended again 2026-09-13, adding Parts 3 and 4 in sections 22 to 26 and D-72 to D-85, approved off two grilling rounds of that date.
+D-85 was not put to a round: it is forced by D-77 and D-78 together, and its only alternatives are reversing one of them.
+Sections 22 to 26 are appended rather than inserted, for the same reason sections 20 and 21 were.
 Authority: `reference/problem-statement.md` is the brief; where this document and the brief disagree, the brief wins and this document is wrong.
 Section numbering changed in that amendment so the parts read in order; the two dated plans under `docs/superpowers/plans/` cite the numbering as it stood when they were written, and are left alone because a dated plan is a record.
 
@@ -151,6 +154,28 @@ Tasks 6 to 10. Approved 2026-09-12 off the review artifact of that date.
 | D-70 | The shape of a log line | JSON lines to stderr and a gitignored `logs/`, keyed on the existing deterministic `trace_id`, level from `LOG_LEVEL`, stdlib `logging` only, durations at coarse resolution | Human-readable text lost because Part 3's structured logging would reparse it. Logs inside the graded transcripts lost because it breaks tests 1 and 12 and the reproducibility claim in one move. `trace_id` is reused rather than replaced because D-38 already made it deterministic and tested, so the join key needed no invention. |
 | D-71 | What a log line may never contain | Every logged query passes through `mask_pii`. The API key is never logged in any form. Prompts and retrieved context are logged as doc ids, counts and lengths, never as full text | Logging prompts in full lost because the brief puts PII masking on the input side and the query **is** the input side, so it would write PAN-shaped and Aadhaar-shaped strings to a file on disk. Observability is the usual way a PII rule is broken, because the rule is normally written for responses and not for diagnostics. Reproducing a prompt locally from the logged doc ids covers the debugging case. |
 
+### 3.7 Parts 3 and 4
+
+Tasks 11 to 16, the screen, and the one round-1 answer that a measurement overturned.
+
+| # | Decision | Chosen | Rejected, and why it lost |
+|---|---|---|---|
+| D-72 | Whether the corpus may grow at runtime | `POST /add-document` writes to a gitignored `data/uploads/` and upserts into the live `kb_sentences` collection only. `knowledge_base/` is never written | Writing a real `kb-19-*.txt` lost because it moves Precision@3, Recall@3 and every chunk count in the Part 1 transcripts, and the demo stops being idempotent. A different second endpoint such as `GET /health` lost because it satisfies the criterion while demonstrating nothing the RAG core had not already shown. **Measured**: the demo query "How long does a home loan take to disburse after approval?" passes the scope gate as `Home Loan` and refuses today at top-1 0.4534 with no citations, so the gap it fills is real rather than manufactured. `build_index` already drops the uploads on its next run, because it rebuilds any collection whose count does not match the corpus. |
+| D-73 | The 15 triad queries | The 12 `answerable` items, two `far_out_of_scope`, and IU-02, selected by `item_id` out of `GOLDEN_DATASET` rather than copied as strings | Three far probes lost because every negative would then be an easy negative, and the triad would report clean averages while measuring nothing hard. A fresh 15 lost because it is a second set to keep disjoint from the calibration probes, for no gain and no continuity with Part 1's evidence. IU-02 is included deliberately: it is the probe of 18.2 item 5 that reads 0.4645 and answers confidently from the wrong document, and a triad that cannot mark it down is not measuring groundedness. |
+| D-74 | What the judge scores on under `MOCK_LLM` | Three lexical scorers over n-gram containment, behind the `llm.generate` seam so D-59's one switch still holds | Cosine similarity from `rag/index.embed` lost because the judge and the retriever would share one signal and the judge would agree with retrieval by construction, which is 18.4's pattern a fifth time; IU-02 would score high on all three. A fixed mock verdict lost because the three averages would be properties of the branch rather than of the system. The scores are labelled deterministic proxies in `README.md`, never a model's judgement. |
+| D-75 | The per-request log line and its trace id | One line from a FastAPI middleware calling `obs.event`. The trace id is `AgentResponse.trace_id` for `/ask` and a hash of the body for `/add-document`, both deterministic | A separate `api/logging.py` lost because D-70 already decided the shape, and two log formats in one repository is that decision taken twice. `uuid4` lost outright for D-38's reason: two runs of `scripts/run_part3.py` would produce different transcript bytes and the determinism ground rule would stop holding. |
+| D-76 | Where the simulated transient failure lives | No new node. A real `RetryPolicy` on an existing node, with the failure injected by `scripts/run_part4.py` wrapping `agent.tools` in a counter-based shim | A tenth node lost because `tests/test_graph.py` asserts exactly nine and `part2-graph.txt` would be rewritten, all to put demo scaffolding in the shipped graph. A separate demo graph lost because the retry policy would then never be proven on the real one. **Measured**: with `RetryPolicy` attached to `lookup_status`, `scripts/run_part2.py` exits 0, the diff over `transcripts/` and `README.md` is empty, and all 372 tests pass. |
+| D-77 | How the checkpointed run is stopped | `compile(checkpointer=SqliteSaver, interrupt_before=["verify"])`, resumed with `invoke(None, config)` on the same thread id. Non-re-execution is proved by node-entry counts in `obs` lines, four in run 1 and two in run 2 | Raising inside a node lost because the partial superstep becomes the thing under test rather than the checkpoint. Doing both lost because it doubles the surface that has to stay deterministic for one more transcript. `build_graph` already returned the uncompiled builder so a caller could attach a checkpointer, so nothing is reshaped to accommodate this. |
+| D-78 | How deep async goes, and what the two timeouts are | `lookup_status` becomes `async def` and carries the library's own `timeout`. `ask()` keeps its signature and wraps `ainvoke` in `asyncio.run`. The global timeout is `asyncio.wait_for` around `ainvoke`. `step_timeout` is unused | **This supersedes the round-1 answer**, which was a native per-node timeout on a sync node plus a wall-clock guard, and which is not implementable. **Measured** on langgraph 1.2.11: a sync node carrying `timeout` raises `ValueError`, "Node timeouts are only supported for async nodes because sync Python execution cannot be safely cancelled in-process", and so does an async node driven by `invoke`; under `ainvoke` the same node raised `NodeTimeoutError` cleanly at 0.101s against a 0.100s budget. Making `ask()` itself async lost because it rewrites 19 call sites and needs `pytest-asyncio`, a new dependency, for what the sync wrapper gets without one. Hand-rolling both timeouts lost because it implements the exact thing the library refuses as unsafe, and criterion 16b asks for a clean error rather than a hang. `step_timeout` bounds one superstep rather than the run, so calling it the global timeout would be 18.4's pattern again. **Measured blast radius**: transcripts and README byte-identical, 370 of 372 tests untouched, the two failures being direct sync calls at `tests/test_nodes.py:131` and `:139`. |
+| D-79 | MCP ports, and who starts the server | `MCP_PORT` 8765 and `API_PORT` 8000 in `config.py`. `scripts/run_part4.py` spawns the server, waits for readiness, runs `mcp_client.py` as a subprocess and tears down | MCP on 8000 with the API on 8001 lost because the brief introduces 8000 with "e.g." while being insistent about the `/mcp` path, so moving the API off its own default costs more than it buys. A client that spawns its own server lost because criterion 14 checks that the client is a separate file and process, and a client that starts the server is no longer only a client. |
+| D-80 | Where these decisions are written, and when | This amendment, plus two dated plans, one per part, written before either part starts | One plan covering both lost because it is the largest single diff of the project for a single review, and Part 4's work attaches to nodes Part 3 does not touch, so the two are genuinely separable. Amending the spec after implementation lost because the decision log would then record what was built rather than what was decided, which is the thing the log exists to prevent. |
+| D-81 | Whether the project gets a screen. **Overrode recommendation** | A Streamlit app, in `ui/app.py` | Bhavik's reason, recorded verbatim: "It will help me make a portfolio-ready project and I just not want to make a form or a non-interactive UI. I want something which is more interactive and fun to play with." The recommendation was one hand-written page served by the Part 3 app at `GET /`, on the grounds that it needs no dependency and one process, and that argument is unchanged. It lost to a criterion it did not weigh: a portfolio artefact is judged by a reader, not only by a grader. **Measured**: the brief never uses the words streamlit, gradio, UI, frontend or browser, so nothing is earned or lost against the acceptance criteria either way. The structural limit stands, and is stated in `README.md` beside the app: no screenshot may enter the repository, so the app can never become graded evidence and the transcripts remain the only proof. |
+| D-82 | What the Streamlit app talks to | `POST /ask` on the running FastAPI app, over HTTP | Importing `agent.graph.ask` lost because the app would route around the graded deliverable and no click would ever produce a Task 12 log line. A direct import with an optional switch to HTTP lost because it is a flag whose only job is to keep two designs alive. The cost is that the app needs two processes, so `README.md` carries a two-line run recipe. |
+| D-83 | Where streamlit is declared | `requirements-ui.txt`, with a commented pointer in `requirements.txt` so the main file is self-describing rather than silently incomplete | The main requirements file lost because the graded install path should carry exactly what the acceptance criteria need, and `.venv` already measures 1.2 GB before adding a dependency no criterion asks for. |
+| D-84 | Whether any triad number is pinned by a test | Nothing numeric. One test asserts the ordering property: the three non-answerable rows score below the twelve answerable ones on groundedness | Pinning the three averages lost for D-13's reason, that a test which fights tuning gets deleted, and the brief only asks for these numbers to be reported. Asserting nothing lost because the scorers could silently invert and every transcript would still read plausibly. A judge that cannot mark IU-02 down is broken regardless of what its averages read, and that is what this test says. |
+| D-85 | Which SQLite checkpointer | `AsyncSqliteSaver` from `langgraph.checkpoint.sqlite.aio`, with `aiosqlite` declared explicitly in `requirements.txt` | **Forced by measurement, not chosen.** `SqliteSaver` raises `NotImplementedError`, "The SqliteSaver does not support async methods", under `ainvoke`, and D-78 made the graph async-only. Reversing D-78 to keep the sync saver lost because it hands back the only per-node timeout the library will grant. **Measured**: `aiosqlite` 0.22.1 is already installed as a transitive dependency and declares no runtime requirements of its own, so the line in `requirements.txt` makes an existing fact explicit rather than adding weight. The file is still `checkpoints.sqlite`, which is the name criterion 15 gives. **Proved end to end**: with an async node carrying `timeout`, `AsyncSqliteSaver` and `interrupt_before`, run 1 entered two nodes, run 2 entered the other two, the final state carried all four and no node was entered twice. |
+
+
 ## 4. Repository layout
 
 ```
@@ -206,8 +231,9 @@ loan-support-agent/
   .env.example                Committed. Variable names only, never a value.
 ```
 
-Parts 3 and 4 add `api/`, `mcp_server/` and `mcp_client.py` alongside these.
+Parts 3 and 4 add `api/`, `mcp_server/`, `mcp_client.py`, `eval/triad.py`, `eval/judge.py` and `ui/app.py` alongside these, plus a gitignored `data/uploads/` and `checkpoints.sqlite`.
 No existing module moved when `agent/` arrived and none moves when those do, which is the point of D-02.
+Two files are edited rather than added: `agent/nodes.py` for the one async node of D-78, and `agent/graph.py` for the retry policy of D-76 and the `asyncio.run` wrapper.
 
 ## 5. Part 1 Task 1 - dataset
 
@@ -852,6 +878,17 @@ Part 2 continues the numbering.
 | 33 | `LLM_PROVIDER=groq` with no key raises naming the variable, offline, and the suite stays on mock whatever `.env` says | D-62 and D-64, the two halves of the failure contract |
 | 34 | `scripts/run_part1.py` exits non-zero under a non-mock provider and writes nothing | D-68, the graded artefacts have one authority |
 | 35 | A log line carries `trace_id`, is valid JSON, and contains no unmasked PAN or Aadhaar and no API key | D-70 and D-71 |
+| 36 | Both endpoints answer through the FastAPI test client with Pydantic request and response models | Part 3 criterion 1 |
+| 37 | One request writes exactly one JSON line carrying the response's own `trace_id` | Part 3 criterion 2, and D-75 |
+| 38 | All 15 triad queries report three scores each, and the three averages are computed over 15 rows | Part 3 criterion 3 |
+| 39 | Every non-answerable triad row scores below every answerable row on groundedness | D-84; the property, never the numbers |
+| 40 | `POST /add-document` leaves `knowledge_base/` byte-identical and the added chunks are gone after `build_index(rebuild=True)` | D-72, the contract that keeps Part 1's numbers still |
+| 41 | A real MCP client-server round trip returns the record for two different ids | Part 4 criterion 1 |
+| 42 | A resumed thread completes without re-entering any node that ran before the interrupt | Part 4 criterion 2, and D-77 |
+| 43 | A node failing twice then succeeding completes within the configured attempts | Part 4 criterion 3, and D-76 |
+| 44 | A node exceeding its per-node budget raises `NodeTimeoutError` rather than hanging | Part 4 criterion 3, and D-78 |
+| 45 | A run exceeding the global budget is cancelled by `asyncio.wait_for` | Part 4 criterion 3, and D-78 |
+| 46 | `ui/app.py` imports no module from `agent/` or `rag/` | D-82, the claim that the app drives the API rather than going around it |
 
 Precision@3 and Recall@3 are deliberately not pinned.
 They move legitimately when chunk parameters are tuned, and a test that fights tuning is a test that gets deleted.
@@ -1232,3 +1269,114 @@ Test 35 restates both.
 
 A metrics registry, an exporter and a `/metrics` endpoint, because there is no server in V1 to serve them from and Part 3 adds one.
 Building them now is the speculative layer D-02 and D-03 rejected, and section 19's OpenTelemetry row is now cheap for exactly the reason stated there.
+
+## 22. Part 3 Task 11 - the API
+
+One module, `api/main.py`, holding the app, both Pydantic model pairs and the middleware of section 23.
+It imports `ask` from `agent/graph.py` and nothing else from `agent/`, because section 15 contracted exactly one call.
+
+### 22.1 `POST /ask`
+
+Request is `query` and an optional `thread_id` defaulting to `"default"`.
+Response is the `AgentResponse` envelope unchanged, because `agent/response.schema.json` is committed with `additionalProperties: false` and D-66 already refused to widen it.
+The endpoint is declared `def`, not `async def`, so FastAPI runs it in a threadpool and the `asyncio.run` inside `ask` has no running loop to collide with.
+That is the one place D-78's sync wrapper is visible from outside `agent/`.
+
+### 22.2 `POST /add-document`
+
+Request is `title`, `body` and `products`, the last naming products that must already exist in `knowledge_base/catalogue.json`.
+A product outside the catalogue is rejected with 422 rather than added, because `rag/scope.py` would refuse every question about it before retrieval and the document would be unreachable.
+
+The document is written to a gitignored `data/uploads/<doc_id>.txt` and its chunks are upserted into the live `kb_sentences` collection only.
+`doc_id` is `kb-up-<n>` where `n` is the next free integer in `data/uploads/`, so ids are stable within a run and the prefix makes an uploaded document visible in any citation.
+`knowledge_base/` is never written, per D-72.
+
+**The rollback is automatic and needs no code.**
+`rag/index.build_index` rebuilds any collection whose `count()` does not match the corpus, so the next ordinary index build drops every upload without being asked to.
+That is the whole of the contract stated in D-72, and it is a property of code that already exists rather than a new mechanism.
+
+## 23. Part 3 Task 12 - the request log
+
+One `@app.middleware("http")` calling `obs.event` once per request, per D-75.
+The line carries `event`, `trace_id`, `path`, `status`, `duration_ms` and the masked query, and nothing else.
+
+`trace_id` is the response's own for `/ask`, which makes the log line joinable to the transcript that produced it, and `sha256` of the canonical request body truncated the same way for `/add-document`.
+Both are deterministic, so two runs of `scripts/run_part3.py` produce the same bytes, which is what D-38 bought and what `uuid4` would spend.
+
+Every logged query passes `guardrails.mask_pii` before it is written, per D-71.
+The masking demonstration is one request carrying a fabricated PAN, and the committed transcript shows the line with the PAN already masked, which is the whole of criterion 12.
+
+## 24. Part 3 Task 13 - the RAG triad
+
+### 24.1 The query set
+
+`eval/triad.py` selects 15 items from `GOLDEN_DATASET` by `item_id`, per D-73.
+Twelve `answerable`, which between them carry gold documents `kb-01` to `kb-12` and therefore cover every required topic; two `far_out_of_scope`; and IU-02.
+
+### 24.2 The three scores
+
+`eval/judge.py` builds one judge prompt per query and sends it through `llm.generate`, so D-59's single switch still decides who answers it.
+Under `MOCK_LLM` the mock branch computes three lexical scores; under `groq` a real model returns them.
+
+| Score | What it asks | The mock signal |
+|---|---|---|
+| context relevance | do the retrieved chunks bear on the question | the share of the query's content tokens appearing in the retrieved context |
+| groundedness | is every claim in the answer supported by the context | the share of the answer's content bigrams contained in the retrieved context |
+| answer relevance | does the answer address the question asked | the share of the query's content tokens appearing in the answer |
+
+Each is a ratio in `[0, 1]`, rounded to four places, and each is deliberately **not** the embedding.
+Sharing a signal with the retriever would make the judge agree with retrieval by construction, which is the failure 18.4 catalogues four times and D-74 refuses to make a fifth.
+
+A refusal scores groundedness against an empty context, which floors it, and that is correct: a refusal is not grounded in anything, and the triad should say so rather than rewarding the system for declining to speak.
+
+### 24.3 What is asserted
+
+One property, per D-84: every non-answerable row scores below every answerable row on groundedness.
+The three averages are reported and pinned by nothing, for D-13's reason.
+
+## 25. Part 4 Tasks 14 to 16
+
+### 25.1 MCP
+
+`mcp_server/server.py` wraps `check_loan_application_status` as a `fastmcp` tool with the docstring the brief asks for, served over HTTP on `config.MCP_PORT` at `/mcp`.
+`mcp_client.py` is a separate file and a separate process, takes a URL and a list of record ids, and prints the standardised MCP response for each.
+It never starts a server, per D-79.
+
+`scripts/run_part4.py` spawns the server, waits for readiness, runs the client as a subprocess for two ids and tears the server down.
+Loopback HTTP is not a breach of the offline ground rule: nothing leaves the machine, and the transcript is produced with no key and no outbound network.
+
+### 25.2 Checkpointing
+
+`build_graph().compile(checkpointer=AsyncSqliteSaver, interrupt_before=["verify"])`, keyed by the same `thread_id` the memory store uses.
+The checkpointer is the async one per D-85, because D-78 made the graph async-only and the sync saver refuses `ainvoke` outright.
+Run 1 executes `guard_input`, `recall`, `route` and `policy_answer` and stops.
+Run 2 passes `None` on the same `thread_id` and executes `verify` and `compose`.
+
+The proof of non-re-execution is node-entry counts, per D-77.
+Each node emits one `obs` line when it runs, so the transcript shows four lines in run 1 and two in run 2, and a re-execution would appear as a fifth.
+
+The memory store is unaffected by the interrupt, because `compose` is the node that writes a turn and `compose` runs exactly once, in run 2.
+This is what the `memory.py` docstring already claimed when it said the two stores key on `thread_id` and neither reads the other.
+
+### 25.3 Timeouts and retries
+
+Per D-78.
+`lookup_status` is `async def`, carries `RetryPolicy(max_attempts=3, initial_interval=0.05, backoff_factor=2.0, max_interval=0.4, jitter=False)` and a per-node `timeout` from `config.NODE_TIMEOUT_SECONDS`.
+The global timeout is `asyncio.wait_for` around `ainvoke`, at `config.GRAPH_TIMEOUT_SECONDS`.
+
+All three demonstrations inject their own failure from `scripts/run_part4.py` rather than from the graph:
+a counter-based shim that raises twice then succeeds, for the retry;
+a shim that sleeps past the node budget, for the per-node timeout;
+a shim that sleeps past the global budget, for the global one.
+No node exists in this repository that is not part of the shipped agent, which is D-76.
+
+## 26. The screen
+
+`ui/app.py`, a Streamlit app, per D-81.
+It is the one thing in this repository that no acceptance criterion asks for, and it is recorded here so that is deliberate rather than discovered.
+
+It talks to `POST /ask` over HTTP and imports nothing from `agent/` or `rag/`, per D-82, so every interaction produces a Task 12 log line and the app exercises the graded deliverable instead of going around it.
+`streamlit` is declared in `requirements-ui.txt`, per D-83, so the graded install path carries only what the criteria need.
+
+**It can never be graded evidence**, because the brief accepts no screenshots and a live screen cannot enter a repository.
+The transcripts remain the only proof of every claim, and `README.md` says so where it introduces the app.
