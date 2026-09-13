@@ -28,3 +28,14 @@ def test_46_the_app_imports_nothing_from_the_agent_or_the_rag_core():
 def test_the_app_points_at_the_configured_api_port():
     source = (config.REPO_ROOT / "ui" / "app.py").read_text(encoding="utf-8")
     assert str(config.API_PORT) in source
+
+
+def test_the_app_mirrors_the_configured_escalation_threshold():
+    """ui/app.py:39 hard-codes config.ESCALATION_THRESHOLD's value rather than
+    importing it (D-82: ui/ may not import config), so nothing else catches a
+    retune of the real threshold leaving the mirrored one, and the wrong
+    screen would silently mislabel every lookup. Reads the file, like the
+    port test above, for the same reason.
+    """
+    source = (config.REPO_ROOT / "ui" / "app.py").read_text(encoding="utf-8")
+    assert str(config.ESCALATION_THRESHOLD) in source

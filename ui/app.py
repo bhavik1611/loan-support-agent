@@ -1,4 +1,4 @@
-"""Part 4 Task 5. The Streamlit app.
+"""The Streamlit app.
 
 Not a graded criterion, per D-81: it is here because a portfolio artefact is
 read by a person, not a grader. It cannot enter the repository as evidence

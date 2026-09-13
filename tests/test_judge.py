@@ -146,10 +146,12 @@ def test_39_far_out_of_scope_queries_score_below_answerable_ones_on_groundedness
     far_out_of_scope = grounded_by_kind[queries.KIND_FAR_OUT_OF_SCOPE]
     assert max(far_out_of_scope) < min(answerable), (
         f"a far_out_of_scope query scored {max(far_out_of_scope)} groundedness, "
-        f"at or above the weakest answerable one at {min(answerable)}. Both "
-        f"classes are refused before generation reaches a real answer, so a "
-        f"refusal's groundedness should floor near zero; if it does not, the "
-        f"refusal template itself started restating retrieved text."
+        f"at or above the weakest answerable one at {min(answerable)}. "
+        f"far_out_of_scope rows are refused before generation reaches a real "
+        f"answer, so a refusal's groundedness should floor near zero; "
+        f"answerable rows are not refused at all, so if this comparison ever "
+        f"fails it is because a refusal template started restating retrieved "
+        f"text, not because an answerable row was refused."
     )
 
 
@@ -167,11 +169,13 @@ def test_iu02_is_answered_not_refused_and_context_relevance_catches_it():
     faithfully restates irrelevant context is grounded by definition, so
     groundedness cannot catch this failure and was never the signal that
     could. Its context_relevance (0.2000) sits low instead, well below its
-    own groundedness, and even below correctly-answered EQ-12's 0.1667 is not
-    guaranteed - the two are close enough that no single cut on
-    context_relevance alone separates them either. Context_relevance still
-    catches the failure here because it reads low while groundedness reads
-    high for the same row, and that gap is what the assertion below checks.
+    own groundedness - but not safely below every answerable row either:
+    correctly-answered EQ-12 reads 0.1667 on the same signal, close enough
+    that no single cut on context_relevance alone separates a wrong-document
+    answer like IU-02's from a correctly-answered vague question like EQ-12's.
+    Context_relevance still catches the failure here because it reads low
+    while groundedness reads high for the same row, and that gap is what the
+    assertion below checks.
 
     Every assertion below is relational, measured against the other fourteen
     triad rows scored in the same run, never against a constant a
