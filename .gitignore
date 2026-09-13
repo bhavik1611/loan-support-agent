@@ -42,3 +42,4 @@ demo/
 # SDD scratch workspace. Not a deliverable.
 .superpowers/
 checkpoints.sqlite
+data/uploads/
