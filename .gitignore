@@ -17,3 +17,24 @@ logs/
 # OS / editor
 .DS_Store
 .ipynb_checkpoints/
+
+# Local code-index cache - regenerable, not committed.
+/graft/
+
+# Generated relational store. Rebuild with: .venv/bin/python -m db.build
+data/meridian_bank.db
+
+# Runtime conversation store. The graded threads are copied into transcripts/.
+data/conversations/
+
+# Local editor and tooling config. Regenerable per machine, so it is not part
+# of the repository.
+.claude/
+.cursor/
+.ignore
+.mcp.json
+.lavish/
+CLAUDE.md
+
+# Groq demo output. Not reproducible, so never committed.
+demo/

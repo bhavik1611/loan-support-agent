@@ -1,0 +1,823 @@
+"""Task 3. The seven row generators that feed db/build.py.
+
+Every function opens its own seeded stream with random.Random(config.stream(<table>))
+and never shares that Random instance with another generator. Two calls to the
+same function draw from a freshly seeded stream each time, so the output is
+deterministic and calling one generator twice cannot perturb another's draws.
+
+Every controlled vocabulary here is transcribed from the knowledge base, not
+invented:
+- kyc_documents.doc_type: identity and address proofs from kb-04-kyc-documents.txt,
+  plus the passport-and-visa pair kb-12-nri-account-eligibility.txt requires of a
+  non-resident.
+- support_tickets.channel: the reporting channels kb-05-fraud-dispute.txt names.
+- The EMI arithmetic in _emi()/_schedule() is kb-02-emi-calculation.txt's formula
+  and nothing else in this repository computes an EMI.
+"""
+
+import random
+import string
+from datetime import datetime, timedelta
+
+import config
+
+# ---------------------------------------------------------------------------
+# the time axis
+# ---------------------------------------------------------------------------
+#
+# Every calendar value in this module is derived from a relative day offset
+# against config.AS_OF. Nothing here reads the clock, and nothing here draws a
+# day: the days were already drawn, on their own streams, and only the hours
+# and minutes are new (D-26, D-28).
+
+
+def _date_at(days_ago: int):
+    """The calendar date `days_ago` days before the anchor."""
+    return (config.AS_OF - timedelta(days=days_ago)).date()
+
+
+def _next_working_day(day):
+    """The first non-weekend day on or after `day`.
+
+    Forward rather than backward because a bank handles a Saturday arrival on
+    Monday, not on the Friday before it. Forward is also a monotone map, which
+    is why shifting a trail this way cannot reorder it (D-29).
+    """
+    while day.weekday() >= 5:
+        day += timedelta(days=1)
+    return day
+
+
+def _minutes_in_business_hours(rng, count: int) -> list[int]:
+    """`count` distinct minutes-past-midnight inside business hours, ascending.
+
+    Distinct and sorted so that events sharing a day still read in the order
+    they happened. D-30 moved the uniqueness invariant from distinct days to
+    distinct instants precisely so this is legal.
+    """
+    first = config.BUSINESS_START.hour * 60 + config.BUSINESS_START.minute
+    last = config.BUSINESS_END.hour * 60 + config.BUSINESS_END.minute
+    return sorted(rng.sample(range(first, last + 1), count))
+
+
+def _stamp(day, minutes: int) -> str:
+    """One ISO 8601 instant in IST, to the minute."""
+    return datetime(
+        day.year, day.month, day.day, minutes // 60, minutes % 60, tzinfo=config.IST
+    ).isoformat()
+
+
+def _fixed_stamp(day, at) -> str:
+    """One ISO 8601 instant in IST at a fixed time of day."""
+    return _stamp(day, at.hour * 60 + at.minute)
+
+
+# ---------------------------------------------------------------------------
+# loan_products
+# ---------------------------------------------------------------------------
+
+
+def generate_loan_products() -> list[dict]:
+    """One row per category, every number sourced from config, none retyped."""
+    products = []
+    for category in config.CATEGORIES:
+        min_amount_inr, max_amount_inr = config.CATEGORY_BANDS[category]
+        min_rate_pct, max_rate_pct = config.RATE_BANDS[category]
+        products.append(
+            {
+                "product_code": config.PRODUCT_CODES[category],
+                "category": category,
+                "min_amount_inr": min_amount_inr,
+                "max_amount_inr": max_amount_inr,
+                "min_rate_pct": min_rate_pct,
+                "max_rate_pct": max_rate_pct,
+                "max_tenure_months": config.MAX_TENURE_MONTHS[category],
+                "is_secured": category in config.SECURED_CATEGORIES,
+            }
+        )
+    return products
+
+
+# ---------------------------------------------------------------------------
+# customers
+# ---------------------------------------------------------------------------
+
+# Fabricated Indian first and last names. No real person's data.
+FIRST_NAMES = [
+    "Aarav", "Vivaan", "Aditya", "Vihaan", "Arjun", "Reyansh", "Krishna",
+    "Ishaan", "Rohan", "Kabir", "Ananya", "Diya", "Saanvi", "Aadhya", "Isha",
+    "Kavya", "Meera", "Priya", "Riya", "Sneha", "Neha", "Pooja", "Anjali",
+    "Rahul", "Amit", "Vikram", "Sanjay", "Manish", "Deepak", "Suresh",
+    "Lakshmi", "Divya", "Nisha", "Rajesh", "Ramesh", "Naveen",
+]
+
+LAST_NAMES = [
+    "Sharma", "Verma", "Gupta", "Kumar", "Singh", "Patel", "Reddy", "Nair",
+    "Iyer", "Rao", "Menon", "Chatterjee", "Mukherjee", "Banerjee", "Joshi",
+    "Desai", "Kulkarni", "Pillai", "Agarwal", "Bhatt", "Malhotra", "Kapoor",
+    "Chauhan", "Yadav", "Mehta", "Shah",
+]
+
+# (city, state) pairs, Indian metros and second-tier cities.
+CITY_STATE_PAIRS = [
+    ("Mumbai", "Maharashtra"),
+    ("Pune", "Maharashtra"),
+    ("Nagpur", "Maharashtra"),
+    ("Delhi", "Delhi"),
+    ("Bengaluru", "Karnataka"),
+    ("Chennai", "Tamil Nadu"),
+    ("Coimbatore", "Tamil Nadu"),
+    ("Hyderabad", "Telangana"),
+    ("Kolkata", "West Bengal"),
+    ("Ahmedabad", "Gujarat"),
+    ("Surat", "Gujarat"),
+    ("Jaipur", "Rajasthan"),
+    ("Lucknow", "Uttar Pradesh"),
+    ("Chandigarh", "Punjab"),
+    ("Bhopal", "Madhya Pradesh"),
+    ("Indore", "Madhya Pradesh"),
+    ("Patna", "Bihar"),
+    ("Kochi", "Kerala"),
+]
+
+EMPLOYMENT_TYPES = ["Salaried", "Self-employed", "Business Owner", "Retired"]
+EMPLOYMENT_WEIGHTS = [0.55, 0.25, 0.15, 0.05]
+
+KYC_STATUSES = ["Verified", "Pending", "Re-verification due"]
+KYC_STATUS_WEIGHTS = [0.75, 0.15, 0.10]
+
+IS_NRI_PROBABILITY = 0.08
+
+
+# The Income Tax Department's PAN structure, AAAAA9999A: three alphabetic
+# series characters, a holder-type code, the surname initial, a four-digit
+# serial and a check letter. Every customer here is an individual, so the
+# holder-type code is always P.
+PAN_HOLDER_TYPE = "P"
+
+
+def _pan_check_letter(first_nine: str) -> str:
+    """The tenth character, derived from the other nine.
+
+    The real check character comes from a formula the Income Tax Department
+    does not publish, so this is a fabricated stand-in: letters score A=1 to
+    Z=26, digits score face value, each is weighted by its position, and the
+    total modulo 26 picks the letter. Deterministic, and recomputable by
+    anyone holding the first nine characters.
+    """
+    total = sum(
+        position * (ord(char) - 64 if char.isalpha() else int(char))
+        for position, char in enumerate(first_nine, start=1)
+    )
+    return string.ascii_uppercase[total % 26]
+
+
+def _unique_pan(rng: random.Random, last_name: str, seen: set[str]) -> str:
+    """A structurally valid fabricated PAN for one individual.
+
+    Only the three series characters and the four-digit serial are drawn; the
+    holder type is fixed and the surname initial and check letter are derived,
+    so a PAN cannot contradict the name it sits beside.
+    """
+    while True:
+        series = "".join(rng.choice(string.ascii_uppercase) for _ in range(3))
+        serial = rng.randint(1, 9999)
+        first_nine = f"{series}{PAN_HOLDER_TYPE}{last_name[0].upper()}{serial:04d}"
+        pan = first_nine + _pan_check_letter(first_nine)
+        if pan not in seen:
+            seen.add(pan)
+            return pan
+
+
+# UIDAI's Aadhaar rules: exactly 12 digits, never starting 0 or 1, with the
+# twelfth digit a Verhoeff checksum over the first eleven. The 4-4-4 grouping
+# is a display convention only; the stored value is the twelve raw digits.
+AADHAAR_FIRST_DIGITS = (2, 9)
+
+# Verhoeff's dihedral-group tables, the published algorithm UIDAI uses. d is
+# the D5 multiplication table, p the permutation applied by position, inv the
+# inverse used to pick the check digit.
+VERHOEFF_D = (
+    (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+    (1, 2, 3, 4, 0, 6, 7, 8, 9, 5),
+    (2, 3, 4, 0, 1, 7, 8, 9, 5, 6),
+    (3, 4, 0, 1, 2, 8, 9, 5, 6, 7),
+    (4, 0, 1, 2, 3, 9, 5, 6, 7, 8),
+    (5, 9, 8, 7, 6, 0, 4, 3, 2, 1),
+    (6, 5, 9, 8, 7, 1, 0, 4, 3, 2),
+    (7, 6, 5, 9, 8, 2, 1, 0, 4, 3),
+    (8, 7, 6, 5, 9, 3, 2, 1, 0, 4),
+    (9, 8, 7, 6, 5, 4, 3, 2, 1, 0),
+)
+VERHOEFF_P = (
+    (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+    (1, 5, 7, 6, 2, 8, 3, 0, 9, 4),
+    (5, 8, 0, 3, 7, 9, 6, 1, 4, 2),
+    (8, 9, 1, 6, 0, 4, 3, 5, 2, 7),
+    (9, 4, 5, 3, 1, 2, 6, 8, 7, 0),
+    (4, 2, 8, 6, 5, 7, 3, 9, 0, 1),
+    (2, 7, 9, 3, 8, 0, 6, 4, 1, 5),
+    (7, 0, 4, 6, 9, 1, 3, 2, 5, 8),
+)
+VERHOEFF_INV = (0, 4, 3, 2, 1, 5, 6, 7, 8, 9)
+
+
+def _verhoeff_checksum(digits: str) -> int:
+    """Verhoeff's checksum over a digit string, 0 when the string is valid.
+
+    Run over a complete number it returns 0; run over a payload awaiting its
+    check digit, VERHOEFF_INV of it is the digit that makes the whole valid.
+    """
+    checksum = 0
+    for position, digit in enumerate(reversed(digits)):
+        checksum = VERHOEFF_D[checksum][VERHOEFF_P[position % 8][int(digit)]]
+    return checksum
+
+
+def _aadhaar_check_digit(first_eleven: str) -> str:
+    """The twelfth digit, the one that catches a mistyped or swapped digit."""
+    return str(VERHOEFF_INV[_verhoeff_checksum(first_eleven + "0")])
+
+
+def is_valid_aadhaar(digits: str) -> bool:
+    """Whether a bare digit string is structurally a real Aadhaar number.
+
+    Twelve digits, not starting 0 or 1 because UIDAI issues no such number,
+    and passing the Verhoeff check. Part 2's PII guardrail uses this to choose
+    between the AADHAAR and ACCOUNT labels, which overlap by length.
+    """
+    low, high = AADHAAR_FIRST_DIGITS
+    return (
+        len(digits) == 12
+        and digits.isdigit()
+        and low <= int(digits[0]) <= high
+        and _verhoeff_checksum(digits) == 0
+    )
+
+
+def _unique_aadhaar(rng: random.Random, seen: set[str]) -> str:
+    """A structurally valid fabricated Aadhaar number.
+
+    Eleven digits are drawn, the first from 2-9 because UIDAI issues no number
+    beginning 0 or 1, and the twelfth is computed, so every value here passes
+    a real Verhoeff check rather than merely looking like twelve digits.
+    """
+    while True:
+        first = str(rng.randint(*AADHAAR_FIRST_DIGITS))
+        rest = "".join(str(rng.randint(0, 9)) for _ in range(10))
+        first_eleven = first + rest
+        aadhaar = first_eleven + _aadhaar_check_digit(first_eleven)
+        if aadhaar not in seen:
+            seen.add(aadhaar)
+            return aadhaar
+
+
+def _unique_account_number(rng: random.Random, seen: set[str]) -> str:
+    while True:
+        length = rng.randint(11, 16)
+        first = str(rng.randint(1, 9))
+        rest = "".join(str(rng.randint(0, 9)) for _ in range(length - 1))
+        account_number = first + rest
+        if account_number not in seen:
+            seen.add(account_number)
+            return account_number
+
+
+def _phone(rng: random.Random) -> str:
+    first = rng.choice("6789")
+    rest = "".join(str(rng.randint(0, 9)) for _ in range(9))
+    return first + rest
+
+
+def generate_customers() -> list[dict]:
+    """config.CUSTOMER_COUNT (66) fabricated customers on their own stream.
+
+    credit_score is drawn across the full config.CREDIT_SCORE_MIN..MAX band,
+    skewed toward the high end with a triangular distribution, then floored at
+    config.CREDIT_SCORE_LOAN_FLOOR (700). kb-01 sets 700 as the minimum score
+    for any loan product, and every customer generated here ends up holding at
+    least one loan through assign_customers, so no customer may fall below it.
+    """
+    rng = random.Random(config.stream("customers"))
+    seen_pan: set[str] = set()
+    seen_aadhaar: set[str] = set()
+    seen_account: set[str] = set()
+
+    customers = []
+    for i in range(1, config.CUSTOMER_COUNT + 1):
+        first_name = rng.choice(FIRST_NAMES)
+        last_name = rng.choice(LAST_NAMES)
+        city, state = rng.choice(CITY_STATE_PAIRS)
+
+        raw_score = rng.triangular(
+            config.CREDIT_SCORE_MIN, config.CREDIT_SCORE_MAX, config.CREDIT_SCORE_MAX
+        )
+        credit_score = max(config.CREDIT_SCORE_LOAN_FLOOR, round(raw_score))
+
+        customers.append(
+            {
+                "customer_id": f"CUST-{i:04d}",
+                "full_name": f"{first_name} {last_name}",
+                "city": city,
+                "state": state,
+                "pan": _unique_pan(rng, last_name, seen_pan),
+                "aadhaar": _unique_aadhaar(rng, seen_aadhaar),
+                "account_number": _unique_account_number(rng, seen_account),
+                "email": f"{first_name.lower()}.{last_name.lower()}{i}@example.com",
+                "phone": _phone(rng),
+                "employment_type": rng.choices(
+                    EMPLOYMENT_TYPES, weights=EMPLOYMENT_WEIGHTS, k=1
+                )[0],
+                "annual_income_inr": int(round(rng.uniform(300_000, 30_00_000), -3)),
+                "credit_score": credit_score,
+                "kyc_status": rng.choices(
+                    KYC_STATUSES, weights=KYC_STATUS_WEIGHTS, k=1
+                )[0],
+                "is_nri": rng.random() < IS_NRI_PROBABILITY,
+            }
+        )
+    return customers
+
+
+# ---------------------------------------------------------------------------
+# assign_customers
+# ---------------------------------------------------------------------------
+
+
+def assign_customers(applications: list[dict], customers: list[dict]) -> list[dict]:
+    """Implement D-20: shuffle the applications, deal them out to the mix.
+
+    Uses its own Random instance seeded from the customers stream, per the
+    plan ("shuffle the 100 applications on the customers stream"). This is a
+    fresh Random object, not the one generate_customers() used, so no state is
+    shared between the two calls even though they share a seed.
+
+    The first LOANS_PER_CUSTOMER_MIX[0][1] customers (in the order customers
+    was generated) each get one loan, the next batch get two, and so on, so
+    every customer ends up with at least one and the totals match the mix
+    exactly.
+    """
+    rng = random.Random(config.stream("customers"))
+    shuffled_applications = list(applications)
+    rng.shuffle(shuffled_applications)
+
+    customer_ids_per_loan = []
+    index = 0
+    for loans_per_customer, customer_count in config.LOANS_PER_CUSTOMER_MIX:
+        for _ in range(customer_count):
+            customer_ids_per_loan.extend(
+                [customers[index]["customer_id"]] * loans_per_customer
+            )
+            index += 1
+
+    return [
+        {**application, "customer_id": customer_id}
+        for application, customer_id in zip(shuffled_applications, customer_ids_per_loan)
+    ]
+
+
+# ---------------------------------------------------------------------------
+# application_events
+# ---------------------------------------------------------------------------
+
+# Legal status chain leading to each terminal status. Submitted -> Under
+# Review -> (Approved | Rejected), Approved -> Disbursed.
+STATUS_CHAINS = {
+    "Submitted": ["Submitted"],
+    "Under Review": ["Submitted", "Under Review"],
+    "Approved": ["Submitted", "Under Review", "Approved"],
+    "Rejected": ["Submitted", "Under Review", "Rejected"],
+    "Disbursed": ["Submitted", "Under Review", "Approved", "Disbursed"],
+}
+
+ARRIVAL_NOTES = {
+    "Submitted": "Application submitted through the online channel",
+    "Under Review": "Documents received, application under credit review",
+    "Approved": "Loan sanctioned, offer letter issued to the applicant",
+    "Rejected": "Application rejected after credit review",
+    "Disbursed": "Sanctioned amount disbursed to the linked account",
+}
+
+# Extra, same-status logging events used to pad a short chain up toward the
+# 2-to-5 range without inventing an illegal transition.
+FOLLOW_UP_NOTES = [
+    "Follow-up call logged with the applicant",
+    "Additional document requested from the applicant",
+    "Status confirmed to the applicant on request",
+    "Internal checklist updated, no status change",
+]
+
+MIN_EVENTS = 2
+MAX_EVENTS = 5
+
+
+def generate_application_events(applications: list[dict]) -> list[dict]:
+    """2 to 5 events per application, a legal path ending at its status.
+
+    occurred_at strictly increases along the sequence, and the first event
+    falls days_since_created days before the anchor, so the number of events an
+    application can carry is bounded by how many days it has been alive: at
+    most days_since_created + 1 distinct non-negative day offsets exist.
+
+    Those offsets become calendar instants under D-26. A bank-side row then
+    moves forward off a weekend (D-29), which can land two rows on one day;
+    they are given distinct ascending times within it, so the trail still reads
+    in order.
+
+    Applications younger than the full legal chain (there is exactly one in
+    the committed dataset: an Approved application 0 days old) cannot show
+    every intermediate stage in that budget, so the trail is compressed to the
+    most recent stages that do fit rather than fabricating days that have not
+    happened yet. The first event of a compressed trail still has
+    from_status = NULL; it anchors the trail at whichever stage the day
+    budget allows rather than always at "Submitted".
+    """
+    rng = random.Random(config.stream("application_events"))
+    clock = random.Random(config.stream("clock"))
+    events = []
+    event_id = 1
+
+    # Sorted by record_id, not taken in the caller's order. db/build.py passes
+    # these rows after assign_customers has shuffled them, and dataset.py needs
+    # the same trail to compute updated_at without knowing about customers at
+    # all. Iterating a fixed order makes this a pure function of the
+    # application set rather than of who happens to call it.
+    for application in sorted(applications, key=lambda row: row["record_id"]):
+        status = application["status"]
+        days_since_created = application["days_since_created"]
+        chain = STATUS_CHAINS[status]
+
+        max_events_by_days = days_since_created + 1
+        if max_events_by_days < len(chain):
+            chain = chain[-max_events_by_days:]
+
+        min_count = max(MIN_EVENTS, len(chain))
+        max_count = min(MAX_EVENTS, max_events_by_days)
+        if max_count >= min_count:
+            total = rng.randint(min_count, max_count)
+        else:
+            # Day budget too tight even for the compressed chain (the 0-day
+            # case): fall back to the minimal legal chain, accepting a single
+            # event rather than fabricating a day that has not occurred.
+            total = len(chain)
+
+        extra_days_needed = total - 1
+        sampled_days = (
+            rng.sample(range(0, days_since_created), extra_days_needed)
+            if extra_days_needed > 0
+            else []
+        )
+        days_sequence = [days_since_created] + sorted(sampled_days, reverse=True)
+
+        stage_sequence = list(chain) + [chain[-1]] * (total - len(chain))
+
+        # D-29. A transition the bank makes cannot land on a Saturday or a
+        # Sunday, so it moves to the next working day. Submitted is exempt: the
+        # note beside it calls it an online submission, and an online form
+        # takes a Sunday one. The exemption is also what keeps
+        # created_at == AS_OF - days_since_created exactly true, because the
+        # first event is the application's own creation.
+        dates = []
+        for position, (days, to_status) in enumerate(
+            zip(days_sequence, stage_sequence)
+        ):
+            day = _date_at(days)
+            # The only row the customer creates is the opening Submitted, and
+            # only at position 0: a later row still reading "Submitted" is a
+            # follow-up the bank logged, which is why the test is on position
+            # and not on the status alone.
+            arrival = position == 0 and to_status == config.CUSTOMER_SIDE_ARRIVAL
+            dates.append(day if arrival else _next_working_day(day))
+
+        # Two events can now share a day. They are given distinct, ascending
+        # times within it, so the trail still reads in order (D-30).
+        stamps = [None] * len(dates)
+        start = 0
+        for index in range(1, len(dates) + 1):
+            if index == len(dates) or dates[index] != dates[start]:
+                minutes = _minutes_in_business_hours(clock, index - start)
+                for offset, minute in enumerate(minutes):
+                    stamps[start + offset] = _stamp(dates[start], minute)
+                start = index
+
+        previous_status = None
+        for position, to_status in enumerate(stage_sequence):
+            note = (
+                ARRIVAL_NOTES[to_status]
+                if position < len(chain)
+                else rng.choice(FOLLOW_UP_NOTES)
+            )
+            events.append(
+                {
+                    "event_id": event_id,
+                    "record_id": application["record_id"],
+                    "sequence_no": position + 1,
+                    "from_status": previous_status,
+                    "to_status": to_status,
+                    "occurred_at": stamps[position],
+                    "note": note,
+                }
+            )
+            event_id += 1
+            previous_status = to_status
+
+    return events
+
+
+def application_timestamps(applications: list[dict]) -> dict[str, tuple[str, str]]:
+    """`record_id` to (created_at, updated_at), read off the trail itself.
+
+    dataset.py calls this so the committed snapshot carries the same two
+    instants the database does (D-31). It works because
+    generate_application_events is a pure function of the application set, so
+    this reproduces the trail db/build.py writes without needing the customers
+    that have not been generated yet.
+
+    created_at is the Submitted event, which never shifts, so its date is
+    always exactly AS_OF minus days_since_created. A compressed trail has no
+    Submitted event to borrow - one application in the committed data, an
+    Approved one 0 days old - and takes the opening of business on its own
+    creation date instead. That fallback is fixed rather than drawn, because a
+    draw here would be a second use of the clock stream for one row.
+    """
+    opened: dict[str, str] = {}
+    latest: dict[str, str] = {}
+    for event in generate_application_events(applications):
+        latest[event["record_id"]] = event["occurred_at"]
+        if event["sequence_no"] == 1 and event["to_status"] == "Submitted":
+            opened[event["record_id"]] = event["occurred_at"]
+
+    stamps = {}
+    for row in applications:
+        record_id = row["record_id"]
+        created_at = opened.get(record_id) or _fixed_stamp(
+            _date_at(row["days_since_created"]), config.BUSINESS_START
+        )
+        stamps[record_id] = (created_at, latest[record_id])
+    return stamps
+
+
+# ---------------------------------------------------------------------------
+# repayments
+# ---------------------------------------------------------------------------
+
+
+def _emi(principal: int, annual_rate_pct: float, tenure_months: int) -> float:
+    """kb-02's formula, and nothing else may compute an EMI in this repository."""
+    r = annual_rate_pct / 12.0 / 100.0
+    growth = (1.0 + r) ** tenure_months
+    return principal * r * growth / (growth - 1.0)
+
+
+def _schedule(principal: int, annual_rate_pct: float, tenure_months: int, months: int):
+    """Standard amortisation: interest on the running balance, principal is the rest."""
+    r = annual_rate_pct / 12.0 / 100.0
+    emi = _emi(principal, annual_rate_pct, tenure_months)
+    balance = float(principal)
+    for instalment_no in range(1, min(months, tenure_months) + 1):
+        interest = balance * r
+        principal_part = emi - interest
+        balance -= principal_part
+        yield {
+            "instalment_no": instalment_no,
+            "emi_inr": round(emi, 2),
+            "interest_inr": round(interest, 2),
+            "principal_inr": round(principal_part, 2),
+            "balance_inr": round(max(balance, 0.0), 2),
+        }
+
+
+# First instalment falls due 30 days after disbursal, then every 30 days.
+DAYS_BETWEEN_INSTALMENTS = 30
+
+
+def generate_repayments(applications: list[dict]) -> list[dict]:
+    """The first config.SCHEDULE_MONTHS instalments, only for Disbursed loans.
+
+    Loans in this dataset are 0 to 30 days old (days_since_created stands in
+    for days since disbursal, since a disbursed application was created very
+    recently relative to today). The first instalment is not due until
+    DAYS_BETWEEN_INSTALMENTS days after disbursal, so with a loan book this
+    young at most one instalment's due date can have passed, and in the
+    generated data every disbursed loan is younger than that, so `paid` is
+    False throughout. The comment stands regardless of the exact mix: no
+    repayment history is fabricated beyond what the loan's age can support.
+    """
+    repayments = []
+    repayment_id = 1
+
+    for application in applications:
+        if application["status"] != "Disbursed":
+            continue
+
+        days_since_created = application["days_since_created"]
+        for instalment in _schedule(
+            application["loan_amount_inr"],
+            application["interest_rate_pct"],
+            application["tenure_months"],
+            config.SCHEDULE_MONTHS,
+        ):
+            due_days_ago = days_since_created - (
+                DAYS_BETWEEN_INSTALMENTS * instalment["instalment_no"]
+            )
+            # D-29 exempts a due date from the working-day shift. It is a
+            # contractual date, not an action somebody takes, and moving it
+            # would stop the monthly spacing being monthly. Future instalments
+            # are genuinely future-dated: this is the one column allowed past
+            # the anchor.
+            due_at = _fixed_stamp(_date_at(due_days_ago), config.EMI_DEBIT_TIME)
+            repayments.append(
+                {
+                    "repayment_id": repayment_id,
+                    "record_id": application["record_id"],
+                    "instalment_no": instalment["instalment_no"],
+                    "due_at": due_at,
+                    "emi_inr": instalment["emi_inr"],
+                    "principal_inr": instalment["principal_inr"],
+                    "interest_inr": instalment["interest_inr"],
+                    "balance_inr": instalment["balance_inr"],
+                    "paid": due_days_ago >= 0,
+                }
+            )
+            repayment_id += 1
+
+    return repayments
+
+
+# ---------------------------------------------------------------------------
+# support_tickets
+# ---------------------------------------------------------------------------
+
+# kb-05: "helpline, net banking, the mobile app, or any branch."
+TICKET_CHANNELS = ["Helpline", "Net Banking", "Mobile App", "Branch"]
+
+TICKET_CATEGORIES = [
+    "Fraud Dispute",
+    "Loan Enquiry",
+    "EMI or Repayment",
+    "KYC Update",
+    "Account Service",
+    "Card Complaint",
+]
+NON_FRAUD_CATEGORIES = [c for c in TICKET_CATEGORIES if c != "Fraud Dispute"]
+
+TICKET_STATUSES = ["Open", "In Progress", "Resolved", "Escalated", "Closed"]
+
+# Application-linked tickets drawn from fraud-flagged applications with this
+# probability, well above their base rate in the population, so Part 2 gets a
+# signal from the fraud flag.
+FRAUD_TICKET_OVERWEIGHT = 0.65
+
+
+def generate_support_tickets(applications: list[dict], customers: list[dict]) -> list[dict]:
+    """config.TICKET_COUNT (40) tickets, about half linked to an application.
+
+    Fraud-flagged applications are over-represented among the linked half.
+    """
+    rng = random.Random(config.stream("support_tickets"))
+    clock = random.Random(config.stream("clock"))
+
+    customer_ids = [customer["customer_id"] for customer in customers]
+    flagged_applications = [
+        a for a in applications if a.get("flagged_for_fraud_review")
+    ]
+    other_applications = [
+        a for a in applications if not a.get("flagged_for_fraud_review")
+    ]
+
+    linked_count = config.TICKET_COUNT // 2
+    account_level_count = config.TICKET_COUNT - linked_count
+
+    tickets = []
+    ticket_no = 1
+
+    for _ in range(linked_count):
+        use_flagged = bool(flagged_applications) and (
+            rng.random() < FRAUD_TICKET_OVERWEIGHT or not other_applications
+        )
+        pool = flagged_applications if use_flagged else other_applications
+        application = rng.choice(pool)
+        is_fraud_related = bool(application.get("flagged_for_fraud_review"))
+        category = (
+            "Fraud Dispute" if is_fraud_related else rng.choice(NON_FRAUD_CATEGORIES)
+        )
+        days_since_created = application["days_since_created"]
+        opened_days_ago = (
+            rng.randint(0, days_since_created) if days_since_created > 0 else 0
+        )
+        channel = rng.choice(TICKET_CHANNELS)
+        tickets.append(
+            {
+                "ticket_id": f"TKT-{ticket_no:04d}",
+                "customer_id": application["customer_id"],
+                "record_id": application["record_id"],
+                "channel": channel,
+                "category": category,
+                "opened_at": _stamp(
+                    _date_at(opened_days_ago), _minutes_in_business_hours(clock, 1)[0]
+                ),
+                "status": rng.choice(TICKET_STATUSES),
+                "summary": f"{category} reported via {channel.lower()}",
+            }
+        )
+        ticket_no += 1
+
+    for _ in range(account_level_count):
+        category = rng.choice(NON_FRAUD_CATEGORIES)
+        channel = rng.choice(TICKET_CHANNELS)
+        tickets.append(
+            {
+                "ticket_id": f"TKT-{ticket_no:04d}",
+                "customer_id": rng.choice(customer_ids),
+                "record_id": None,
+                "channel": channel,
+                "category": category,
+                "opened_at": _stamp(
+                    _date_at(rng.randint(0, 90)),
+                    _minutes_in_business_hours(clock, 1)[0],
+                ),
+                "status": rng.choice(TICKET_STATUSES),
+                "summary": f"{category} query logged via {channel.lower()}",
+            }
+        )
+        ticket_no += 1
+
+    return tickets
+
+
+# ---------------------------------------------------------------------------
+# kyc_documents
+# ---------------------------------------------------------------------------
+
+# kb-04: identity proofs Meridian Bank accepts.
+IDENTITY_DOC_TYPES = [
+    "Passport",
+    "Voter Identity Card",
+    "Driving Licence",
+    "Aadhaar Card",
+    "Job Card issued under NREGA",
+]
+
+# kb-04: address proofs Meridian Bank accepts.
+ADDRESS_DOC_TYPES = [
+    "Passport",
+    "Utility Bill",
+    "Property Tax Receipt",
+    "Bank Statement",
+]
+
+MIN_DOCS_PER_CUSTOMER = 2
+MAX_DOCS_PER_CUSTOMER = 4
+EXTRA_DOC_VERIFIED_PROBABILITY = 0.85
+
+
+def generate_kyc_documents(customers: list[dict]) -> list[dict]:
+    """2 to 4 documents per customer: at least one identity, one address.
+
+    kb-12 additionally requires a non-resident to submit a passport and a
+    valid visa, so an NRI customer carries a second passport entry plus a
+    visa on top of the base identity and address proof, landing at exactly 4.
+    """
+    rng = random.Random(config.stream("kyc_documents"))
+    clock = random.Random(config.stream("clock"))
+    documents = []
+    document_no = 1
+
+    for customer in customers:
+        identity_type = rng.choice(IDENTITY_DOC_TYPES)
+        address_type = rng.choice(ADDRESS_DOC_TYPES)
+        entries = [(identity_type, "identity"), (address_type, "address")]
+
+        if customer["is_nri"]:
+            entries.append(("Passport", "identity"))
+            entries.append(("Visa", "identity"))
+        else:
+            extra_pool = [
+                (doc_type, "identity")
+                for doc_type in IDENTITY_DOC_TYPES
+                if doc_type != identity_type
+            ] + [
+                (doc_type, "address")
+                for doc_type in ADDRESS_DOC_TYPES
+                if doc_type != address_type
+            ]
+            extra_count = rng.randint(0, MAX_DOCS_PER_CUSTOMER - MIN_DOCS_PER_CUSTOMER)
+            entries.extend(rng.sample(extra_pool, extra_count))
+
+        for doc_type, doc_kind in entries:
+            documents.append(
+                {
+                    "document_id": f"KYC-{document_no:04d}",
+                    "customer_id": customer["customer_id"],
+                    "doc_type": doc_type,
+                    "doc_kind": doc_kind,
+                    "submitted_at": _stamp(
+                        _date_at(rng.randint(1, 60)),
+                        _minutes_in_business_hours(clock, 1)[0],
+                    ),
+                    "verified": rng.random() < EXTRA_DOC_VERIFIED_PROBABILITY,
+                }
+            )
+            document_no += 1
+
+    return documents
