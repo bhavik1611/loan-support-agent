@@ -83,6 +83,92 @@ def test_scoring_is_deterministic():
     assert first == second
 
 
-# Test 39 (spec section 16) is not implemented: IU-02 measures as answered at
-# top1=0.4645 with all three chunks from one parent, which is neither refusal
-# path D-84 assumed, so the premise is Bhavik's call to make, not a retune.
+def test_39_far_out_of_scope_queries_score_below_answerable_ones_on_groundedness():
+    """Spec section 16 test 39, amended per Bhavik's ruling on D-84.
+
+    This asserts every far_out_of_scope row scores below every answerable row
+    on groundedness - measured 0.0000 < 0.7234, with margin - and it
+    deliberately does not compare inside_uncovered (IU-02) here.
+
+    D-84's original premise was "a judge that cannot mark IU-02 down is
+    broken". Measured, that premise is false: IU-02 is not refused. It is
+    answered at top1=0.4645 (above T=0.3066), with all three retrieved chunks
+    parented under kb-12-nri-account-eligibility, so the support rule passes
+    too. Its groundedness of 0.7857 is correct given that - the answer is
+    faithfully grounded in the context it retrieved. There is no refusal for
+    groundedness to mark down, so a test built on "IU-02 should read low on
+    groundedness" was asserting on a false premise that no threshold or
+    scorer retune can fix: raising T past 0.4645 to force a refusal also
+    refuses EQ-07, EQ-11 and EQ-12 and regenerates every Part 1 number, and
+    retuning the lexical scorers has no cut to make, since IU-02 already
+    scores higher on context_relevance (0.2000) than correctly-answered EQ-12
+    (0.1667).
+
+    This test therefore pins the one property the triad genuinely supports -
+    far_out_of_scope refusals read near-zero groundedness against every
+    answerable row - rather than the property D-84 originally claimed.
+    Pinning a property instead of a number is still D-13's and D-84's rule,
+    unchanged; only the property changed. IU-02's own behaviour is pinned
+    separately, in
+    test_iu02_is_answered_not_refused_and_context_relevance_catches_it below.
+    """
+    import eval.queries as queries
+    from eval import triad
+    from rag import generate
+
+    grounded_by_kind: dict[str, list[float]] = {}
+    for item in triad.triad_items():
+        answered = generate.answer(item.text)
+        scores = judge.score(
+            item.text, answered.text, judge.context_of(answered.hits)
+        )
+        grounded_by_kind.setdefault(item.kind, []).append(scores.groundedness)
+
+    answerable = grounded_by_kind[queries.KIND_ANSWERABLE]
+    far_out_of_scope = grounded_by_kind[queries.KIND_FAR_OUT_OF_SCOPE]
+    assert max(far_out_of_scope) < min(answerable), (
+        f"a far_out_of_scope query scored {max(far_out_of_scope)} groundedness, "
+        f"at or above the weakest answerable one at {min(answerable)}. Both "
+        f"classes are refused before generation reaches a real answer, so a "
+        f"refusal's groundedness should floor near zero; if it does not, the "
+        f"refusal template itself started restating retrieved text."
+    )
+
+
+def test_iu02_is_answered_not_refused_and_context_relevance_catches_it():
+    """The clearest single illustration of why the triad has three signals.
+
+    Measured: IU-02 ("How do I transfer money to an account in another
+    country?") is outcome='answered', not refused - top1=0.4645 against
+    T=0.3066, with all three retrieved chunks parented under
+    kb-12-nri-account-eligibility, so the support rule (>= 2 of 3 chunks share
+    a parent) passes too. Its groundedness (0.7857) sits in the answerable
+    band, because the answer faithfully restates the NRI-account context it
+    retrieved. An answer that faithfully restates irrelevant context is
+    grounded by definition, so groundedness cannot catch this failure and was
+    never the signal that could. Its context_relevance (0.2000) sits low
+    instead, near the bottom of the set, because retrieved NRI-eligibility
+    text shares almost no vocabulary with a question about an international
+    money transfer - that is the signal that does catch it.
+
+    Only the shape is pinned, per D-13: the outcome, and that groundedness
+    reads well above context_relevance for this row, never the exact floats,
+    which move when the chunker or scorers are tuned.
+
+    eval.queries.GOLDEN_DATASET still records IU-02's expected behaviour as
+    "refuse on the threshold and support rule". Measurement contradicts that:
+    the dataset's expectation is the stale half, not this test.
+    """
+    from eval import triad
+    from rag import generate
+
+    iu02 = next(item for item in triad.triad_items() if item.item_id == "IU-02")
+    answered = generate.answer(iu02.text)
+    scores = judge.score(
+        iu02.text, answered.text, judge.context_of(answered.hits)
+    )
+
+    assert answered.outcome == generate.OUTCOME_ANSWERED
+    assert scores.groundedness > 0.7
+    assert scores.context_relevance < 0.3
+    assert scores.context_relevance < scores.groundedness
