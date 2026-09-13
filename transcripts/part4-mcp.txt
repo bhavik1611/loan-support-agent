@@ -4,7 +4,7 @@ zero outbound network access. Reproduce with: .venv/bin/python scripts/run_part4
 PART 4 TASK 14 - MCP, A REAL CLIENT-SERVER ROUND TRIP
 
 subprocess 1 (server): .venv/bin/python -m mcp_server.server
-subprocess 2 (client): .venv/bin/python mcp_client.py --url ... LN-1042 LN-1057
+subprocess 2 (client): .venv/bin/python mcp_client.py --url http://127.0.0.1:8765/mcp LN-1042 LN-1057
 url: http://127.0.0.1:8765/mcp
 
 These are two separate OS processes talking over loopback HTTP; the

@@ -9,6 +9,7 @@ reason.
 import asyncio
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -85,6 +86,27 @@ def _poll_ready(url: str, proc: subprocess.Popen, attempts: int = 100, interval:
     )
 
 
+def _python_invocation(*args: str) -> str:
+    """The command a subprocess call actually used, safe for a transcript.
+
+    sys.executable is an absolute path, and in a git worktree .venv is often
+    a symlink resolving outside the worktree entirely (it is here), so
+    printing it verbatim would put a machine- and checkout-specific path
+    into a committed, byte-guarded file. Rendered relative to
+    config.REPO_ROOT when that succeeds; otherwise normalised to
+    ".venv/bin/python", the invocation every command in CLAUDE.md and this
+    repository's own scripts already assume. Built from the same argv the
+    subprocess call receives, so the printed line and the real command
+    cannot drift apart.
+    """
+    executable = Path(sys.executable).resolve()
+    try:
+        python = str(executable.relative_to(config.REPO_ROOT))
+    except ValueError:
+        python = ".venv/bin/python"
+    return shlex.join([python, *args])
+
+
 def mcp_transcript() -> str:
     """Task 14. A real client-server round trip over loopback HTTP.
 
@@ -93,12 +115,13 @@ def mcp_transcript() -> str:
     readiness failure or a client crash. Loopback HTTP only - nothing leaves
     the machine, so this does not touch the offline ground rule.
     """
+    server_argv = ["-m", "mcp_server.server"]
+    client_argv = ["mcp_client.py", "--url", config.MCP_URL, "LN-1042", "LN-1057"]
     lines = [
         "PART 4 TASK 14 - MCP, A REAL CLIENT-SERVER ROUND TRIP",
         "",
-        "subprocess 1 (server): .venv/bin/python -m mcp_server.server",
-        "subprocess 2 (client): .venv/bin/python mcp_client.py --url ... "
-        "LN-1042 LN-1057",
+        f"subprocess 1 (server): {_python_invocation(*server_argv)}",
+        f"subprocess 2 (client): {_python_invocation(*client_argv)}",
         f"url: {config.MCP_URL}",
         "",
         "These are two separate OS processes talking over loopback HTTP; the",
@@ -106,7 +129,7 @@ def mcp_transcript() -> str:
         "",
     ]
     proc = subprocess.Popen(
-        [sys.executable, "-m", "mcp_server.server"],
+        [sys.executable, *server_argv],
         cwd=config.REPO_ROOT,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -116,7 +139,7 @@ def mcp_transcript() -> str:
         lines.append(f"server ready at {config.MCP_URL}")
         lines.append("")
         client = subprocess.run(
-            [sys.executable, "mcp_client.py", "--url", config.MCP_URL, "LN-1042", "LN-1057"],
+            [sys.executable, *client_argv],
             cwd=config.REPO_ROOT,
             check=True,
             capture_output=True,
@@ -455,9 +478,38 @@ def require_database() -> None:
     )
 
 
+def require_no_stray_uploads() -> None:
+    """Refuse to write graded artefacts while data/uploads/ holds a file.
+
+    rag/retrieve.py's product narrowing reads config.UPLOAD_DIR live and
+    unions its doc ids into every product-named query (D-72's V2 note). A
+    file left there by a manual /add-document session, a crashed test, or an
+    interrupted run would silently join that union here too and move
+    transcripts/ and the README number blocks, with no code change and no
+    error - the same failure shape require_mock_provider guards against for a
+    real provider.
+
+    Every demonstration this script runs is lookup-routed, so it does not
+    reach rag/retrieve.py today - but that is what makes this a guard against
+    a future demonstration silently breaking, not evidence the guard is
+    unnecessary, and the other two runners carry it in exactly this spot.
+    """
+    if config.UPLOAD_DIR.exists():
+        stray = sorted(p.name for p in config.UPLOAD_DIR.iterdir())
+        if stray:
+            sys.exit(
+                f"Refusing to run: {config.UPLOAD_DIR.relative_to(config.REPO_ROOT)} "
+                f"holds {stray}. rag/retrieve.py's product narrowing reads this "
+                f"directory live, so a stray upload would move graded, "
+                f"byte-guarded artefacts with no code change. Clear it first: "
+                f"rm -r {config.UPLOAD_DIR.relative_to(config.REPO_ROOT)}"
+            )
+
+
 def main() -> None:
     print("Part 4. Writing transcripts under MOCK_LLM.")
     require_mock_provider()  # before require_database, and both before any write
+    require_no_stray_uploads()  # same reasoning, same place
     require_database()  # before the first write, never after
 
     if config.CHECKPOINT_PATH.exists():
