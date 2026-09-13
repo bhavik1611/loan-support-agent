@@ -512,11 +512,13 @@ Three outcomes, and only three:
 | The query | Outcome |
 |---|---|
 | names a product in `KNOWN_ADJACENT` | refuse before retrieval, naming the product |
-| names a product in `products` | retrieve with the search restricted to the documents the catalogue tags with that product, per D-53 |
+| names a product in `products` | retrieve with the search restricted to the documents the catalogue tags with that product, **unioned with any runtime uploads**, per D-53 and D-86 |
 | names no product | retrieve unfiltered, and let `T` and the support rule decide |
 
 The filter is a `doc_id` `$in` clause, not a per-chunk product field.
-`rag/retrieve.py` asks the catalogue which documents carry the named product and passes those ids to ChromaDB.
+`rag/retrieve.py` asks the catalogue which documents carry the named product, adds the ids of any document uploaded at runtime, and passes the union to ChromaDB.
+**Amended 2026-09-13: the union is the whole of D-86.** Catalogue-only made D-72's upload feature unreachable for every query naming a product, because an upload has no catalogue entry to be tagged by.
+A reader who deletes `_uploaded_doc_ids()` as a bug has reverted D-86, not fixed one.
 Nothing is added to the index, so neither collection is rebuilt for this.
 The alternative was measured and rejected in D-53: a `$contains` clause on delimited chunk metadata returns empty instead of raising, which fails silently.
 
@@ -1336,7 +1338,10 @@ A refusal scores groundedness against an empty context, which floors it, and tha
 
 ### 24.3 What is asserted
 
-One property, per D-84: every non-answerable row scores below every answerable row on groundedness.
+One property, per D-84: every `far_out_of_scope` row scores below every answerable row on groundedness.
+**Amended 2026-09-13**, and the earlier wording said `non-answerable`, which included `inside_uncovered` and was measured false.
+IU-02 is answered rather than refused and its answer faithfully restates the wrong document, so its groundedness reads 0.7857, above seven of the twelve answerable rows.
+That is groundedness reporting correctly; catching a wrong-document answer is context relevance's job. IU-02 is pinned separately as a limitation.
 The three averages are reported and pinned by nothing, for D-13's reason.
 
 ## 25. Part 4 Tasks 14 to 16
@@ -1354,7 +1359,8 @@ Loopback HTTP is not a breach of the offline ground rule: nothing leaves the mac
 
 `build_graph().compile(checkpointer=AsyncSqliteSaver, interrupt_before=["verify"])`, keyed by the same `thread_id` the memory store uses.
 The checkpointer is the async one per D-85, because D-78 made the graph async-only and the sync saver refuses `ainvoke` outright.
-Run 1 executes `guard_input`, `recall`, `route` and `policy_answer` and stops.
+Run 1 executes `guard_input`, `recall`, `route` and `lookup_status` and stops.
+**Corrected 2026-09-13**: the demonstration uses a record-lookup query, so the fourth node is `lookup_status`, not `policy_answer`. `transcripts/part4-checkpoint.txt` is the authority.
 Run 2 passes `None` on the same `thread_id` and executes `verify` and `compose`.
 
 The proof of non-re-execution is node-entry counts, per D-77.
