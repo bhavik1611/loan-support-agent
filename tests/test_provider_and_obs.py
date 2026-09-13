@@ -101,12 +101,36 @@ def test_run_part1_refuses_under_a_non_mock_provider(tmp_path):
 
 
 def _capture(caplog, fn):
+    """Turn the shared logger up for the duration of one call, scoped to this test.
+
+    obs.configure has a _configured guard and cannot raise an already-configured
+    logger's level on its own, so caplog.at_level is the half that actually does
+    the work, and propagate is flipped on only long enough for caplog's handler
+    to see the records.
+
+    pytest's own catching_logs attaches its capture handler directly to any
+    logger that is already non-propagating at the start of a test's call phase,
+    in addition to the root logger it always attaches to. obs.configure sets
+    logger.propagate = False at import, so by the time this test's own capture
+    context opens, the logger is already non-propagating and its records reach
+    the one shared handler twice: once directly, once via the propagate=True
+    flip below reaching root. The fix is a plain identity dedup, not a content
+    dedup - two genuinely distinct calls to the same event with identical fields
+    must still count as two (see tests/test_api_logging.py's identical fix and
+    its dedicated test for the guarantee this must not break).
+    """
     obs.configure("INFO")
     logging.getLogger(obs.LOGGER_NAME).propagate = True
     try:
         with caplog.at_level(logging.INFO, logger=obs.LOGGER_NAME):
             fn()
-        return [obs.JsonFormatter().format(r) for r in caplog.records]
+        seen_ids: set[int] = set()
+        unique_records = []
+        for record in caplog.records:
+            if id(record) not in seen_ids:
+                seen_ids.add(id(record))
+                unique_records.append(record)
+        return [obs.JsonFormatter().format(r) for r in unique_records]
     finally:
         logging.getLogger(obs.LOGGER_NAME).propagate = False
 
@@ -178,6 +202,28 @@ def test_a_log_line_never_carries_a_key_or_unmasked_pii(caplog):
     assert aadhaar.replace(" ", "") not in blob
     assert "must-never-appear" not in blob
     assert json.loads(lines[-1])["trace_id"] == "cafe"
+
+
+def test_the_dedup_does_not_merge_two_distinct_emissions_with_identical_fields(caplog):
+    """The guarantee _capture's identity dedup must never break.
+
+    Two separate obs.event calls that happen to carry byte-identical fields
+    are two distinct LogRecord objects; only the literal-same-object artifact
+    from pytest's double handler attachment (see _capture's docstring above)
+    may ever be collapsed. If the dedup were ever changed to compare content
+    instead of identity, this is what would silently start failing.
+    """
+
+    def run():
+        obs.event("probe.duplicate_content", trace_id="same", n=1)
+        obs.event("probe.duplicate_content", trace_id="same", n=1)
+
+    lines = [
+        json.loads(line) for line in _capture(caplog, run)
+        if json.loads(line).get("event") == "probe.duplicate_content"
+    ]
+    assert len(lines) == 2
+    assert lines[0] == lines[1]
 
 
 def test_the_masker_is_the_one_the_guardrails_already_use():
