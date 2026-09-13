@@ -20,24 +20,48 @@ class Hit:
     similarity: float
 
 
+def _uploaded_doc_ids() -> list[str]:
+    """The doc ids of every document POST /add-document has written so far.
+
+    Read straight from `config.UPLOAD_DIR` rather than from Chroma: it is the
+    same source of truth `api/main.py` already writes one `<doc_id>.txt` file
+    into per upload, so a directory listing needs no query against the very
+    collection being filtered, and a sorted listing of committed-shape
+    filenames is exactly as deterministic as the catalogue list it is unioned
+    with. This keeps `rag/` free of any dependency on `api/`.
+    """
+    if not config.UPLOAD_DIR.exists():
+        return []
+    return sorted(
+        path.stem for path in config.UPLOAD_DIR.glob(f"{config.UPLOAD_DOC_PREFIX}*.txt")
+    )
+
+
 def retrieve(
     query: str, strategy: str, k: int | None = None, product: str | None = None
 ) -> list[Hit]:
     """The top k chunks for a query, highest cosine similarity first.
 
     `product` narrows the search to the documents catalogue.json tags with that
-    product, per D-53. The narrowing is conditional on purpose: 10 of the 12
+    product, per D-53, union every document POST /add-document has written to
+    `data/uploads/`. The narrowing is conditional on purpose: 10 of the 12
     in-scope calibration probes name no product at all, so an unconditional
     filter would search an empty subset for most real questions.
     With no product the query is issued exactly as it was before the gate
     existed, with no `where` clause at all.
 
-    The clause is a `doc_id` `$in` built from the catalogue, never a product
-    field on the chunk. Measured against ChromaDB 1.5.9 on 2026-09-12, a
-    `$contains` clause on a delimited string metadata field returns an empty
-    result rather than raising, so a per-chunk product field would have made
-    every product-named query retrieve nothing, silently. Nothing here touches
-    the index, so neither collection is rebuilt for the filter.
+    The clause is a `doc_id` `$in` built from the catalogue union the uploaded
+    ids - not, as this docstring once said, from the catalogue alone. An
+    uploaded document is never corpus, and D-72 forbids giving it a catalogue
+    entry to be tagged by, so a catalogue-only filter excluded every upload
+    from exactly the queries a user is most likely to ask: the ones naming
+    the product the upload is about. Measured against ChromaDB 1.5.9 on
+    2026-09-12, a `$contains` clause on a delimited string metadata field
+    returns an empty result rather than raising, so a per-chunk product field
+    would have made every product-named query retrieve nothing, silently -
+    that is still why the clause stays a `doc_id` `$in` a list rather than a
+    field on the chunk. Nothing here touches the index, so neither
+    collection is rebuilt for the filter.
     """
     k = config.TOP_K if k is None else k
     with obs.timed(
@@ -50,7 +74,8 @@ def _retrieve(query, strategy, k, product, line):
     collection = index.get_collection(strategy)  # raises on an unknown strategy
     narrowing = {}
     if product:
-        narrowing["where"] = {"doc_id": {"$in": kb.documents_for_product(product)}}
+        doc_ids = sorted(set(kb.documents_for_product(product)) | set(_uploaded_doc_ids()))
+        narrowing["where"] = {"doc_id": {"$in": doc_ids}}
     result = collection.query(
         query_embeddings=index.embed([query]),
         n_results=k,

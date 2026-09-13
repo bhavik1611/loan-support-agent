@@ -157,16 +157,13 @@ def add_document_endpoint(request: AddDocumentRequest) -> AddDocumentResponse:
     The next rag.index.build_index drops everything added here, because it
     rebuilds any collection whose count does not match the corpus on disk.
 
-    Known boundary: an uploaded document is invisible to any query that names
-    a catalogue product. rag/generate.py narrows retrieval to the doc ids
-    knowledge_base/catalogue.json tags with that product whenever a query
-    names one (D-53), and an upload is never in the catalogue, so it can
-    never appear in that narrowed set. Only a query naming no catalogue
-    product reaches an upload. Lifting this means either writing the
-    upload's product into catalogue.json, which D-72 forbids, or teaching the
-    product filter in rag/kb.py and rag/retrieve.py about uploads, which is a
-    V2 change, not this task's. tests/test_api.py pins both halves of this as
-    known behaviour.
+    A query naming this document's product still reaches it. rag/generate.py
+    narrows retrieval to a set of doc ids whenever a query names a catalogue
+    product (D-53); that set is the catalogue's doc ids union every doc id
+    under data/uploads/ (rag/retrieve.py::_uploaded_doc_ids), read straight
+    off that directory rather than off catalogue.json, so D-72 stays
+    unmodified and rag/ still has no dependency on api/. tests/test_api.py
+    pins this for both a product-naming and a product-free query.
     """
     from fastapi import HTTPException
 
