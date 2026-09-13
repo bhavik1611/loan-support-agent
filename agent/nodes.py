@@ -8,7 +8,6 @@ reading the return value of two functions rather than by running a graph.
 
 import asyncio
 
-import config
 from agent import guardrails, intents, memory, schema, tools
 from agent.state import AgentState
 from rag import retrieve
@@ -31,9 +30,15 @@ CLARIFY_QUESTION = (
     "would you like?"
 )
 
+# The rule name is deliberately absent. It is already in the same envelope as
+# guardrails.injection_rule, so the sentence was repeating a structured field
+# in worse words, and naming the rule to whoever tripped it tells them which
+# pattern to write around next. Everything an operator needs to see a
+# guardrail fire is still in the JSON; only the prose changed.
 REFUSAL_TEXT = (
-    "I cannot act on that request. It matched the {rule} guardrail, so I have "
-    "not run any retrieval or looked up any record."
+    "I cannot help with that request. I can answer a question about Meridian "
+    "Bank's loan policies, or check an application's status if you give me "
+    "its id."
 )
 
 # D-54. The product gate lives in rag/scope.py and decides; the sentence a
@@ -46,8 +51,19 @@ REFUSAL_TEXT = (
 # actually redirects them is that we do not sell the thing they asked about.
 OUT_OF_SCOPE_TEXT = (
     "Meridian Bank does not offer {product}, so I have nothing on file about "
-    "it and did not search the knowledge base. I can help with loans, cards, "
-    "accounts, KYC and credit scores."
+    "it. I can help with loans, cards, accounts, KYC and credit scores."
+)
+
+# Which record field a follow-up is asking about, matched cheapest-signal-first
+# over a closed vocabulary. First match wins, so the choice is deterministic
+# when a query carries two cues, and "status" is the fallback rather than a
+# rule. This exists because turn 2 of transcripts/part2-memory.txt answered
+# "Is it flagged for fraud?" with turn 1's status sentence byte for byte,
+# while flagged_for_fraud_review sat unread in the same response.
+LOOKUP_FOCUS_CUES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("fraud", ("fraud", "flagged", "flag ", "suspicious")),
+    ("amount", ("how much", "amount", "sanction", "disburse", "how large")),
+    ("age", ("when ", "how long", "how old", "submitted", "created", "filed")),
 )
 
 
@@ -147,11 +163,8 @@ def clarify(state: AgentState) -> dict:
 
 
 def refuse(state: AgentState) -> dict:
-    """Short-circuit. Names the rule, and runs no retrieval and no lookup."""
-    return {
-        "clarification": REFUSAL_TEXT.format(rule=state["injection_rule"]),
-        "grounded": None,
-    }
+    """Short-circuit. Runs no retrieval and no lookup, and names no rule."""
+    return {"clarification": REFUSAL_TEXT, "grounded": None}
 
 
 def verify(state: AgentState) -> dict:
@@ -173,34 +186,62 @@ def verify(state: AgentState) -> dict:
     return {"grounded": rule is None, "output_rule": rule}
 
 
-def _lookup_sentence(lookup: dict) -> str:
-    """D-41. A fixed template over the record's own fields, no model call.
+def _lookup_focus(query: str) -> str:
+    """The record field this query is asking about, or "status" by default."""
+    lowered = query.lower()
+    for focus, cues in LOOKUP_FOCUS_CUES:
+        if any(cue in lowered for cue in cues):
+            return focus
+    return "status"
+
+
+def _lookup_sentence(lookup: dict, query: str) -> str:
+    """D-41 still holds: a fixed template over the record's own fields, no
+    model call, so the sentence is byte-reproducible for a given record.
+
+    Deterministic and question-aware are not in conflict. Which field leads is
+    chosen by _lookup_focus over a closed cue vocabulary, which is exactly as
+    reproducible as always leading with the status was, and it means a
+    follow-up about one field is answered with that field.
 
     Per D-42 the credit score is not spoken; it stays in the structured block.
+    The escalation score and its threshold are no longer spoken either: both
+    are already in the lookup block, and a number a support agent has to
+    interpret against a threshold reads worse than the recommendation it
+    produces. Nothing was dropped, only moved to where it already was.
     """
     if not lookup["found"]:
         return f"I have no application on file with the id {lookup['record_id']}."
 
+    record_id = lookup["record_id"]
     context = lookup.get("customer_context") or {}
     who = context.get("full_name", "the applicant")
     open_loans = context.get("open_loan_count")
     amount = f"{lookup['loan_amount_inr']:,}"
-    parts = [
-        f"Application {lookup['record_id']} for {who} is {lookup['status']}, "
-        f"for {amount} rupees, and was created {lookup['days_since_created']} days ago."
-    ]
+    days = lookup["days_since_created"]
+    focus = _lookup_focus(query)
+
+    parts = []
+    if focus == "fraud":
+        flagged = "is" if lookup["flagged_for_fraud_review"] else "is not"
+        parts.append(f"Application {record_id} {flagged} flagged for fraud review.")
+    elif focus == "amount":
+        parts.append(f"Application {record_id} is for {amount} rupees.")
+    elif focus == "age":
+        parts.append(f"Application {record_id} was created {days} days ago.")
+
+    if focus == "status":
+        parts.append(
+            f"Application {record_id} for {who} is {lookup['status']}, "
+            f"for {amount} rupees, and was created {days} days ago."
+        )
+    else:
+        parts.append(f"It is {lookup['status']}, and it belongs to {who}.")
+
     if open_loans is not None:
         parts.append(f"{who} has {open_loans} open application(s) with us.")
     if lookup["recommend_escalation"]:
-        parts.append(
-            f"Its escalation score is {lookup['escalation_score']}, at or above the "
-            f"{config.ESCALATION_THRESHOLD} threshold, so I recommend escalating it."
-        )
-    else:
-        parts.append(
-            f"Its escalation score is {lookup['escalation_score']}, below the "
-            f"{config.ESCALATION_THRESHOLD} threshold, so no escalation is needed."
-        )
+        parts.append("I am escalating this one to a human colleague.")
     return " ".join(parts)
 
 
@@ -213,7 +254,7 @@ def _answer_text(state: AgentState) -> str:
     policy = state.get("policy")
     lookup = state.get("lookup")
     if lookup:
-        pieces.append(_lookup_sentence(lookup))
+        pieces.append(_lookup_sentence(lookup, state["masked_query"]))
     if policy:
         if policy["outcome"] == "refused_gate":
             # D-54. The one case where Part 2 overrides Part 1's wording, and

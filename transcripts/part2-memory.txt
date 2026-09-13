@@ -5,7 +5,7 @@ PART 2 TASK 8 - MEMORY CARRIED ACROSS TURNS
 
 turn 1: What is the status of LN-1042?
 {
-  "answer": "Application LN-1042 for Vihaan Pillai is Rejected, for 1,544,000 rupees, and was created 9 days ago. Vihaan Pillai has 0 open application(s) with us. Its escalation score is 0.0, below the 0.5 threshold, so no escalation is needed.",
+  "answer": "Application LN-1042 for Vihaan Pillai is Rejected, for 1,544,000 rupees, and was created 9 days ago. Vihaan Pillai has 0 open application(s) with us.",
   "guardrails": {
     "grounded": null,
     "injection_rule": null,
@@ -37,7 +37,7 @@ turn 1: What is the status of LN-1042?
 
 turn 2: Is it flagged for fraud?
 {
-  "answer": "Application LN-1042 for Vihaan Pillai is Rejected, for 1,544,000 rupees, and was created 9 days ago. Vihaan Pillai has 0 open application(s) with us. Its escalation score is 0.0, below the 0.5 threshold, so no escalation is needed.",
+  "answer": "Application LN-1042 is not flagged for fraud review. It is Rejected, and it belongs to Vihaan Pillai. Vihaan Pillai has 0 open application(s) with us.",
   "guardrails": {
     "grounded": null,
     "injection_rule": null,
@@ -75,14 +75,14 @@ The stored thread after both turns:
   "thread_id": "demo-multiturn",
   "turns": [
     {
-      "answer": "Application LN-1042 for Vihaan Pillai is Rejected, for 1,544,000 rupees, and was created 9 days ago. Vihaan Pillai has 0 open application(s) with us. Its escalation score is 0.0, below the 0.5 threshold, so no escalation is needed.",
+      "answer": "Application LN-1042 for Vihaan Pillai is Rejected, for 1,544,000 rupees, and was created 9 days ago. Vihaan Pillai has 0 open application(s) with us.",
       "query": "What is the status of LN-1042?",
       "record_id": "LN-1042",
       "route": "lookup",
       "turn": 1
     },
     {
-      "answer": "Application LN-1042 for Vihaan Pillai is Rejected, for 1,544,000 rupees, and was created 9 days ago. Vihaan Pillai has 0 open application(s) with us. Its escalation score is 0.0, below the 0.5 threshold, so no escalation is needed.",
+      "answer": "Application LN-1042 is not flagged for fraud review. It is Rejected, and it belongs to Vihaan Pillai. Vihaan Pillai has 0 open application(s) with us.",
       "query": "Is it flagged for fraud?",
       "record_id": "LN-1042",
       "route": "lookup",

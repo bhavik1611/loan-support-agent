@@ -260,3 +260,25 @@ def test_a_rebuild_drops_every_upload(clean_uploads):
         m for m in stored["metadatas"]
         if m["doc_id"].startswith(config.UPLOAD_DOC_PREFIX)
     ]
+
+
+def test_health_reports_the_live_provider():
+    """Part 3's API says what it is running, so the UI can show it.
+
+    Resolved per call, not from config.LLM_PROVIDER: the frozen constant is
+    whatever .env held at first import, and this endpoint exists to be right
+    about now. That distinction already cost this repository one
+    non-deterministic suite (see CLAUDE.md, eval/judge.py, 2026-09-13).
+    """
+    body = client.get("/health").json()
+    assert body["status"] == "ok"
+    assert body["provider"] == "mock"
+    assert body["model"] is None
+
+
+def test_health_follows_the_environment_rather_than_the_frozen_constant(monkeypatch):
+    """The regression that catches a relapse to config.LLM_PROVIDER."""
+    import config
+
+    monkeypatch.setattr(config, "LLM_PROVIDER", "groq")
+    assert client.get("/health").json()["provider"] == "mock"

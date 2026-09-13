@@ -22,6 +22,9 @@ owns that this screen needs - the API port and the escalation threshold -
 are instead read from environment variables, each defaulting to the value
 config.py currently holds, mirrored by hand rather than imported.
 
+It reads GET /health as well as POST /ask, for the provider badge only. That
+is still a report rather than a control: see the comment beside the badge.
+
 Imports: streamlit, requests, json, os. Nothing else.
 """
 
@@ -39,6 +42,7 @@ DEFAULT_BASE_URL = f"http://127.0.0.1:{DEFAULT_API_PORT}"
 ESCALATION_THRESHOLD = float(os.environ.get("ESCALATION_THRESHOLD", "0.50"))
 
 REQUEST_TIMEOUT_SECONDS = 30
+HEALTH_TIMEOUT_SECONDS = 5
 
 # One button per guardrail in agent/guardrails.py, each a probe already
 # recorded firing in transcripts/part2-guardrails.txt, so a reader can fire
@@ -65,6 +69,23 @@ if "messages" not in st.session_state:
 def _new_conversation():
     st.session_state.thread_id = _fresh_thread_id()
     st.session_state.messages = []
+
+
+@st.cache_data(ttl=10, show_spinner=False)
+def _health(base_url: str) -> dict | None:
+    """What the API process is running, or None when it cannot be reached.
+
+    Cached so an ordinary rerun is not a round trip, and cached for ten
+    seconds rather than for the session because the provider changes by
+    restarting uvicorn: a longer ttl would show a stale badge after exactly
+    the action this badge exists to report.
+    """
+    try:
+        response = requests.get(f"{base_url}/health", timeout=HEALTH_TIMEOUT_SECONDS)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException:
+        return None
 
 
 def _ask(base_url: str, query: str) -> dict | None:
@@ -99,6 +120,23 @@ with st.sidebar:
     st.header("Connection")
     base_url = st.text_input("API base URL", value=DEFAULT_BASE_URL)
 
+    # Read-only, deliberately. The provider is an environment variable in the
+    # uvicorn process, and llm.generate reads it per call; a control here
+    # could only write this process's environment, which the API never sees.
+    # The API will not take one over HTTP either: /ask runs in a threadpool,
+    # so a request that set it would flip the provider under every concurrent
+    # request. Switching providers is a restart, and this reports the result.
+    health = _health(base_url)
+    if health is None:
+        st.badge("API unreachable", color="red", icon=":material/cloud_off:")
+    elif health.get("provider") == "mock":
+        st.badge("mock provider", color="gray", icon=":material/lan:")
+        st.caption("Offline, deterministic, zero API keys. Every transcript ran this way.")
+    else:
+        st.badge(f"{health.get('provider')} provider", color="orange", icon=":material/cloud:")
+        st.caption(f"Live model: {health.get('model') or 'unnamed'}. Answers are billed.")
+    st.caption("To switch, restart the API with LLM_PROVIDER set.")
+
     st.header("Conversation")
     st.text_input("Thread id", key="thread_id")
     st.caption(
@@ -111,7 +149,7 @@ with st.sidebar:
     # that widget has run in this script pass. A callback runs before the
     # next rerun instantiates the widget again, which is the one place
     # Streamlit allows it.
-    st.button("New conversation", use_container_width=True, on_click=_new_conversation)
+    st.button("New conversation", width="stretch", on_click=_new_conversation)
 
     last_envelope = next(
         (m["envelope"] for m in reversed(st.session_state.messages) if m["envelope"]),
@@ -124,7 +162,7 @@ with st.sidebar:
 
     st.header("Record lookup")
     record_id = st.text_input("Application id", value="LN-1042")
-    if st.button("Look up", use_container_width=True):
+    if st.button("Look up", width="stretch"):
         _submit(base_url, f"What is the status of {record_id}?")
         st.rerun()
     lookup_envelope = next(
@@ -168,7 +206,7 @@ lit = {
 for col, (label, probe) in zip(guard_cols, EXAMPLE_QUERIES.items()):
     with col:
         st.metric(label, "fired" if lit[label] else "quiet")
-        if st.button(f"Try it: {label}", key=f"probe-{label}", use_container_width=True):
+        if st.button(f"Try it: {label}", key=f"probe-{label}", width="stretch"):
             _submit(base_url, probe)
             st.rerun()
 

@@ -117,3 +117,53 @@ def test_no_real_repository_query_is_swallowed_by_the_vague_centroid(built_index
         if max(intents.intent_scores(text), key=intents.intent_scores(text).get) == "vague"
     ]
     assert not swallowed, swallowed
+
+
+def test_a_status_question_with_no_id_anywhere_asks_rather_than_crashing(built_index):
+    """The lookup centroid can win with no record id in reach.
+
+    Routing to lookup anyway calls the tool with None, which returns a miss
+    whose record_id is None, which LookupBlock rejects. Measured 2026-09-13:
+    five of six ordinary no-id status phrasings raised ValidationError in
+    compose, and POST /ask answered HTTP 500.
+    """
+    for query in (
+        "Why is my application rejected?",
+        "What is the status of my loan?",
+        "Has my loan been approved?",
+        "When will my application be processed?",
+        "How much was sanctioned to me?",
+    ):
+        decision = intents.classify(query, {})
+        assert decision.route == "clarify", query
+        assert decision.record_id is None, query
+
+
+def test_a_possessive_follow_up_resolves_from_the_entity_slot(built_index):
+    """Turn 2 of an ordinary support conversation.
+
+    "my application" is a complete noun phrase, so memory.needs_resolution is
+    right to call it self-contained and is deliberately left alone. It is
+    still a reference to the one record the thread is about.
+    """
+    for query in (
+        "Why was my application rejected?",
+        "Why is my loan denied?",
+        "Why is my home loan application still pending?",
+    ):
+        decision = intents.classify(query, {"last_record_id": "LN-1042"})
+        assert decision.route == "lookup", query
+        assert decision.record_id == "LN-1042", query
+
+
+def test_the_own_record_rule_leaves_the_calibrated_probes_alone(built_index):
+    """OWN_RECORD must not reclassify anything eval/routing.py measures.
+
+    The twelve self-contained probes say "my credit score", "my card" or a
+    bare "loan applications"; none says "my loan". This test is what keeps
+    that true when the vocabulary is next edited.
+    """
+    from eval import routing
+
+    for query in routing.SELF_CONTAINED_PROBES + routing.ELLIPTICAL_PROBES:
+        assert intents.OWN_RECORD.search(query) is None, query

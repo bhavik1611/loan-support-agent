@@ -119,6 +119,38 @@ async def log_request(request: Request, call_next):
         )
 
 
+class HealthResponse(BaseModel):
+    """What the deployment is running, for a client that wants to say so."""
+    status: str = Field(description='Always "ok" when the process answers.')
+    provider: str = Field(description="The live LLM_PROVIDER, resolved per call.")
+    model: str | None = Field(
+        default=None, description="The model name, when the provider takes one."
+    )
+
+
+@app.get("/health", response_model=HealthResponse)
+def health_endpoint() -> HealthResponse:
+    """Report the live provider.
+
+    Read through config.resolve_provider() rather than config.LLM_PROVIDER,
+    because the frozen constant is whatever .env held at first import and this
+    endpoint's whole job is to be right about now. That distinction already
+    cost this repository a non-deterministic suite once; the CLAUDE.md rule
+    naming it applies here too.
+
+    Reporting, not setting. There is deliberately no way to change the
+    provider over HTTP: the variable llm.generate reads is process-global and
+    /ask runs in a threadpool, so a request that wrote it would flip the
+    provider under every concurrent request. Switching providers is a restart.
+    """
+    provider = config.resolve_provider()
+    return HealthResponse(
+        status="ok",
+        provider=provider,
+        model=config.GROQ_MODEL if provider == config.PROVIDER_GROQ else None,
+    )
+
+
 class AskRequest(BaseModel):
     """One turn of a conversation."""
     query: str = Field(min_length=1, description="The member's question.")

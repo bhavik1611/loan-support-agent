@@ -31,6 +31,21 @@ def test_pan_is_masked():
     assert rules == ["PAN"]
 
 
+def test_pan_is_masked_whatever_its_case():
+    """A PAN typed in lower or mixed case is the same PAN.
+
+    Only the PAN pattern could be defeated this way: the Aadhaar and account
+    patterns are digits, which have no case. Reported as a live gap on
+    2026-09-13, when mask_pii("my pan is fxzpg5049k") returned the text
+    unchanged and an empty rule list.
+    """
+    for typed in (PAN.lower(), PAN.capitalize(), PAN):
+        masked, rules = guardrails.mask_pii(f"My PAN is {typed} please check")
+        assert typed not in masked, typed
+        assert config.PII_PLACEHOLDERS["PAN"] in masked, typed
+        assert rules == ["PAN"], typed
+
+
 def test_aadhaar_is_masked_and_labelled():
     masked, rules = guardrails.mask_pii(f"Aadhaar {VALID_AADHAAR}")
     assert VALID_AADHAAR not in masked

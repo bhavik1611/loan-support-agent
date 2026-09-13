@@ -292,6 +292,9 @@ def guardrail_transcript() -> str:
     lines = ["PART 2 TASK 10 - GUARDRAILS", "", "INPUT SIDE, PII MASKING"]
     for label, probe in (
         ("PAN", "My PAN is FXZPG5049K, what is my credit limit?"),
+        # The same PAN in lower case. Until 2026-09-13 the pattern was case
+        # sensitive and this line came back unmasked, with an empty rule list.
+        ("PAN", "my pan is fxzpg5049k, what is my credit limit?"),
         ("AADHAAR", "My Aadhaar is 3928 4710 5628, please verify me."),
         ("ACCOUNT", "My account number is 88400575668282."),
     ):

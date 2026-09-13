@@ -357,7 +357,10 @@ GROQ_BASE_URL = "https://api.groq.com/openai/v1/chat/completions"
 # the Llama 3.3 70B id this would otherwise have pinned is not hosted (D-61).
 # groq/compound is excluded deliberately; it carries server-side web search and
 # could answer from outside the retrieved context.
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+# `or`, not a get() default: .env.example declares GROQ_MODEL with no value, so
+# `cp .env.example .env` puts GROQ_MODEL="" in the process and the default is
+# never reached. An empty model name then reaches the Groq request body.
+GROQ_MODEL = os.environ.get("GROQ_MODEL") or "openai/gpt-oss-120b"
 
 # gpt-oss is a reasoning model and bills reasoning against the same budget: on
 # the measured call 71 of 118 completion tokens were reasoning. Too small a
